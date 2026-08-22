@@ -18,7 +18,7 @@ async function withContext(opts, fn) {
 
 // 1. Default (geolocation denied by default in headless / no permission granted)
 let errors = await withContext({ viewport: { width: 1280, height: 800 } }, async (page) => {
-  await page.goto("http://localhost:3000/", { waitUntil: "networkidle" });
+  await page.goto("http://localhost:3000/", { waitUntil: "load" });
   await page.waitForTimeout(4000);
   const canvas = await page.$("canvas.maplibregl-canvas");
   results.canvasPresent = !!canvas;
@@ -55,7 +55,7 @@ results.consoleErrorsDefault = errors;
 browser2loop: {
   // dark color scheme
   errors = await withContext({ colorScheme: "dark" }, async (page) => {
-    await page.goto("http://localhost:3000/", { waitUntil: "networkidle" });
+    await page.goto("http://localhost:3000/", { waitUntil: "load" });
     await page.waitForTimeout(3000);
     const themeButton = await page.getByRole("button", { name: /mode/i }).first();
     results.darkOsThemeButtonText = await themeButton.textContent();
@@ -66,7 +66,7 @@ browser2loop: {
 
 // geolocation granted
 errors = await withContext({ permissions: ["geolocation"], geolocation: { latitude: 40.7128, longitude: -74.006 } }, async (page) => {
-  await page.goto("http://localhost:3000/", { waitUntil: "networkidle" });
+  await page.goto("http://localhost:3000/", { waitUntil: "load" });
   await page.waitForTimeout(4000);
   await page.screenshot({ path: "/private/tmp/claude-501/-Users-adamsiegel-Workspace-SquawkMap3D/7b277f16-d308-4969-a93f-09e304e63acd/scratchpad/screenshot-geolocation.png" });
 });
