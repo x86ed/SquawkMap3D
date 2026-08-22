@@ -23,10 +23,10 @@ import {
 export default function MapView() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const themeRef = useRef<MapTheme>("light");
+  const themeRef = useRef<MapTheme>(getInitialTheme());
   const pilotModeRef = useRef(false);
 
-  const [theme, setTheme] = useState<MapTheme>(() => getInitialTheme());
+  const [theme, setTheme] = useState<MapTheme>(themeRef.current);
   const [pilotMode, setPilotMode] = useState(false);
   const [error, setError] = useState<string | null>(() =>
     getMapTilerKey()
@@ -40,11 +40,9 @@ export default function MapView() {
     const apiKey = getMapTilerKey();
     if (!apiKey) return;
 
-    themeRef.current = theme;
-
     const map = new MapLibreMap({
       container: containerRef.current,
-      style: getStyleUrl(theme),
+      style: getStyleUrl(themeRef.current),
       center: DEFAULT_VIEW.center,
       zoom: DEFAULT_VIEW.zoom,
       pitch: INITIAL_PITCH,
@@ -119,6 +117,7 @@ export default function MapView() {
           type="button"
           className={styles.controlButton}
           onClick={handleThemeToggle}
+          suppressHydrationWarning
         >
           {theme === "dark" ? "Light mode" : "Dark mode"}
         </button>
