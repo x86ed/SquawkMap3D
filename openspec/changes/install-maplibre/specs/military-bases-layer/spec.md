@@ -17,3 +17,18 @@ The military base layer SHALL use a color/style clearly distinguishable from the
 #### Scenario: Both layers visible simultaneously
 - **WHEN** both the airports layer and the military bases layer are enabled on the map at the same time
 - **THEN** a user can visually distinguish military base markers/shapes from airport markers by color or symbol alone
+
+### Requirement: Military base layer is toggleable
+The user SHALL be able to show or hide the military base layer independently of any other map mode (light/dark theme, pilot mode). The toggle SHALL work the same way regardless of which map mode is currently active.
+
+#### Scenario: Hiding the military base layer
+- **WHEN** the user turns the military base layer off
+- **THEN** military base shapes are no longer rendered, while airports and the base map remain visible
+
+#### Scenario: Toggle persists across mode switches
+- **WHEN** the user hides the military base layer and then switches theme (light/dark) or toggles pilot mode
+- **THEN** the military base layer remains hidden until the user explicitly turns it back on
+
+#### Scenario: Toggle available in pilot mode
+- **WHEN** pilot mode is active
+- **THEN** the military base layer toggle still works the same as in the default topographic view

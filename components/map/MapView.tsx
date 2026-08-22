@@ -10,7 +10,11 @@ import {
 } from "./mapStyles";
 import { getInitialTheme, storeTheme } from "./theme";
 import { applySky, applyTerrain } from "./terrain";
-import { addCustomLayers, setPilotModeVisibility } from "./layers";
+import {
+  addCustomLayers,
+  setMilitaryBasesVisibility,
+  setPilotModeVisibility,
+} from "./layers";
 import { getCurrentLocation } from "./geolocation";
 import {
   DEFAULT_VIEW,
@@ -40,9 +44,11 @@ export default function MapView() {
   const mapRef = useRef<MapLibreMap | null>(null);
   const themeRef = useRef<MapTheme>(getInitialTheme());
   const pilotModeRef = useRef(false);
+  const militaryVisibleRef = useRef(true);
 
   const [theme, setTheme] = useState<MapTheme>(() => getInitialTheme());
   const [pilotMode, setPilotMode] = useState(false);
+  const [militaryVisible, setMilitaryVisible] = useState(true);
   const [error, setError] = useState<string | null>(() =>
     getMapTilerKey()
       ? null
@@ -69,7 +75,7 @@ export default function MapView() {
     const setupStyleDependentState = () => {
       applyTerrain(map);
       applySky(map);
-      addCustomLayers(map, themeRef.current);
+      addCustomLayers(map, themeRef.current, militaryVisibleRef.current);
       setPilotModeVisibility(map, pilotModeRef.current);
     };
 
@@ -116,6 +122,15 @@ export default function MapView() {
     }
   };
 
+  const handleMilitaryToggle = () => {
+    const next = !militaryVisible;
+    militaryVisibleRef.current = next;
+    setMilitaryVisible(next);
+    if (mapRef.current) {
+      setMilitaryBasesVisibility(mapRef.current, next);
+    }
+  };
+
   if (error) {
     return (
       <div className={styles.error}>
@@ -143,6 +158,14 @@ export default function MapView() {
           onClick={handlePilotModeToggle}
         >
           Pilot mode
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          data-active={militaryVisible}
+          onClick={handleMilitaryToggle}
+        >
+          {militaryVisible ? "Hide military bases" : "Show military bases"}
         </button>
       </div>
     </div>
