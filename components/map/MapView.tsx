@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Map as MapLibreMap } from "maplibre-gl";
+import { Map as MapLibreMap, setWorkerUrl } from "maplibre-gl";
 import styles from "./MapView.module.css";
 import {
   getMapTilerKey,
@@ -19,6 +19,21 @@ import {
   INITIAL_PITCH,
   MAX_PITCH,
 } from "./constants";
+
+// maplibre-gl resolves its worker script relative to `import.meta.url` of
+// its own bundled module. Under Next.js/Turbopack, that module is served
+// from a hashed `_next/static/chunks/...` URL, so the relative worker path
+// maplibre computes doesn't exist and the app's HTML shell is returned
+// instead (a module-worker "non-JavaScript MIME type" failure that kills
+// the worker immediately after it starts). Since all vector- and
+// GeoJSON-tile parsing happens in that worker, this silently breaks every
+// source *except* the ones maplibre fetches/decodes on the main thread
+// (raster + raster-dem, i.e. the FAA sectional and terrain-RGB tiles) —
+// which is why only the base vector map/airports/military-bases layers
+// failed to render. Pointing at a copy of the worker script served from
+// `public/` (kept in sync with the pinned maplibre-gl version) sidesteps
+// the bad relative-URL resolution entirely.
+setWorkerUrl("/maplibre-gl-worker.mjs");
 
 export default function MapView() {
   const containerRef = useRef<HTMLDivElement | null>(null);
