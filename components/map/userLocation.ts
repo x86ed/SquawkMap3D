@@ -33,9 +33,9 @@ const BLADE_TIER = {
 // to-scale model.
 
 const DISH_FILL_COLOR = "#e6e6e6";
-const DISH_BLADE_FILL_COLOR = "#ff3b3b";
+const DISH_BLADE_FILL_COLOR = "#00b8db";
 const DISH_FILL_OPACITY = 0.9;
-const RING_LINE_COLOR = "#ff3b3b";
+const RING_LINE_COLOR = "#00b8db";
 const RING_LINE_WIDTH = 1.5;
 
 const DISH_ROTATION_DEG_PER_SEC = 60;
