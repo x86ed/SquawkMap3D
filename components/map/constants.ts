@@ -18,3 +18,6 @@ export const FAA_SECTIONAL_TILE_URL =
   "https://tiles.arcgis.com/tiles/ssFJjBXIUyZDrSYZ/arcgis/rest/services/VFR_Sectional/MapServer/tile/{z}/{y}/{x}";
 export const FAA_SECTIONAL_MINZOOM = 8;
 export const FAA_SECTIONAL_MAXZOOM = 12;
+
+export const METERS_PER_NM = 1852;
+export const RANGE_RING_RADII_NM = [50, 100, 200] as const;
