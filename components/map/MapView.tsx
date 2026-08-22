@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Map as MapLibreMap, setWorkerUrl } from "maplibre-gl";
+import { Map as MapLibreMap, NavigationControl, setWorkerUrl } from "maplibre-gl";
 import styles from "./MapView.module.css";
 import {
   getMapTilerKey,
@@ -15,10 +15,14 @@ import {
   setMilitaryBasesVisibility,
   setPilotModeVisibility,
 } from "./layers";
-import { getCurrentLocation } from "./geolocation";
+import {
+  addUserLocationLayers,
+  getUserLocationBounds,
+  startDishRotation,
+} from "./userLocation";
+import { getCurrentLocation, type GeoCoords } from "./geolocation";
 import {
   DEFAULT_VIEW,
-  GEOLOCATION_ZOOM,
   INITIAL_BEARING,
   INITIAL_PITCH,
   MAX_PITCH,
@@ -45,6 +49,9 @@ export default function MapView() {
   const themeRef = useRef<MapTheme>(getInitialTheme());
   const pilotModeRef = useRef(false);
   const militaryVisibleRef = useRef(true);
+  const userLocationRef = useRef<GeoCoords | null>(null);
+  const styleReadyRef = useRef(false);
+  const dishRotationStopRef = useRef<(() => void) | null>(null);
 
   const [theme, setTheme] = useState<MapTheme>(() => getInitialTheme());
   const [pilotMode, setPilotMode] = useState(false);
@@ -54,6 +61,39 @@ export default function MapView() {
       ? null
       : "Map unavailable: NEXT_PUBLIC_MAPTILER_KEY is not set. Add a MapTiler API key to .env.local to load the map.",
   );
+
+  // Stops any in-flight rotation loop before starting a new one — a leaked
+  // `requestAnimationFrame` loop from a previous location/style reload would
+  // otherwise keep calling `setData` forever.
+  const restartDishRotation = (map: MapLibreMap, coords: GeoCoords) => {
+    dishRotationStopRef.current?.();
+    dishRotationStopRef.current = startDishRotation(
+      map,
+      coords,
+      () => styleReadyRef.current,
+    );
+  };
+
+  const handleLocationResolved = (coords: GeoCoords | null) => {
+    userLocationRef.current = coords;
+    // `getCurrentLocation()` can resolve before the map's "load"/"style.load"
+    // handler (`setupStyleDependentState`) has run for the first time (e.g. a
+    // fast/cached geolocation result racing initial style load), and
+    // `addSource`/`addLayer` throw if called before the style is ready.
+    // `styleReadyRef` mirrors exactly what that handler has already
+    // established as safe (it's the same event `addCustomLayers` relies on);
+    // `map.isStyleLoaded()` is NOT a safe substitute here — it reflects
+    // whether every currently-visible tile has finished loading, not just
+    // whether the initial style parse completed, so it can still read false
+    // well after the map is otherwise ready to accept new sources.
+    // `userLocationRef.current` is already set above, so if the style isn't
+    // ready yet, `setupStyleDependentState` will add the dish/rings itself
+    // once "load"/"style.load" fires — no separate retry needed here.
+    if (coords && mapRef.current && styleReadyRef.current) {
+      addUserLocationLayers(mapRef.current, coords);
+      restartDishRotation(mapRef.current, coords);
+    }
+  };
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -71,12 +111,25 @@ export default function MapView() {
       bearing: INITIAL_BEARING,
     });
     mapRef.current = map;
+    map.addControl(
+      new NavigationControl({
+        showZoom: true,
+        showCompass: true,
+        visualizePitch: true,
+      }),
+      "top-left",
+    );
 
     const setupStyleDependentState = () => {
+      styleReadyRef.current = true;
       applyTerrain(map);
       applySky(map);
       addCustomLayers(map, themeRef.current, militaryVisibleRef.current);
       setPilotModeVisibility(map, pilotModeRef.current);
+      addUserLocationLayers(map, userLocationRef.current);
+      if (userLocationRef.current) {
+        restartDishRotation(map, userLocationRef.current);
+      }
     };
 
     map.on("load", setupStyleDependentState);
@@ -92,17 +145,26 @@ export default function MapView() {
     });
 
     getCurrentLocation().then((coords) => {
+      handleLocationResolved(coords);
       if (!coords || !mapRef.current) return;
-      mapRef.current.flyTo({
-        center: [coords.longitude, coords.latitude],
-        zoom: GEOLOCATION_ZOOM,
+      mapRef.current.fitBounds(getUserLocationBounds(coords), {
+        padding: 40,
       });
     });
 
     return () => {
+      dishRotationStopRef.current?.();
+      dishRotationStopRef.current = null;
       map.remove();
       mapRef.current = null;
     };
+    // Mount-once effect: `handleLocationResolved`/`restartDishRotation` are
+    // plain closures re-created every render, so listing them here would
+    // tear the map down and rebuild it on every state change (theme toggle,
+    // etc). They're only ever called from map event handlers/promises after
+    // this effect has already run, and only read refs — never stale state —
+    // so it's safe to omit them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleThemeToggle = () => {
@@ -110,6 +172,10 @@ export default function MapView() {
     themeRef.current = nextTheme;
     setTheme(nextTheme);
     storeTheme(nextTheme);
+    // `setStyle` discards the current style immediately; `styleReadyRef`
+    // flips back to true once `setupStyleDependentState` re-runs on the
+    // resulting "style.load".
+    styleReadyRef.current = false;
     mapRef.current?.setStyle(getStyleUrl(nextTheme));
   };
 
@@ -129,6 +195,16 @@ export default function MapView() {
     if (mapRef.current) {
       setMilitaryBasesVisibility(mapRef.current, next);
     }
+  };
+
+  const handleJumpToLocation = () => {
+    getCurrentLocation().then((coords) => {
+      handleLocationResolved(coords);
+      if (!coords || !mapRef.current) return;
+      mapRef.current.fitBounds(getUserLocationBounds(coords), {
+        padding: 40,
+      });
+    });
   };
 
   if (error) {
@@ -166,6 +242,13 @@ export default function MapView() {
           onClick={handleMilitaryToggle}
         >
           {militaryVisible ? "Hide military bases" : "Show military bases"}
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          onClick={handleJumpToLocation}
+        >
+          My location
         </button>
       </div>
     </div>

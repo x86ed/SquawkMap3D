@@ -25,7 +25,7 @@ const CUSTOM_LAYER_IDS = [
 
 // Saturated orange — reads clearly against both the light and dark
 // MapTiler outdoor styles.
-const AIRPORT_FILL_COLOR = "#ff6a00";
+const AIRPORT_FILL_COLOR = "#ffffff";
 // Olive/drab — distinct from the airport orange and from the basemap's
 // greens/tans in both themes.
 const MILITARY_FILL_COLOR = "#5c5c1f";
