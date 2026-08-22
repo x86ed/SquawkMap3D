@@ -3,3 +3,29 @@
 .dreamland/workflow-positions.json
 .dreamland/workflow-skill-attachments.json
 .dreamland/hypnos.lock
+
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# testing / coverage
+/coverage
+/.nyc_output
+
+# generated docs
+/docs
+
+# typescript
+next-env.d.ts
+*.tsbuildinfo
+
+# misc
+.DS_Store
+*.pem
+.env*.local
