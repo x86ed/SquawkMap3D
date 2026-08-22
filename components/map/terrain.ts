@@ -23,9 +23,9 @@ export function applyTerrain(map: MapLibreMap): void {
  * re-applied on every `style.load`, since `setStyle` clears it too. */
 export function applySky(map: MapLibreMap): void {
   map.setSky({
-    "sky-color": "#88c6fc",
-    "horizon-color": "#ffffff",
-    "fog-color": "#ffffff",
+    "sky-color": "#53eafd",
+    "horizon-color": "#e12afb",
+    "fog-color": "#8e51ff",
     "atmosphere-blend": 0.8,
   });
 }

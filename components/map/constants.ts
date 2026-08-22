@@ -7,7 +7,7 @@ export const GEOLOCATION_ZOOM = 11;
 export const INITIAL_PITCH = 60;
 export const MAX_PITCH = 85;
 export const INITIAL_BEARING = 0;
-export const TERRAIN_EXAGGERATION = 1.5;
+export const TERRAIN_EXAGGERATION = 3;
 
 // ChartBundle (the original free sectional-tile host) shut down permanently
 // (unmaintained, security vulnerabilities) — its domain no longer resolves.
