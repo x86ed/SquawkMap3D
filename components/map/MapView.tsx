@@ -197,6 +197,13 @@ export default function MapView() {
         >
           {militaryVisible ? "Hide military bases" : "Show military bases"}
         </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          onClick={handleJumpToLocation}
+        >
+          My location
+        </button>
       </div>
     </div>
   );
