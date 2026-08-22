@@ -30,6 +30,10 @@ SquawkMap3D is a brand-new Next.js 16 App Router project (React 19) with no exis
 - **Geolocation centers the map once on load**, via `navigator.geolocation.getCurrentPosition` → `map.flyTo`. On denial, timeout, or an unsupported browser, the map falls back to a static default view (configurable constant) rather than blocking render or retrying silently.
 - **MapView mounts only on the client.** `app/page.tsx` stays a server component shell (keeps metadata/layout conventions intact) that renders `MapView` from a child client component file; `MapView` guards all `maplibre-gl` usage inside `useEffect` so nothing touches `window`/WebGL during SSR.
 
+## Notes (found during implementation)
+
+- **maplibre-gl's Web Worker fails to load under Next.js/Turbopack by default.** maplibre-gl 6.5.0 resolves its worker script URL relative to its own bundled module's `import.meta.url`; under Turbopack that module is served from a hashed `_next/static/chunks/...` path, so the computed worker URL doesn't correspond to a real asset, the request falls back to the HTML shell, and the `{type: 'module'}` worker is killed by MIME-type checking. All vector-tile and GeoJSON-source parsing happens in that worker, so this silently broke the entire vector basemap, airports, and military-base layers while raster sources (terrain-RGB DEM, FAA sectional) — fetched/decoded on the main thread — kept working, which read as a giant blank/flat "3D block" rather than an obvious error. Fixed by vendoring `maplibre-gl-worker.mjs` + `maplibre-gl-shared.mjs` into `public/` and calling `setWorkerUrl("/maplibre-gl-worker.mjs")` before constructing the `Map`.
+
 ## Risks / Trade-offs
 
 - **[Risk]** MapTiler requires an API key → app is non-functional out of the box. **Mitigation**: `NEXT_PUBLIC_MAPTILER_KEY` read from env, `.env.example` documents it, `MapView` renders a clear inline error state (not a silent blank map) when the key is missing/invalid.
