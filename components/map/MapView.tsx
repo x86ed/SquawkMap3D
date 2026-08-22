@@ -26,7 +26,7 @@ export default function MapView() {
   const themeRef = useRef<MapTheme>("light");
   const pilotModeRef = useRef(false);
 
-  const [theme, setTheme] = useState<MapTheme>("light");
+  const [theme, setTheme] = useState<MapTheme>(() => getInitialTheme());
   const [pilotMode, setPilotMode] = useState(false);
   const [error, setError] = useState<string | null>(() =>
     getMapTilerKey()
@@ -40,13 +40,11 @@ export default function MapView() {
     const apiKey = getMapTilerKey();
     if (!apiKey) return;
 
-    const initialTheme = getInitialTheme();
-    themeRef.current = initialTheme;
-    setTheme(initialTheme);
+    themeRef.current = theme;
 
     const map = new MapLibreMap({
       container: containerRef.current,
-      style: getStyleUrl(initialTheme),
+      style: getStyleUrl(theme),
       center: DEFAULT_VIEW.center,
       zoom: DEFAULT_VIEW.zoom,
       pitch: INITIAL_PITCH,
