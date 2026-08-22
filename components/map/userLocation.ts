@@ -1,6 +1,6 @@
 import * as turf from "@turf/turf";
 import type { Feature, FeatureCollection } from "geojson";
-import type { Map as MapLibreMap } from "maplibre-gl";
+import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { GeoCoords } from "./geolocation";
 import { METERS_PER_NM, RANGE_RING_RADII_NM } from "./constants";
 
@@ -82,14 +82,18 @@ export function addUserLocationLayers(
 
   const { dish, rings } = buildUserLocationFeatures(coords);
 
-  const dishSource = map.getSource(USER_DISH_SOURCE_ID);
+  const dishSource = map.getSource(USER_DISH_SOURCE_ID) as
+    | GeoJSONSource
+    | undefined;
   if (!dishSource) {
     map.addSource(USER_DISH_SOURCE_ID, { type: "geojson", data: dish });
   } else {
     dishSource.setData(dish);
   }
 
-  const ringsSource = map.getSource(USER_RINGS_SOURCE_ID);
+  const ringsSource = map.getSource(USER_RINGS_SOURCE_ID) as
+    | GeoJSONSource
+    | undefined;
   if (!ringsSource) {
     map.addSource(USER_RINGS_SOURCE_ID, { type: "geojson", data: rings });
   } else {
