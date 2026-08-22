@@ -26,7 +26,7 @@ change is the first consumer.
   after the initial load.
 - Give the user on-screen pan/tilt/zoom controls without building custom UI.
 - Render a persistent, glanceable 3D marker at the user's last-known location.
-- Render 3 labeled, geodesically-accurate range rings (50/100/200 NM) around
+- Render 4 labeled, geodesically-accurate range rings (50/100/150/200 NM) around
   that location, so distances to landmarks on the horizon are estimable at a
   glance.
 - Keep the same permission-denied/unavailable fallback semantics `map-view`
@@ -116,11 +116,11 @@ and turf's `circle`/`destination` are better-tested than a hand-rolled version.
 
 ### 4. Range rings: turf geodesic circles + turf `destination` for labels
 
-Each of the 3 rings is generated with
+Each of the 4 rings is generated with
 `turf.circle([lon, lat], radiusNM * METERS_PER_NM, { steps: 128, units: "meters" })`, rendered as
 a `line` layer (not `fill`) so it reads as a ring outline, not a disc. `METERS_PER_NM = 1852`
 (exact) is added to `components/map/constants.ts` alongside a
-`RANGE_RING_RADII_NM = [50, 100, 200]` constant.
+`RANGE_RING_RADII_NM = [50, 100, 150, 200]` constant.
 
 Each ring's label is a single point placed at the ring's north point —
 `turf.destination([lon, lat], radiusNM, 0 /* bearing: due north */, { units: "nauticalmiles" })`
@@ -128,8 +128,8 @@ Each ring's label is a single point placed at the ring's north point —
 sits directly on the ring at its top, readable regardless of map bearing changes (it's map-plane
 text, not fixed to the compass).
 
-All 3 rings + labels are backed by one `GeoJSON` `FeatureCollection` source (3 `LineString`
-features for the rings, 3 `Point` features for the labels) rather than 6 separate sources, mirroring
+All 4 rings + labels are backed by one `GeoJSON` `FeatureCollection` source (4 `LineString`
+features for the rings, 4 `Point` features for the labels) rather than 8 separate sources, mirroring
 `layers.ts`'s pattern of one source per logical feature set (e.g. `MILITARY_SOURCE_ID` backs both
 the fill and line layers).
 
@@ -222,7 +222,7 @@ is far larger than what fits in view at that zoom. Fixed by:
   `userLocation.ts` export that computes the outermost (200 NM) ring's bbox via `turf.bbox`. This is
   viewport-aware (correct regardless of window aspect ratio) where a hardcoded zoom wasn't.
   `GEOLOCATION_ZOOM` is now unused and was removed from `constants.ts`.
-- Net effect: on arrival, all 3 labeled rings are immediately visible; the dish is present but reads
+- Net effect: on arrival, all 4 labeled rings are immediately visible; the dish is present but reads
   as a small marker next to them (visible up close, not at the ring-fit zoom) — consistent with the
   dish being a "you are here" detail rather than the primary at-a-glance feature.
 
