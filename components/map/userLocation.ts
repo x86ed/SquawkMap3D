@@ -13,10 +13,17 @@ export const USER_RINGS_LABEL_LAYER_ID = "user-rings-label";
 
 // Stacked octagon-footprint tiers (bottom to top) that together read as a
 // stepped, tapering dish/tower silhouette — see design.md decision 3.
+//
+// Sized well above literal real-world dish dimensions (tens of meters, not
+// the ~10m a real dish would be) so the marker is actually visible at the
+// zoom level the map lands on after a location resolves — see design.md's
+// "Marker scale vs. ring scale" addendum. A literally-scaled dish is
+// sub-pixel at any zoom wide enough to show even the nearest (50 NM) range
+// ring, so this is a deliberate stylized scale, not a to-scale model.
 const DISH_TIERS = [
-  { radius: 12, base: 0, height: 8 },
-  { radius: 7, base: 8, height: 14 },
-  { radius: 3, base: 14, height: 18 },
+  { radius: 600, base: 0, height: 400 },
+  { radius: 350, base: 400, height: 700 },
+  { radius: 150, base: 700, height: 900 },
 ] as const;
 
 const DISH_FILL_COLOR = "#e6e6e6";
@@ -62,6 +69,30 @@ export function buildUserLocationFeatures(
     dish: turf.featureCollection(dishFeatures),
     rings: turf.featureCollection(ringFeatures),
   };
+}
+
+/**
+ * Bounding box (`[[west, south], [east, north]]`, suitable for
+ * `map.fitBounds`) that encloses the outermost range ring around `coords`.
+ * The rings' real-world radii (up to 200 NM / ~370km) are far larger than
+ * what a fixed `flyTo` zoom can guarantee fits on screen across different
+ * viewport sizes, so callers should `fitBounds` to this instead of flying to
+ * a hardcoded zoom if they want the rings visible on arrival.
+ */
+export function getUserLocationBounds(
+  coords: GeoCoords,
+): [[number, number], [number, number]] {
+  const outermostRadiusNM = Math.max(...RANGE_RING_RADII_NM);
+  const circle = turf.circle(
+    [coords.longitude, coords.latitude],
+    outermostRadiusNM * METERS_PER_NM,
+    { steps: 64, units: "meters" },
+  );
+  const [minLng, minLat, maxLng, maxLat] = turf.bbox(circle);
+  return [
+    [minLng, minLat],
+    [maxLng, maxLat],
+  ];
 }
 
 /**

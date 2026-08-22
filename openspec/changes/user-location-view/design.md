@@ -203,3 +203,39 @@ to roll back beyond removing the new module/control mounts if reverted.
 
 None outstanding — dependency (turf), geometry approach, state placement, and file layout are
 resolved above.
+
+## Addendum: post-implementation fixes (scale mismatch + load race)
+
+Two defects surfaced during manual verification, after the original implementation above was
+already built and passing typecheck/lint/build. Both are fixed; documented here since they revise
+decisions made above.
+
+**1. Dish/ring visibility at the zoom `flyTo`/`fitBounds` lands on.** The original dish tiers (12m/7m/3m
+radius) and the fixed `GEOLOCATION_ZOOM = 11` `flyTo` (decision 2/6 area) combined to make *both*
+new features invisible in practice: at z11 the dish is sub-pixel, and the 50 NM ring (92.6km radius)
+is far larger than what fits in view at that zoom. Fixed by:
+- Scaling `DISH_TIERS` up roughly 40–50x (now 600m/350m/150m radius, up to 900m tall) — a deliberate
+  stylized, non-literal scale, since a literally-scaled dish is unachievable-small at any zoom wide
+  enough to show even the nearest range ring.
+- Replacing the fixed-zoom `flyTo({zoom: GEOLOCATION_ZOOM})` calls (both the initial-load effect and
+  `handleJumpToLocation`) with `map.fitBounds(getUserLocationBounds(coords), {padding: 40})`, a new
+  `userLocation.ts` export that computes the outermost (200 NM) ring's bbox via `turf.bbox`. This is
+  viewport-aware (correct regardless of window aspect ratio) where a hardcoded zoom wasn't.
+  `GEOLOCATION_ZOOM` is now unused and was removed from `constants.ts`.
+- Net effect: on arrival, all 3 labeled rings are immediately visible; the dish is present but reads
+  as a small marker next to them (visible up close, not at the ring-fit zoom) — consistent with the
+  dish being a "you are here" detail rather than the primary at-a-glance feature.
+
+**2. `addSource`/`addLayer` thrown before the style is ready.** `getCurrentLocation()` can resolve
+(especially with a cached/fast position) before the map's first `"load"`/`"style.load"` has run,
+and MapLibre throws `Error: Style is not done loading.` if `addSource` is called before that. This
+was an unhandled promise rejection (silent in production — no dish/rings, no visible error) hit via
+manual testing. Fixed with a `styleReadyRef` (set `true` inside `setupStyleDependentState`, reset to
+`false` right before `setStyle()` in `handleThemeToggle` since a style swap re-opens the same
+window): `handleLocationResolved` only calls `addUserLocationLayers` directly when
+`styleReadyRef.current` is true; otherwise it relies on `userLocationRef.current` already being set,
+so the next `"load"`/`"style.load"` firing (which always calls `addUserLocationLayers` from
+`setupStyleDependentState`) picks it up. `map.isStyleLoaded()` was tried first and rejected — it
+reflects whether every currently-visible tile has finished loading (a much stricter, frequently-false
+condition), not just whether the initial style parse completed, so it produced false negatives long
+after the map was otherwise safe to add sources to.
