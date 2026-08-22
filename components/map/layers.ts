@@ -41,8 +41,17 @@ function haloColorFor(theme: MapTheme): string {
  * bottom, airports on top). Must be re-run on initial load and on every
  * `style.load` (post `setStyle`), since MapLibre discards custom
  * sources/layers on a style swap.
+ *
+ * `militaryVisible` sets the initial visibility of the re-added military-base
+ * layers so a user's toggle choice survives a style swap (theme change) —
+ * callers that already persist this choice (e.g. a ref) should pass it
+ * through on every re-add.
  */
-export function addCustomLayers(map: MapLibreMap, theme: MapTheme): void {
+export function addCustomLayers(
+  map: MapLibreMap,
+  theme: MapTheme,
+  militaryVisible = true,
+): void {
   if (!map.getSource(FAA_SECTIONAL_SOURCE_ID)) {
     map.addSource(FAA_SECTIONAL_SOURCE_ID, {
       type: "raster",
@@ -68,11 +77,13 @@ export function addCustomLayers(map: MapLibreMap, theme: MapTheme): void {
       data: "/data/military-bases.geojson",
     });
   }
+  const militaryVisibility = militaryVisible ? "visible" : "none";
   if (!map.getLayer(MILITARY_FILL_LAYER_ID)) {
     map.addLayer({
       id: MILITARY_FILL_LAYER_ID,
       type: "fill",
       source: MILITARY_SOURCE_ID,
+      layout: { visibility: militaryVisibility },
       paint: {
         "fill-color": MILITARY_FILL_COLOR,
         "fill-opacity": 0.35,
@@ -84,6 +95,7 @@ export function addCustomLayers(map: MapLibreMap, theme: MapTheme): void {
       id: MILITARY_LINE_LAYER_ID,
       type: "line",
       source: MILITARY_SOURCE_ID,
+      layout: { visibility: militaryVisibility },
       paint: {
         "line-color": MILITARY_LINE_COLOR,
         "line-width": 1.5,
@@ -150,5 +162,21 @@ export function setPilotModeVisibility(map: MapLibreMap, enabled: boolean): void
       continue;
     }
     map.setLayoutProperty(layer.id, "visibility", enabled ? "none" : "visible");
+  }
+}
+
+/**
+ * Shows/hides the military-base layers. Independent of pilot mode: military
+ * bases are exempt from `setPilotModeVisibility`'s base-style hide/restore
+ * (see `CUSTOM_LAYER_IDS`), so this toggle works the same whether pilot mode
+ * is on or off.
+ */
+export function setMilitaryBasesVisibility(map: MapLibreMap, visible: boolean): void {
+  const visibility = visible ? "visible" : "none";
+  if (map.getLayer(MILITARY_FILL_LAYER_ID)) {
+    map.setLayoutProperty(MILITARY_FILL_LAYER_ID, "visibility", visibility);
+  }
+  if (map.getLayer(MILITARY_LINE_LAYER_ID)) {
+    map.setLayoutProperty(MILITARY_LINE_LAYER_ID, "visibility", visibility);
   }
 }

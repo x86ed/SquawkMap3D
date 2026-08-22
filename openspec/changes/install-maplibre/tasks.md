@@ -46,6 +46,7 @@
 - [x] 7.1 Add the `military-bases.geojson` source and layer(s) (points and/or polygons as the data requires) in `addCustomLayers`
 - [x] 7.2 Style the military base layer with a color/symbol distinct from both the airports layer and the basemap
 - [x] 7.3 Verify airports and military bases are simultaneously visible and visually distinguishable
+- [x] 7.4 Add a UI control to toggle the military base layer on/off, independent of theme and pilot mode (`setMilitaryBasesVisibility` in `layers.ts`, wired in `MapView.tsx`); persist the toggle choice across style swaps by passing it through to `addCustomLayers` on re-add
 
 ## 8. Pilot map mode
 
