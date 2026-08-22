@@ -26,7 +26,7 @@ export default function MapView() {
   const themeRef = useRef<MapTheme>(getInitialTheme());
   const pilotModeRef = useRef(false);
 
-  const [theme, setTheme] = useState<MapTheme>(themeRef.current);
+  const [theme, setTheme] = useState<MapTheme>(() => getInitialTheme());
   const [pilotMode, setPilotMode] = useState(false);
   const [error, setError] = useState<string | null>(() =>
     getMapTilerKey()
