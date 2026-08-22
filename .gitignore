@@ -1,0 +1,5 @@
+.dreamland-session.json
+.dreamland/copilot-hook-debug.jsonl
+.dreamland/workflow-positions.json
+.dreamland/workflow-skill-attachments.json
+.dreamland/hypnos.lock
