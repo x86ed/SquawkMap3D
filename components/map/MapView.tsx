@@ -28,18 +28,17 @@ export default function MapView() {
 
   const [theme, setTheme] = useState<MapTheme>("light");
   const [pilotMode, setPilotMode] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() =>
+    getMapTilerKey()
+      ? null
+      : "Map unavailable: NEXT_PUBLIC_MAPTILER_KEY is not set. Add a MapTiler API key to .env.local to load the map.",
+  );
 
   useEffect(() => {
     if (!containerRef.current) return;
 
     const apiKey = getMapTilerKey();
-    if (!apiKey) {
-      setError(
-        "Map unavailable: NEXT_PUBLIC_MAPTILER_KEY is not set. Add a MapTiler API key to .env.local to load the map.",
-      );
-      return;
-    }
+    if (!apiKey) return;
 
     const initialTheme = getInitialTheme();
     themeRef.current = initialTheme;
