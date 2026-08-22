@@ -12,13 +12,20 @@ page.on("response", (res) => {
 });
 page.on("console", (msg) => console.log("CONSOLE:", msg.type(), msg.text()));
 await page.goto("http://localhost:3000/", { waitUntil: "load" });
-await page.waitForTimeout(6000);
+await page.waitForTimeout(8000);
 await page.screenshot({ path: "/Users/adamsiegel/Workspace/SquawkMap3D/smoke-debug.png" });
-const html = await page.evaluate(() => document.body.innerHTML.slice(0, 3000));
-console.log(html);
-const layers = await page.evaluate(() => {
+const info = await page.evaluate(() => {
   const map = window.__map;
-  return map ? map.getStyle().layers.map((l) => l.id) : "no __map";
+  if (!map) return "no __map";
+  return {
+    layers: map.getStyle().layers.map((l) => l.id),
+    loaded: map.loaded(),
+    center: map.getCenter(),
+    zoom: map.getZoom(),
+    pitch: map.getPitch(),
+    sources: Object.keys(map.getStyle().sources),
+    terrain: map.getTerrain(),
+  };
 });
-console.log("LAYERS:", layers);
+console.log("INFO:", JSON.stringify(info, null, 2));
 await browser.close();
