@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Map as MapLibreMap, NavigationControl, setWorkerUrl } from "maplibre-gl";
 import styles from "./MapView.module.css";
 import {
@@ -64,38 +64,36 @@ export default function MapView() {
 
   // Stops any in-flight rotation loop before starting a new one — a leaked
   // `requestAnimationFrame` loop from a previous location/style reload would
-  // otherwise keep calling `setData` forever. Stable identity (only refs in
-  // its closure) so it can safely sit in the mount effect's dependency array.
-  const restartDishRotation = useCallback((map: MapLibreMap, coords: GeoCoords) => {
+  // otherwise keep calling `setData` forever.
+  const restartDishRotation = (map: MapLibreMap, coords: GeoCoords) => {
     dishRotationStopRef.current?.();
-    dishRotationStopRef.current = startDishRotation(map, coords);
-  }, []);
+    dishRotationStopRef.current = startDishRotation(
+      map,
+      coords,
+      () => styleReadyRef.current,
+    );
+  };
 
-  // Stable identity for the same reason as `restartDishRotation` above.
-  const handleLocationResolved = useCallback(
-    (coords: GeoCoords | null) => {
-      userLocationRef.current = coords;
-      // `getCurrentLocation()` can resolve before the map's "load"/"style.load"
-      // handler (`setupStyleDependentState`) has run for the first time (e.g.
-      // a fast/cached geolocation result racing initial style load), and
-      // `addSource`/`addLayer` throw if called before the style is ready.
-      // `styleReadyRef` mirrors exactly what that handler has already
-      // established as safe (it's the same event `addCustomLayers` relies
-      // on); `map.isStyleLoaded()` is NOT a safe substitute here — it
-      // reflects whether every currently-visible tile has finished loading,
-      // not just whether the initial style parse completed, so it can still
-      // read false well after the map is otherwise ready to accept new
-      // sources. `userLocationRef.current` is already set above, so if the
-      // style isn't ready yet, `setupStyleDependentState` will add the
-      // dish/rings itself once "load"/"style.load" fires — no separate retry
-      // needed here.
-      if (coords && mapRef.current && styleReadyRef.current) {
-        addUserLocationLayers(mapRef.current, coords);
-        restartDishRotation(mapRef.current, coords);
-      }
-    },
-    [restartDishRotation],
-  );
+  const handleLocationResolved = (coords: GeoCoords | null) => {
+    userLocationRef.current = coords;
+    // `getCurrentLocation()` can resolve before the map's "load"/"style.load"
+    // handler (`setupStyleDependentState`) has run for the first time (e.g. a
+    // fast/cached geolocation result racing initial style load), and
+    // `addSource`/`addLayer` throw if called before the style is ready.
+    // `styleReadyRef` mirrors exactly what that handler has already
+    // established as safe (it's the same event `addCustomLayers` relies on);
+    // `map.isStyleLoaded()` is NOT a safe substitute here — it reflects
+    // whether every currently-visible tile has finished loading, not just
+    // whether the initial style parse completed, so it can still read false
+    // well after the map is otherwise ready to accept new sources.
+    // `userLocationRef.current` is already set above, so if the style isn't
+    // ready yet, `setupStyleDependentState` will add the dish/rings itself
+    // once "load"/"style.load" fires — no separate retry needed here.
+    if (coords && mapRef.current && styleReadyRef.current) {
+      addUserLocationLayers(mapRef.current, coords);
+      restartDishRotation(mapRef.current, coords);
+    }
+  };
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -160,7 +158,14 @@ export default function MapView() {
       map.remove();
       mapRef.current = null;
     };
-  }, [handleLocationResolved, restartDishRotation]);
+    // Mount-once effect: `handleLocationResolved`/`restartDishRotation` are
+    // plain closures re-created every render, so listing them here would
+    // tear the map down and rebuild it on every state change (theme toggle,
+    // etc). They're only ever called from map event handlers/promises after
+    // this effect has already run, and only read refs — never stale state —
+    // so it's safe to omit them.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleThemeToggle = () => {
     const nextTheme: MapTheme = theme === "dark" ? "light" : "dark";

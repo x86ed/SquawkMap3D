@@ -267,3 +267,28 @@ rather than threading rotation state through a style reload.
 `specs/user-location-marker/spec.md`'s "3D satellite-dish marker" requirement was renamed "3D
 rotating radar marker" and its scenarios updated to describe continuous rotation, since "resembling a
 satellite dish" no longer matches what's actually rendered.
+
+## Addendum: rotation-induced terrain-depth crash during theme swap
+
+Once the blade rotation animation was in place, toggling the theme reliably threw
+`TypeError: Cannot read properties of undefined (reading 'shaderPreludeCode')`, deep inside
+MapLibre's own render loop (`Painter.useProgram('terrainDepth')` reading
+`this.style.projection.shaderPreludeCode`). Traced via `node_modules/maplibre-gl/src/render/painter.ts`:
+`this.style.projection` is transiently `undefined` for a frame or two during `map.setStyle()`
+(the theme toggle), and `Painter.maybeDrawDepth()` — MapLibre's own internal terrain-depth
+pre-pass, unrelated to any layer this app defines — runs on essentially every repaint while 3D
+terrain is active. This is a narrow, pre-existing MapLibre timing window, not a defect in this
+app's rendering code, but `startDishRotation`'s `requestAnimationFrame` loop calls
+`source.setData()` roughly every 80ms forever, which schedules a MapLibre repaint on (almost)
+every tick — turning a rare, easy-to-miss race into a near-guaranteed crash the moment a theme
+toggle happened to overlap with the rotation running. The crash is unrecoverable from application
+code: it's thrown inside MapLibre's own subsequent animation-frame callback, a different call
+stack than whatever last invoked `setData`, so no try/catch in this app's code can catch it.
+
+Fixed by gating every `setData` call in `startDishRotation`'s tick behind a new `isStyleReady: ()
+=> boolean` parameter — `MapView.tsx` passes `() => styleReadyRef.current`, the same flag that
+already gates `addUserLocationLayers` calls elsewhere (see the load-race addendum above). The
+rotation loop keeps ticking (so the in-memory blade angle doesn't drift/reset) but silently skips
+repainting while a style swap is in flight, resuming once `setupStyleDependentState` flips the
+flag back to `true` on the next `"style.load"`. Verified with 6 rapid theme toggles in a row while
+the dish was actively rotating: zero console errors.
