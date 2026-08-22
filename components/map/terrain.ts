@@ -1,6 +1,6 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
 import { getTerrainSourceUrl } from "./mapStyles";
-import { SKY_LAYER_ID, TERRAIN_EXAGGERATION } from "./constants";
+import { TERRAIN_EXAGGERATION } from "./constants";
 
 const TERRAIN_SOURCE_ID = "maptiler-terrain-rgb";
 
@@ -18,14 +18,14 @@ export function applyTerrain(map: MapLibreMap): void {
   map.setTerrain({ source: TERRAIN_SOURCE_ID, exaggeration: TERRAIN_EXAGGERATION });
 }
 
-export function ensureSkyLayer(map: MapLibreMap): void {
-  if (map.getLayer(SKY_LAYER_ID)) return;
-  map.addLayer({
-    id: SKY_LAYER_ID,
-    type: "sky",
-    paint: {
-      "sky-type": "atmosphere",
-      "sky-atmosphere-sun-intensity": 10,
-    },
+/** MapLibre 6's sky is a `map.setSky()` style property, not an addable
+ * "sky" layer type (that's a Mapbox GL JS / older-MapLibre API). Must be
+ * re-applied on every `style.load`, since `setStyle` clears it too. */
+export function applySky(map: MapLibreMap): void {
+  map.setSky({
+    "sky-color": "#88c6fc",
+    "horizon-color": "#ffffff",
+    "fog-color": "#ffffff",
+    "atmosphere-blend": 0.8,
   });
 }
