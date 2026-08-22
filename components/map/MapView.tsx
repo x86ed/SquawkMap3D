@@ -57,6 +57,13 @@ export default function MapView() {
       : "Map unavailable: NEXT_PUBLIC_MAPTILER_KEY is not set. Add a MapTiler API key to .env.local to load the map.",
   );
 
+  const handleLocationResolved = (coords: GeoCoords | null) => {
+    userLocationRef.current = coords;
+    if (coords && mapRef.current) {
+      addUserLocationLayers(mapRef.current, coords);
+    }
+  };
+
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -73,12 +80,21 @@ export default function MapView() {
       bearing: INITIAL_BEARING,
     });
     mapRef.current = map;
+    map.addControl(
+      new NavigationControl({
+        showZoom: true,
+        showCompass: true,
+        visualizePitch: true,
+      }),
+      "top-left",
+    );
 
     const setupStyleDependentState = () => {
       applyTerrain(map);
       applySky(map);
       addCustomLayers(map, themeRef.current, militaryVisibleRef.current);
       setPilotModeVisibility(map, pilotModeRef.current);
+      addUserLocationLayers(map, userLocationRef.current);
     };
 
     map.on("load", setupStyleDependentState);
@@ -94,6 +110,7 @@ export default function MapView() {
     });
 
     getCurrentLocation().then((coords) => {
+      handleLocationResolved(coords);
       if (!coords || !mapRef.current) return;
       mapRef.current.flyTo({
         center: [coords.longitude, coords.latitude],
@@ -131,6 +148,17 @@ export default function MapView() {
     if (mapRef.current) {
       setMilitaryBasesVisibility(mapRef.current, next);
     }
+  };
+
+  const handleJumpToLocation = () => {
+    getCurrentLocation().then((coords) => {
+      handleLocationResolved(coords);
+      if (!coords) return;
+      mapRef.current?.flyTo({
+        center: [coords.longitude, coords.latitude],
+        zoom: GEOLOCATION_ZOOM,
+      });
+    });
   };
 
   if (error) {
