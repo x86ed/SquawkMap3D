@@ -15,11 +15,10 @@ import {
   setMilitaryBasesVisibility,
   setPilotModeVisibility,
 } from "./layers";
-import { addUserLocationLayers } from "./userLocation";
+import { addUserLocationLayers, getUserLocationBounds } from "./userLocation";
 import { getCurrentLocation, type GeoCoords } from "./geolocation";
 import {
   DEFAULT_VIEW,
-  GEOLOCATION_ZOOM,
   INITIAL_BEARING,
   INITIAL_PITCH,
   MAX_PITCH,
@@ -47,6 +46,7 @@ export default function MapView() {
   const pilotModeRef = useRef(false);
   const militaryVisibleRef = useRef(true);
   const userLocationRef = useRef<GeoCoords | null>(null);
+  const styleReadyRef = useRef(false);
 
   const [theme, setTheme] = useState<MapTheme>(() => getInitialTheme());
   const [pilotMode, setPilotMode] = useState(false);
@@ -59,7 +59,20 @@ export default function MapView() {
 
   const handleLocationResolved = (coords: GeoCoords | null) => {
     userLocationRef.current = coords;
-    if (coords && mapRef.current) {
+    // `getCurrentLocation()` can resolve before the map's "load"/"style.load"
+    // handler (`setupStyleDependentState`) has run for the first time (e.g. a
+    // fast/cached geolocation result racing initial style load), and
+    // `addSource`/`addLayer` throw if called before the style is ready.
+    // `styleReadyRef` mirrors exactly what that handler has already
+    // established as safe (it's the same event `addCustomLayers` relies on);
+    // `map.isStyleLoaded()` is NOT a safe substitute here — it reflects
+    // whether every currently-visible tile has finished loading, not just
+    // whether the initial style parse completed, so it can still read false
+    // well after the map is otherwise ready to accept new sources.
+    // `userLocationRef.current` is already set above, so if the style isn't
+    // ready yet, `setupStyleDependentState` will add the dish/rings itself
+    // once "load"/"style.load" fires — no separate retry needed here.
+    if (coords && mapRef.current && styleReadyRef.current) {
       addUserLocationLayers(mapRef.current, coords);
     }
   };
@@ -90,6 +103,7 @@ export default function MapView() {
     );
 
     const setupStyleDependentState = () => {
+      styleReadyRef.current = true;
       applyTerrain(map);
       applySky(map);
       addCustomLayers(map, themeRef.current, militaryVisibleRef.current);
@@ -112,9 +126,8 @@ export default function MapView() {
     getCurrentLocation().then((coords) => {
       handleLocationResolved(coords);
       if (!coords || !mapRef.current) return;
-      mapRef.current.flyTo({
-        center: [coords.longitude, coords.latitude],
-        zoom: GEOLOCATION_ZOOM,
+      mapRef.current.fitBounds(getUserLocationBounds(coords), {
+        padding: 40,
       });
     });
 
@@ -129,6 +142,10 @@ export default function MapView() {
     themeRef.current = nextTheme;
     setTheme(nextTheme);
     storeTheme(nextTheme);
+    // `setStyle` discards the current style immediately; `styleReadyRef`
+    // flips back to true once `setupStyleDependentState` re-runs on the
+    // resulting "style.load".
+    styleReadyRef.current = false;
     mapRef.current?.setStyle(getStyleUrl(nextTheme));
   };
 
@@ -153,10 +170,9 @@ export default function MapView() {
   const handleJumpToLocation = () => {
     getCurrentLocation().then((coords) => {
       handleLocationResolved(coords);
-      if (!coords) return;
-      mapRef.current?.flyTo({
-        center: [coords.longitude, coords.latitude],
-        zoom: GEOLOCATION_ZOOM,
+      if (!coords || !mapRef.current) return;
+      mapRef.current.fitBounds(getUserLocationBounds(coords), {
+        padding: 40,
       });
     });
   };
