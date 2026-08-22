@@ -20,4 +20,4 @@ export const FAA_SECTIONAL_MINZOOM = 8;
 export const FAA_SECTIONAL_MAXZOOM = 12;
 
 export const METERS_PER_NM = 1852;
-export const RANGE_RING_RADII_NM = [50, 100, 200] as const;
+export const RANGE_RING_RADII_NM = [50, 100, 150, 200] as const;
