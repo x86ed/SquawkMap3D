@@ -1,0 +1,109 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "dreamland version-bump --change-from-command",
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "dreamland coauthor --hook",
+            "type": "command"
+          }
+        ],
+        "matcher": "Task|Agent"
+      },
+      {
+        "hooks": [
+          {
+            "command": "dreamland guard-artifact",
+            "type": "command"
+          }
+        ],
+        "matcher": "Write|Edit"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "dreamland version-bump",
+            "type": "command"
+          },
+          {
+            "command": "dreamland coauthor --hook",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      },
+      {
+        "hooks": [
+          {
+            "command": "bash .claude/scripts/dreamland-otel-env.sh",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "dreamland version-bump --patch",
+            "type": "command"
+          },
+          {
+            "command": "dreamland transition-log",
+            "type": "command"
+          },
+          {
+            "command": "dreamland telemetry write --tool claude-code",
+            "type": "command"
+          },
+          {
+            "command": "dreamland test-and-commit --reason turn-complete",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "command": "dreamland coauthor --hook",
+            "type": "command"
+          },
+          {
+            "command": "dreamland telemetry write --tool claude-code",
+            "type": "command"
+          },
+          {
+            "command": "dreamland version-bump --patch",
+            "type": "command"
+          },
+          {
+            "command": "dreamland version-bump --minor --if-agent janus",
+            "type": "command"
+          },
+          {
+            "command": "dreamland commit --reason handoff",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ]
+  }
+}

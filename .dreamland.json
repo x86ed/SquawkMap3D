@@ -1,0 +1,12 @@
+{
+  "coding_tool": "Claude Code",
+  "language": "Node/TypeScript",
+  "test_command": "npm run test:coverage",
+  "doc_command": "npm run jsdoc",
+  "version_command": "npm version",
+  "repo_root": "/Users/adamsiegel/Workspace/SquawkMap3D",
+  "version_bump_command": "npm version",
+  "model_id": "claude-sonnet-4-6",
+  "email_suffix": "@github.com",
+  "otel_endpoint": "http://localhost:4317"
+}

@@ -1,0 +1,7 @@
+{
+  "all": true,
+  "include": ["lib/**/*.cjs"],
+  "exclude": ["test/**", "coverage/**", "docs/**", ".next/**"],
+  "reporter": ["text", "lcov", "html"],
+  "report-dir": "./coverage"
+}

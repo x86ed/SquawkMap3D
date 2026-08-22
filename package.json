@@ -1,0 +1,47 @@
+{
+  "name": "squawkmap3d",
+  "version": "0.1.1",
+  "description": "an adsb map",
+  "keywords": [
+    "ADSB",
+    "Planes",
+    "Aviation",
+    "1090"
+  ],
+  "homepage": "https://github.com/x86ed/SquawkMap3D#readme",
+  "bugs": {
+    "url": "https://github.com/x86ed/SquawkMap3D/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/x86ed/SquawkMap3D.git"
+  },
+  "license": "MIT",
+  "author": "x86ed",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "test": "node --test",
+    "coverage": "nyc --reporter=text --reporter=lcov --reporter=html npm test",
+    "docs": "jsdoc -c jsdoc.json"
+  },
+  "dependencies": {
+    "next": "^16.3.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "typescript": "^5.9.0",
+    "eslint": "^9.20.0",
+    "eslint-config-next": "^16.3.2",
+    "nyc": "^18.0.0",
+    "jsdoc": "^4.0.5"
+  }
+}
