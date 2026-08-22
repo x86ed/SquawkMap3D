@@ -1,5 +1,5 @@
 import * as turf from "@turf/turf";
-import type { Feature, FeatureCollection } from "geojson";
+import type { Feature, FeatureCollection, Polygon } from "geojson";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { GeoCoords } from "./geolocation";
 import { METERS_PER_NM, RANGE_RING_RADII_NM } from "./constants";
@@ -11,43 +11,129 @@ export const USER_RINGS_SOURCE_ID = "user-rings";
 export const USER_RINGS_LINE_LAYER_ID = "user-rings-line";
 export const USER_RINGS_LABEL_LAYER_ID = "user-rings-label";
 
-// Stacked octagon-footprint tiers (bottom to top) that together read as a
-// stepped, tapering dish/tower silhouette — see design.md decision 3.
-//
-// Sized well above literal real-world dish dimensions (tens of meters, not
-// the ~10m a real dish would be) so the marker is actually visible at the
-// zoom level the map lands on after a location resolves — see design.md's
-// "Marker scale vs. ring scale" addendum. A literally-scaled dish is
-// sub-pixel at any zoom wide enough to show even the nearest (50 NM) range
-// ring, so this is a deliberate stylized scale, not a to-scale model.
-const DISH_TIERS = [
-  { radius: 600, base: 0, height: 400 },
-  { radius: 350, base: 400, height: 700 },
-  { radius: 150, base: 700, height: 900 },
-] as const;
+// Radar mast: a short octagon pedestal topped by a long, thin rotating
+// "blade" spanning through the pivot — reads as a rotating radar antenna
+// (like a search-radar sweep) rather than a static satellite dish, and pairs
+// naturally with `startDishRotation` below, which spins the blade in place.
+// `fill-extrusion` can't tilt a face to fake a parabolic dish, so a spinning
+// bar is the shape this geometry type can actually deliver on.
+const PEDESTAL_TIER = { radius: 90, base: 0, height: 300 } as const;
+const BLADE_TIER = {
+  halfLengthMeters: 300,
+  widthMeters: 90,
+  base: 300,
+  height: 350,
+} as const;
+
+// Sized well above literal real-world radar-mast dimensions so the marker is
+// actually visible at the zoom level the map lands on after a location
+// resolves — see design.md's "Marker scale vs. ring scale" addendum. A
+// literally-scaled mast is sub-pixel at any zoom wide enough to show even the
+// nearest (50 NM) range ring, so this is a deliberate stylized scale, not a
+// to-scale model.
 
 const DISH_FILL_COLOR = "#e6e6e6";
+const DISH_BLADE_FILL_COLOR = "#ff3b3b";
 const DISH_FILL_OPACITY = 0.9;
 const RING_LINE_COLOR = "#ff3b3b";
 const RING_LINE_WIDTH = 1.5;
 
+const DISH_ROTATION_DEG_PER_SEC = 60;
+const DISH_ROTATION_UPDATE_INTERVAL_MS = 80;
+
+function buildDishPedestal(center: [number, number]): Feature {
+  const polygon = turf.circle(center, PEDESTAL_TIER.radius, {
+    steps: 8,
+    units: "meters",
+  });
+  polygon.properties = {
+    part: "pedestal",
+    base: PEDESTAL_TIER.base,
+    height: PEDESTAL_TIER.height,
+  };
+  return polygon;
+}
+
+/** Blade at rotation angle 0: a stadium shape spanning through `center`. */
+function buildDishBlade(center: [number, number]): Feature<Polygon> {
+  const west = turf.destination(center, BLADE_TIER.halfLengthMeters, -90, {
+    units: "meters",
+  });
+  const east = turf.destination(center, BLADE_TIER.halfLengthMeters, 90, {
+    units: "meters",
+  });
+  const spine = turf.lineString([
+    west.geometry.coordinates,
+    east.geometry.coordinates,
+  ]);
+  const blade = turf.buffer(spine, BLADE_TIER.widthMeters / 2, {
+    units: "meters",
+  }) as Feature<Polygon>;
+  blade.properties = {
+    part: "blade",
+    base: BLADE_TIER.base,
+    height: BLADE_TIER.height,
+  };
+  return blade;
+}
+
 /**
- * Pure geometry builder: computes the dish tiers and range rings/labels
- * around `coords`. No map dependency, no side effects.
+ * Starts a continuous rotation animation of the dish's blade around `coords`,
+ * repainting the dish source in place. Returns a stop function; callers must
+ * call it before starting another rotation (e.g. on re-jump or unmount) —
+ * a leaked `requestAnimationFrame` loop keeps calling `setData` forever.
+ */
+export function startDishRotation(
+  map: MapLibreMap,
+  coords: GeoCoords,
+): () => void {
+  const pivot: [number, number] = [coords.longitude, coords.latitude];
+  const pedestal = buildDishPedestal(pivot);
+  let blade = buildDishBlade(pivot);
+  let lastUpdateTime: number | null = null;
+  let stopped = false;
+  let rafId: number;
+
+  const tick = (time: number) => {
+    if (stopped) return;
+    if (lastUpdateTime === null) {
+      lastUpdateTime = time;
+    } else if (time - lastUpdateTime >= DISH_ROTATION_UPDATE_INTERVAL_MS) {
+      const deltaDeg =
+        (DISH_ROTATION_DEG_PER_SEC * (time - lastUpdateTime)) / 1000;
+      blade = turf.transformRotate(blade, deltaDeg, {
+        pivot,
+      }) as Feature<Polygon>;
+      lastUpdateTime = time;
+      const source = map.getSource(USER_DISH_SOURCE_ID) as
+        | GeoJSONSource
+        | undefined;
+      source?.setData(turf.featureCollection([pedestal, blade]));
+    }
+    rafId = requestAnimationFrame(tick);
+  };
+  rafId = requestAnimationFrame(tick);
+
+  return () => {
+    stopped = true;
+    cancelAnimationFrame(rafId);
+  };
+}
+
+/**
+ * Pure geometry builder: computes the dish (pedestal + blade at rotation
+ * angle 0) and range rings/labels around `coords`. No map dependency, no
+ * side effects.
  */
 export function buildUserLocationFeatures(
   coords: GeoCoords,
 ): { dish: FeatureCollection; rings: FeatureCollection } {
   const center: [number, number] = [coords.longitude, coords.latitude];
 
-  const dishFeatures: Feature[] = DISH_TIERS.map((tier) => {
-    const polygon = turf.circle(center, tier.radius, {
-      steps: 8,
-      units: "meters",
-    });
-    polygon.properties = { base: tier.base, height: tier.height };
-    return polygon;
-  });
+  const dishFeatures: Feature[] = [
+    buildDishPedestal(center),
+    buildDishBlade(center),
+  ];
 
   const ringFeatures: Feature[] = RANGE_RING_RADII_NM.flatMap((radiusNM) => {
     const ring = turf.circle(center, radiusNM * METERS_PER_NM, {
@@ -139,7 +225,13 @@ export function addUserLocationLayers(
       paint: {
         "fill-extrusion-base": ["get", "base"],
         "fill-extrusion-height": ["get", "height"],
-        "fill-extrusion-color": DISH_FILL_COLOR,
+        "fill-extrusion-color": [
+          "match",
+          ["get", "part"],
+          "blade",
+          DISH_BLADE_FILL_COLOR,
+          DISH_FILL_COLOR,
+        ],
         "fill-extrusion-opacity": DISH_FILL_OPACITY,
       },
     });

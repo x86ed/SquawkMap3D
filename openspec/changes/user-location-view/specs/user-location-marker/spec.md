@@ -22,24 +22,24 @@ The map SHALL display on-screen controls, built on MapLibre's built-in `Navigati
 - **WHEN** the map finishes loading
 - **THEN** an on-screen compass control is visible that, when clicked, resets the map's bearing to north, and visually reflects the map's current pitch
 
-### Requirement: 3D satellite-dish marker at user location
-Once the user's location is known — via the initial automatic geolocation on load or via the jump-to-location control — the map SHALL render a small 3D shape resembling a satellite dish, built from MapLibre `fill-extrusion` geometry (no external 3D model/asset pipeline), anchored at that location.
+### Requirement: 3D rotating radar marker at user location
+Once the user's location is known — via the initial automatic geolocation on load or via the jump-to-location control — the map SHALL render a small 3D radar-mast marker, built from MapLibre `fill-extrusion` geometry (no external 3D model/asset pipeline), anchored at that location. The marker's antenna blade SHALL continuously rotate around the mast's vertical axis.
 
 #### Scenario: Location becomes known
 - **WHEN** the user's location is successfully resolved (initial load or jump-to-location)
-- **THEN** a 3D extruded dish-shaped marker appears on the map anchored at the user's coordinates
+- **THEN** a 3D extruded radar-mast marker appears on the map anchored at the user's coordinates, with its antenna blade rotating continuously
 
 #### Scenario: Location is denied or unavailable
 - **WHEN** geolocation permission is denied, geolocation is unavailable/unsupported, or the request times out, and no prior location has been resolved
-- **THEN** no dish marker is rendered anywhere on the map
+- **THEN** no radar marker is rendered anywhere on the map
 
 #### Scenario: Marker persists across a theme switch
 - **WHEN** the user switches the map's light/dark theme after their location is already known
-- **THEN** the dish marker remains visible, anchored at the same coordinates, after the theme's style finishes reloading
+- **THEN** the radar marker remains visible and rotating, anchored at the same coordinates, after the theme's style finishes reloading
 
 #### Scenario: Marker moves on repeated jump-to-location
 - **WHEN** the user activates the jump-to-location control again from a different position and a new location is resolved
-- **THEN** the dish marker updates to the newly resolved coordinates rather than leaving a marker at the previous location
+- **THEN** the radar marker updates to the newly resolved coordinates rather than leaving a marker at the previous location
 
 ### Requirement: Labeled range rings at 50, 100, and 200 nautical miles
 Once the user's location is known, the map SHALL render 3 concentric, labeled range rings centered on that location, at great-circle radii of 50 nautical miles, 100 nautical miles, and 200 nautical miles. Each ring SHALL display a text label indicating its distance.
