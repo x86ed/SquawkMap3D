@@ -50,8 +50,6 @@ export default function MapView() {
       bearing: INITIAL_BEARING,
     });
     mapRef.current = map;
-    // @ts-expect-error debug-only
-    window.__map = map;
 
     const setupStyleDependentState = () => {
       applyTerrain(map);
