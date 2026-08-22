@@ -58,5 +58,5 @@
 ## 9. Verification
 
 - [x] 9.1 Run `npm run build` and confirm no SSR errors from `maplibre-gl` (map only touches `window`/WebGL client-side)
-- [ ] 9.2 Manually smoke-test in a browser: initial load shows the map as the main view, 3D drag/pitch works, terrain is visible, light/dark follows OS and toggles manually, geolocation prompt centers the map (and fallback works when denied), airports and military bases render distinctly, pilot mode toggles correctly
+- [x] 9.2 Manually smoke-test in a browser: initial load shows the map as the main view, 3D drag/pitch works, terrain is visible, light/dark follows OS and toggles manually, geolocation prompt centers the map (and fallback works when denied), airports and military bases render distinctly, pilot mode toggles correctly (verified in real non-headless Chrome via CDP after fixing the worker-URL bug — see design.md)
 - [x] 9.3 Run `npm run lint`
