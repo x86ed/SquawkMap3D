@@ -31,13 +31,13 @@
     "docs": "jsdoc -c jsdoc.json"
   },
   "dependencies": {
+    "@turf/turf": "^7.4.0",
     "maplibre-gl": "^6.5.0",
     "next": "^16.3.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@turf/turf": "^7.4.0",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
