@@ -8,4 +8,5 @@ page.on("requestfailed", (req) => {
 page.on("console", (msg) => console.log("CONSOLE:", msg.type(), msg.text()));
 await page.goto("http://localhost:3000/", { waitUntil: "load" });
 await page.waitForTimeout(6000);
+await page.screenshot({ path: "/Users/adamsiegel/Workspace/SquawkMap3D/smoke-debug.png" });
 await browser.close();
