@@ -27,6 +27,7 @@
     "lint": "eslint .",
     "test": "node --test",
     "coverage": "nyc --reporter=text --reporter=lcov --reporter=html npm test",
+    "test:coverage": "npm run coverage",
     "docs": "jsdoc -c jsdoc.json"
   },
   "dependencies": {
