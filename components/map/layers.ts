@@ -1,6 +1,10 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
 import type { MapTheme } from "./mapStyles";
-import { CHARTBUNDLE_SECTIONAL_TILE_URL } from "./constants";
+import {
+  FAA_SECTIONAL_TILE_URL,
+  FAA_SECTIONAL_MINZOOM,
+  FAA_SECTIONAL_MAXZOOM,
+} from "./constants";
 
 export const AIRPORTS_SOURCE_ID = "airports";
 export const AIRPORTS_LAYER_ID = "airports-circle";
@@ -9,11 +13,11 @@ export const MILITARY_SOURCE_ID = "military-bases";
 export const MILITARY_FILL_LAYER_ID = "military-bases-fill";
 export const MILITARY_LINE_LAYER_ID = "military-bases-line";
 
-export const CHARTBUNDLE_SOURCE_ID = "chartbundle-sectional";
-export const CHARTBUNDLE_LAYER_ID = "pilot-sectional";
+export const FAA_SECTIONAL_SOURCE_ID = "faa-sectional";
+export const FAA_SECTIONAL_LAYER_ID = "pilot-sectional";
 
 const CUSTOM_LAYER_IDS = [
-  CHARTBUNDLE_LAYER_ID,
+  FAA_SECTIONAL_LAYER_ID,
   MILITARY_FILL_LAYER_ID,
   MILITARY_LINE_LAYER_ID,
   AIRPORTS_LAYER_ID,
@@ -32,26 +36,28 @@ function haloColorFor(theme: MapTheme): string {
 }
 
 /**
- * Adds (or idempotently re-adds) the ChartBundle sectional, military-base,
+ * Adds (or idempotently re-adds) the FAA sectional, military-base,
  * and airport sources/layers, in that stacking order (sectional at the
  * bottom, airports on top). Must be re-run on initial load and on every
  * `style.load` (post `setStyle`), since MapLibre discards custom
  * sources/layers on a style swap.
  */
 export function addCustomLayers(map: MapLibreMap, theme: MapTheme): void {
-  if (!map.getSource(CHARTBUNDLE_SOURCE_ID)) {
-    map.addSource(CHARTBUNDLE_SOURCE_ID, {
+  if (!map.getSource(FAA_SECTIONAL_SOURCE_ID)) {
+    map.addSource(FAA_SECTIONAL_SOURCE_ID, {
       type: "raster",
-      tiles: [CHARTBUNDLE_SECTIONAL_TILE_URL],
+      tiles: [FAA_SECTIONAL_TILE_URL],
       tileSize: 256,
-      attribution: "FAA VFR Sectional via ChartBundle",
+      minzoom: FAA_SECTIONAL_MINZOOM,
+      maxzoom: FAA_SECTIONAL_MAXZOOM,
+      attribution: "FAA VFR Sectional",
     });
   }
-  if (!map.getLayer(CHARTBUNDLE_LAYER_ID)) {
+  if (!map.getLayer(FAA_SECTIONAL_LAYER_ID)) {
     map.addLayer({
-      id: CHARTBUNDLE_LAYER_ID,
+      id: FAA_SECTIONAL_LAYER_ID,
       type: "raster",
-      source: CHARTBUNDLE_SOURCE_ID,
+      source: FAA_SECTIONAL_SOURCE_ID,
       layout: { visibility: "none" },
     });
   }
@@ -123,14 +129,14 @@ export function addCustomLayers(map: MapLibreMap, theme: MapTheme): void {
 }
 
 /**
- * Shows/hides the ChartBundle sectional overlay, and hides/restores the
+ * Shows/hides the FAA sectional overlay, and hides/restores the
  * base style's own layers underneath it so pilot mode reads as a distinct
  * aviation chart rather than a raster smeared on top of the topo basemap.
  */
 export function setPilotModeVisibility(map: MapLibreMap, enabled: boolean): void {
-  if (map.getLayer(CHARTBUNDLE_LAYER_ID)) {
+  if (map.getLayer(FAA_SECTIONAL_LAYER_ID)) {
     map.setLayoutProperty(
-      CHARTBUNDLE_LAYER_ID,
+      FAA_SECTIONAL_LAYER_ID,
       "visibility",
       enabled ? "visible" : "none",
     );
