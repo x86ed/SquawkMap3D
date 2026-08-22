@@ -82,10 +82,21 @@ function buildDishBlade(center: [number, number]): Feature<Polygon> {
  * repainting the dish source in place. Returns a stop function; callers must
  * call it before starting another rotation (e.g. on re-jump or unmount) —
  * a leaked `requestAnimationFrame` loop keeps calling `setData` forever.
+ *
+ * `isStyleReady` gates every `setData` call: `source.setData()` schedules a
+ * MapLibre repaint, and MapLibre's internal terrain-depth pre-pass reads
+ * `this.style.projection.shaderPreludeCode`, which is transiently `undefined`
+ * for a frame or two during `map.setStyle()` (a theme swap) — a repaint
+ * landing in that window throws deep inside MapLibre's own render loop
+ * (uncatchable from here). This animation forces far more repaints than the
+ * app otherwise would, which made that narrow, pre-existing MapLibre race
+ * far more likely to hit. Pass the same `styleReadyRef.current` check the
+ * rest of `MapView.tsx` already uses to know when a swap is in flight.
  */
 export function startDishRotation(
   map: MapLibreMap,
   coords: GeoCoords,
+  isStyleReady: () => boolean,
 ): () => void {
   const pivot: [number, number] = [coords.longitude, coords.latitude];
   const pedestal = buildDishPedestal(pivot);
@@ -105,10 +116,12 @@ export function startDishRotation(
         pivot,
       }) as Feature<Polygon>;
       lastUpdateTime = time;
-      const source = map.getSource(USER_DISH_SOURCE_ID) as
-        | GeoJSONSource
-        | undefined;
-      source?.setData(turf.featureCollection([pedestal, blade]));
+      if (isStyleReady()) {
+        const source = map.getSource(USER_DISH_SOURCE_ID) as
+          | GeoJSONSource
+          | undefined;
+        source?.setData(turf.featureCollection([pedestal, blade]));
+      }
     }
     rafId = requestAnimationFrame(tick);
   };
