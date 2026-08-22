@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Map as MapLibreMap, setWorkerUrl } from "maplibre-gl";
+import { Map as MapLibreMap, NavigationControl, setWorkerUrl } from "maplibre-gl";
 import styles from "./MapView.module.css";
 import {
   getMapTilerKey,
@@ -15,7 +15,8 @@ import {
   setMilitaryBasesVisibility,
   setPilotModeVisibility,
 } from "./layers";
-import { getCurrentLocation } from "./geolocation";
+import { addUserLocationLayers } from "./userLocation";
+import { getCurrentLocation, type GeoCoords } from "./geolocation";
 import {
   DEFAULT_VIEW,
   GEOLOCATION_ZOOM,
@@ -45,6 +46,7 @@ export default function MapView() {
   const themeRef = useRef<MapTheme>(getInitialTheme());
   const pilotModeRef = useRef(false);
   const militaryVisibleRef = useRef(true);
+  const userLocationRef = useRef<GeoCoords | null>(null);
 
   const [theme, setTheme] = useState<MapTheme>(() => getInitialTheme());
   const [pilotMode, setPilotMode] = useState(false);
