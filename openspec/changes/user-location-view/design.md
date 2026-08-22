@@ -239,3 +239,31 @@ so the next `"load"`/`"style.load"` firing (which always calls `addUserLocationL
 reflects whether every currently-visible tile has finished loading (a much stricter, frequently-false
 condition), not just whether the initial style parse completed, so it produced false negatives long
 after the map was otherwise safe to add sources to.
+
+## Addendum: dish redesigned as a rotating radar mast
+
+User feedback on the enlarged stacked-octagon dish (decision 3): it read as "a little pagoda," not a
+dish, and the request was for "a spinning radar dish thingy." `fill-extrusion` can't tilt a face to
+fake a parabolic dish reflector regardless of geometry choice, so the shape was redesigned around
+what the primitive can actually deliver well: a short octagon pedestal (`PEDESTAL_TIER`, 90m radius,
+0–300m) topped by a long, thin rotating "blade" (`BLADE_TIER`, a `turf.buffer`'d line segment through
+the pivot, 600m long, 90m wide, 300–350m) — i.e. a rotating search-radar antenna, not a static
+satellite dish.
+
+The blade rotates continuously via a new `startDishRotation(map, coords)` export: a
+`requestAnimationFrame` loop (throttled to one `setData` every ~80ms, not every frame, to bound
+worker/re-tiling load) that rotates the blade polygon in place with `turf.transformRotate(blade,
+deltaDeg, {pivot})` and repaints the `user-dish` source. The pedestal is rebuilt once and left
+untouched — only the blade rotates. `fill-extrusion-color` is now a `["match", ["get","part"], ...]`
+expression so the blade (red) reads as distinct from the pedestal (grey).
+
+Lifecycle: `MapView.tsx` holds the stop function in `dishRotationStopRef` and calls a
+`restartDishRotation` helper (stops any prior loop, starts a new one) from every place that already
+called `addUserLocationLayers` — the direct call in `handleLocationResolved` and the fallback call in
+`setupStyleDependentState` — plus stops it on unmount. A theme swap therefore restarts the rotation
+from angle 0 rather than preserving the exact angle; accepted as a minor, unnoticeable cosmetic reset
+rather than threading rotation state through a style reload.
+
+`specs/user-location-marker/spec.md`'s "3D satellite-dish marker" requirement was renamed "3D
+rotating radar marker" and its scenarios updated to describe continuous rotation, since "resembling a
+satellite dish" no longer matches what's actually rendered.
