@@ -1,7 +1,7 @@
 ## 1. Constants
 
 - [x] 1.1 In `components/map/constants.ts`, add `export const METERS_PER_NM = 1852;` (exact conversion).
-- [x] 1.2 In `components/map/constants.ts`, add `export const RANGE_RING_RADII_NM = [50, 100, 200] as const;`.
+- [x] 1.2 In `components/map/constants.ts`, add `export const RANGE_RING_RADII_NM = [50, 100, 150, 200] as const;`.
 
 ## 2. `userLocation.ts` module — geometry
 
