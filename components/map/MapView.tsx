@@ -65,7 +65,6 @@ export default function MapView() {
       bearing: INITIAL_BEARING,
     });
     mapRef.current = map;
-    (window as unknown as { __debugMap?: MapLibreMap }).__debugMap = map;
 
     const setupStyleDependentState = () => {
       applyTerrain(map);
