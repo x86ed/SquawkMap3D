@@ -29,3 +29,6 @@ next-env.d.ts
 .DS_Store
 *.pem
 .env*.local
+
+# raw source data (large, processed into public/data/ before shipping)
+/data/sources

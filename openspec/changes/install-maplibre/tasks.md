@@ -1,16 +1,16 @@
 ## 1. Setup
 
 - [ ] 1.1 Add `maplibre-gl` to `package.json` dependencies and install it
-- [ ] 1.2 Add `@tmcw/togeojson` (and `@xmldom/xmldom` if required) as a dev dependency for the KML→GeoJSON build script
+- [ ] 1.2 Add `@turf/turf` (or `mapshaper`) as a dev dependency for the military-base simplification script
 - [ ] 1.3 Add `NEXT_PUBLIC_MAPTILER_KEY` to `.env.example`, and document it in the README
 - [ ] 1.4 Import `maplibre-gl`'s CSS globally (e.g., in `app/layout.tsx` or `app/globals.css`)
 
 ## 2. Data preparation
 
-- [ ] 2.1 Source/create `public/data/airports.geojson` (placeholder subset acceptable pending real dataset confirmation per design.md Open Questions)
-- [ ] 2.2 Source/create the military base source file (KML or GeoJSON; placeholder acceptable pending confirmation per design.md Open Questions)
-- [ ] 2.3 Write `scripts/kml-to-geojson.mjs` to convert a KML source into `public/data/military-bases.geojson`
-- [ ] 2.4 Run the conversion script (if source is KML) and commit the resulting `public/data/military-bases.geojson`
+- [ ] 2.1 Generate `public/data/airports.geojson` from OurAirports data, filtered to public-use/large/medium airports
+- [ ] 2.2 Copy the source MIRTA GeoJSON (`/Users/adamsiegel/Downloads/mirta_5936110678248491280.json`, 825 features, ~23MB) into the repo as raw source data (e.g. `data/sources/mirta.geojson`, gitignored or kept out of `public/`)
+- [ ] 2.3 Write `scripts/simplify-military-bases.mjs` to filter/simplify the raw MIRTA GeoJSON (drop unused properties, simplify polygon geometry) down to a reasonable bundle size
+- [ ] 2.4 Run the script and commit the resulting `public/data/military-bases.geojson`
 
 ## 3. Map shell and client boundary
 
@@ -49,10 +49,11 @@
 
 ## 8. Pilot map mode
 
-- [ ] 8.1 Define a pilot-mode style patch (suppress POI/road labels, emphasize terrain/airport symbology, aviation-chart-like color wash)
-- [ ] 8.2 Add a UI control to toggle pilot mode on/off
-- [ ] 8.3 Apply the patch via the same `addCustomLayers`/`style.load` mechanism used for theme swaps, confirming airports and military-base layers remain visible
-- [ ] 8.4 Verify toggling pilot mode on and back off returns to the correct light/dark topographic style
+- [ ] 8.1 Add a ChartBundle raster source/layer (`https://wms.chartbundle.com/tms/1.0.0/sec/{z}/{x}/{y}.png?origin=nw`) in `addCustomLayers`, added but hidden by default
+- [ ] 8.2 Add a UI control to toggle pilot mode on/off, showing/hiding the ChartBundle raster layer (and dimming/hiding base-style layers underneath as needed)
+- [ ] 8.3 Confirm airports and military-base layers stay visible above the ChartBundle raster layer when pilot mode is on
+- [ ] 8.4 Handle ChartBundle tile load failures gracefully (layer just doesn't render; rest of the map stays functional)
+- [ ] 8.5 Verify toggling pilot mode on and back off correctly shows/hides the sectional overlay without breaking the base style
 
 ## 9. Verification
 
