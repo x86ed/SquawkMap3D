@@ -41,12 +41,12 @@ Once the user's location is known — via the initial automatic geolocation on l
 - **WHEN** the user activates the jump-to-location control again from a different position and a new location is resolved
 - **THEN** the radar marker updates to the newly resolved coordinates rather than leaving a marker at the previous location
 
-### Requirement: Labeled range rings at 50, 100, and 200 nautical miles
-Once the user's location is known, the map SHALL render 3 concentric, labeled range rings centered on that location, at great-circle radii of 50 nautical miles, 100 nautical miles, and 200 nautical miles. Each ring SHALL display a text label indicating its distance.
+### Requirement: Labeled range rings at 50, 100, 150, and 200 nautical miles
+Once the user's location is known, the map SHALL render 4 concentric, labeled range rings centered on that location, at great-circle radii of 50 nautical miles, 100 nautical miles, 150 nautical miles, and 200 nautical miles. Each ring SHALL display a text label indicating its distance.
 
 #### Scenario: Rings render when location becomes known
 - **WHEN** the user's location is successfully resolved (initial load or jump-to-location)
-- **THEN** 3 concentric ring outlines appear centered on the user's coordinates, at approximately 50 NM, 100 NM, and 200 NM radius, each with a visible text label showing its distance (e.g. "50 NM", "100 NM", "200 NM")
+- **THEN** 4 concentric ring outlines appear centered on the user's coordinates, at approximately 50 NM, 100 NM, 150 NM, and 200 NM radius, each with a visible text label showing its distance (e.g. "50 NM", "100 NM", "150 NM", "200 NM")
 
 #### Scenario: Rings absent when location is denied or unavailable
 - **WHEN** geolocation permission is denied, geolocation is unavailable/unsupported, or the request times out, and no prior location has been resolved
@@ -54,8 +54,8 @@ Once the user's location is known, the map SHALL render 3 concentric, labeled ra
 
 #### Scenario: Rings persist across a theme switch
 - **WHEN** the user switches the map's light/dark theme after their location is already known
-- **THEN** all 3 range rings and their labels remain visible, centered on the same coordinates, after the theme's style finishes reloading
+- **THEN** all 4 range rings and their labels remain visible, centered on the same coordinates, after the theme's style finishes reloading
 
 #### Scenario: Rings recenter on repeated jump-to-location
 - **WHEN** the user activates the jump-to-location control again from a different position and a new location is resolved
-- **THEN** all 3 range rings and labels recenter on the newly resolved coordinates rather than leaving rings at the previous location
+- **THEN** all 4 range rings and labels recenter on the newly resolved coordinates rather than leaving rings at the previous location
