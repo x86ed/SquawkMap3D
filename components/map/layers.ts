@@ -1,6 +1,6 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
 import type { MapTheme } from "./mapStyles";
-import { CHARTBUNDLE_SECTIONAL_TILE_URL, SKY_LAYER_ID } from "./constants";
+import { CHARTBUNDLE_SECTIONAL_TILE_URL } from "./constants";
 
 export const AIRPORTS_SOURCE_ID = "airports";
 export const AIRPORTS_LAYER_ID = "airports-circle";
@@ -140,11 +140,7 @@ export function setPilotModeVisibility(map: MapLibreMap, enabled: boolean): void
   if (!style?.layers) return;
 
   for (const layer of style.layers) {
-    if (
-      layer.id === SKY_LAYER_ID ||
-      layer.type === "background" ||
-      CUSTOM_LAYER_IDS.includes(layer.id)
-    ) {
+    if (layer.type === "background" || CUSTOM_LAYER_IDS.includes(layer.id)) {
       continue;
     }
     map.setLayoutProperty(layer.id, "visibility", enabled ? "none" : "visible");

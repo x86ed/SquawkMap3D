@@ -9,7 +9,5 @@ export const MAX_PITCH = 85;
 export const INITIAL_BEARING = 0;
 export const TERRAIN_EXAGGERATION = 1.5;
 
-export const SKY_LAYER_ID = "sky";
-
 export const CHARTBUNDLE_SECTIONAL_TILE_URL =
   "https://wms.chartbundle.com/tms/1.0.0/sec/{z}/{x}/{y}.png?origin=nw";

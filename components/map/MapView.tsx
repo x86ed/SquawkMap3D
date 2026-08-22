@@ -9,7 +9,7 @@ import {
   type MapTheme,
 } from "./mapStyles";
 import { getInitialTheme, storeTheme } from "./theme";
-import { applyTerrain, ensureSkyLayer } from "./terrain";
+import { applySky, applyTerrain } from "./terrain";
 import { addCustomLayers, setPilotModeVisibility } from "./layers";
 import { getCurrentLocation } from "./geolocation";
 import {
@@ -58,7 +58,7 @@ export default function MapView() {
 
     const setupStyleDependentState = () => {
       applyTerrain(map);
-      ensureSkyLayer(map);
+      applySky(map);
       addCustomLayers(map, themeRef.current);
       setPilotModeVisibility(map, pilotModeRef.current);
     };
