@@ -1,14 +1,22 @@
+import type { StyleSpecification } from "maplibre-gl";
+import { getDarkMatterStyle } from "./darkMatterStyle";
+
 export type MapTheme = "light" | "dark";
 
 export function getMapTilerKey(): string | undefined {
   return process.env.NEXT_PUBLIC_MAPTILER_KEY;
 }
 
-/** MapTiler's "outdoor" style pair — matched light/dark vector styles with
- * topographic-friendly styling (contours, hillshading hints). */
-export function getStyleUrl(theme: MapTheme): string {
-  const style = theme === "dark" ? "outdoor-v2-dark" : "outdoor-v2";
-  return `https://api.maptiler.com/maps/${style}/style.json?key=${getMapTilerKey()}`;
+/** Light theme is MapTiler's "outdoor" style (topographic-friendly: contours,
+ * hillshading). Dark theme is the local "Dark Matter" style (see
+ * `darkMatterStyle.ts`), which ports the same contour/hillshade layers over
+ * from MapTiler's `outdoor-v2-dark` so the topographic look is consistent
+ * between themes. */
+export function getStyleUrl(theme: MapTheme): string | StyleSpecification {
+  if (theme === "dark") {
+    return getDarkMatterStyle(getMapTilerKey() ?? "");
+  }
+  return `https://api.maptiler.com/maps/outdoor-v2/style.json?key=${getMapTilerKey()}`;
 }
 
 export function getTerrainSourceUrl(): string {
