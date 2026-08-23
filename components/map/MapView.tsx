@@ -35,12 +35,18 @@ import {
   getUserLocationBounds,
   startDishRotation,
 } from "./userLocation";
+import {
+  addTerminatorLayers,
+  refreshTerminator,
+  setTerminatorVisibility,
+} from "./terminator";
 import { getCurrentLocation, type GeoCoords } from "./geolocation";
 import {
   DEFAULT_VIEW,
   INITIAL_BEARING,
   INITIAL_PITCH,
   MAX_PITCH,
+  TERMINATOR_REFRESH_INTERVAL_MS,
 } from "./constants";
 
 // maplibre-gl resolves its worker script relative to `import.meta.url` of
@@ -65,6 +71,7 @@ export default function MapView() {
   const pilotModeRef = useRef(false);
   const militaryVisibleRef = useRef(true);
   const airportsVisibleRef = useRef(true);
+  const terminatorVisibleRef = useRef(true);
   const userLocationRef = useRef<GeoCoords | null>(null);
   const styleReadyRef = useRef(false);
   const dishRotationStopRef = useRef<(() => void) | null>(null);
@@ -73,6 +80,7 @@ export default function MapView() {
   const [pilotMode, setPilotMode] = useState(false);
   const [militaryVisible, setMilitaryVisible] = useState(true);
   const [airportsVisible, setAirportsVisible] = useState(true);
+  const [terminatorVisible, setTerminatorVisible] = useState(true);
   const [error, setError] = useState<string | null>(() =>
     getMapTilerKey()
       ? null
@@ -128,8 +136,6 @@ export default function MapView() {
       bearing: INITIAL_BEARING,
     });
     mapRef.current = map;
-    // @ts-expect-error temporary debug hook
-    window.__map = map;
     map.addControl(
       new NavigationControl({
         showZoom: true,
@@ -149,6 +155,8 @@ export default function MapView() {
         militaryVisibleRef.current,
         airportsVisibleRef.current,
       );
+      addTerminatorLayers(map, themeRef.current, terminatorVisibleRef.current);
+      refreshTerminator(map);
       setPilotModeVisibility(map, pilotModeRef.current);
       addUserLocationLayers(map, userLocationRef.current);
       if (userLocationRef.current) {
@@ -210,7 +218,12 @@ export default function MapView() {
       });
     });
 
+    const terminatorIntervalId = setInterval(() => {
+      if (mapRef.current) refreshTerminator(mapRef.current);
+    }, TERMINATOR_REFRESH_INTERVAL_MS);
+
     return () => {
+      clearInterval(terminatorIntervalId);
       dishRotationStopRef.current?.();
       dishRotationStopRef.current = null;
       map.remove();
@@ -261,6 +274,15 @@ export default function MapView() {
     setAirportsVisible(next);
     if (mapRef.current) {
       setAirportsVisibility(mapRef.current, next);
+    }
+  };
+
+  const handleTerminatorToggle = () => {
+    const next = !terminatorVisible;
+    terminatorVisibleRef.current = next;
+    setTerminatorVisible(next);
+    if (mapRef.current) {
+      setTerminatorVisibility(mapRef.current, next);
     }
   };
 
@@ -317,6 +339,14 @@ export default function MapView() {
           onClick={handleAirportsToggle}
         >
           {airportsVisible ? "Hide airports" : "Show airports"}
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          data-active={terminatorVisible}
+          onClick={handleTerminatorToggle}
+        >
+          {terminatorVisible ? "Hide day/night terminator" : "Show day/night terminator"}
         </button>
         <button
           type="button"
