@@ -20,9 +20,20 @@ import {
   addCustomLayers,
   AIRPORTS_LAYER_ID,
   getAirportIconDisplayHeight,
+  refreshRainViewer,
+  refreshSpecialUseAirspace,
+  refreshTfrs,
   setAirportsVisibility,
+  setDwdRadolanVisibility,
   setMilitaryBasesVisibility,
+  setNexradVisibility,
+  setNoaaInfraredVisibility,
+  setNoaaRadarVisibility,
+  setOpenAipVisibility,
   setPilotModeVisibility,
+  setRainViewerVisibility,
+  setSpecialUseAirspaceVisibility,
+  setTfrVisibility,
 } from "./layers";
 import {
   airportImageSlotId,
@@ -46,7 +57,10 @@ import {
   INITIAL_BEARING,
   INITIAL_PITCH,
   MAX_PITCH,
+  RAINVIEWER_REFRESH_INTERVAL_MS,
+  SUA_REFRESH_INTERVAL_MS,
   TERMINATOR_REFRESH_INTERVAL_MS,
+  TFR_REFRESH_INTERVAL_MS,
 } from "./constants";
 
 // maplibre-gl resolves its worker script relative to `import.meta.url` of
@@ -72,6 +86,14 @@ export default function MapView() {
   const militaryVisibleRef = useRef(true);
   const airportsVisibleRef = useRef(true);
   const terminatorVisibleRef = useRef(true);
+  const openAipVisibleRef = useRef(true);
+  const rainViewerVisibleRef = useRef(true);
+  const tfrVisibleRef = useRef(true);
+  const suaVisibleRef = useRef(true);
+  const nexradVisibleRef = useRef(true);
+  const noaaInfraredVisibleRef = useRef(true);
+  const noaaRadarVisibleRef = useRef(true);
+  const dwdRadolanVisibleRef = useRef(true);
   const userLocationRef = useRef<GeoCoords | null>(null);
   const styleReadyRef = useRef(false);
   const dishRotationStopRef = useRef<(() => void) | null>(null);
@@ -81,6 +103,14 @@ export default function MapView() {
   const [militaryVisible, setMilitaryVisible] = useState(true);
   const [airportsVisible, setAirportsVisible] = useState(true);
   const [terminatorVisible, setTerminatorVisible] = useState(true);
+  const [openAipVisible, setOpenAipVisible] = useState(true);
+  const [rainViewerVisible, setRainViewerVisible] = useState(true);
+  const [tfrVisible, setTfrVisible] = useState(true);
+  const [suaVisible, setSuaVisible] = useState(true);
+  const [nexradVisible, setNexradVisible] = useState(true);
+  const [noaaInfraredVisible, setNoaaInfraredVisible] = useState(true);
+  const [noaaRadarVisible, setNoaaRadarVisible] = useState(true);
+  const [dwdRadolanVisible, setDwdRadolanVisible] = useState(true);
   const [error, setError] = useState<string | null>(() =>
     getMapTilerKey()
       ? null
@@ -154,12 +184,20 @@ export default function MapView() {
       // the day/night tint sits just above the base style, underneath the
       // sectional chart/military bases/airports, so those stay undimmed.
       addTerminatorLayers(map, themeRef.current, terminatorVisibleRef.current);
-      addCustomLayers(
-        map,
-        themeRef.current,
-        militaryVisibleRef.current,
-        airportsVisibleRef.current,
-      );
+      addCustomLayers(map, themeRef.current, {
+        military: militaryVisibleRef.current,
+        airports: airportsVisibleRef.current,
+        openAip: openAipVisibleRef.current,
+        rainViewer: rainViewerVisibleRef.current,
+        tfr: tfrVisibleRef.current,
+        specialUseAirspace: suaVisibleRef.current,
+        nexrad: nexradVisibleRef.current,
+        noaaInfrared: noaaInfraredVisibleRef.current,
+        noaaRadar: noaaRadarVisibleRef.current,
+        dwdRadolan: dwdRadolanVisibleRef.current,
+      });
+      void refreshTfrs(map);
+      void refreshSpecialUseAirspace(map);
       setPilotModeVisibility(map, pilotModeRef.current);
       addUserLocationLayers(map, userLocationRef.current);
       if (userLocationRef.current) {
@@ -225,8 +263,29 @@ export default function MapView() {
       if (mapRef.current) refreshTerminator(mapRef.current, themeRef.current);
     }, TERMINATOR_REFRESH_INTERVAL_MS);
 
+    const rainViewerIntervalId = setInterval(() => {
+      if (mapRef.current && rainViewerVisibleRef.current) {
+        void refreshRainViewer(mapRef.current);
+      }
+    }, RAINVIEWER_REFRESH_INTERVAL_MS);
+
+    const tfrIntervalId = setInterval(() => {
+      if (mapRef.current && tfrVisibleRef.current) {
+        void refreshTfrs(mapRef.current);
+      }
+    }, TFR_REFRESH_INTERVAL_MS);
+
+    const suaIntervalId = setInterval(() => {
+      if (mapRef.current && suaVisibleRef.current) {
+        void refreshSpecialUseAirspace(mapRef.current);
+      }
+    }, SUA_REFRESH_INTERVAL_MS);
+
     return () => {
       clearInterval(terminatorIntervalId);
+      clearInterval(rainViewerIntervalId);
+      clearInterval(tfrIntervalId);
+      clearInterval(suaIntervalId);
       dishRotationStopRef.current?.();
       dishRotationStopRef.current = null;
       map.remove();
@@ -287,6 +346,71 @@ export default function MapView() {
     if (mapRef.current) {
       setTerminatorVisibility(mapRef.current, next);
     }
+  };
+
+  const handleOpenAipToggle = () => {
+    const next = !openAipVisible;
+    openAipVisibleRef.current = next;
+    setOpenAipVisible(next);
+    if (mapRef.current) setOpenAipVisibility(mapRef.current, next);
+  };
+
+  const handleRainViewerToggle = () => {
+    const next = !rainViewerVisible;
+    rainViewerVisibleRef.current = next;
+    setRainViewerVisible(next);
+    if (mapRef.current) {
+      setRainViewerVisibility(mapRef.current, next);
+      if (next) void refreshRainViewer(mapRef.current);
+    }
+  };
+
+  const handleTfrToggle = () => {
+    const next = !tfrVisible;
+    tfrVisibleRef.current = next;
+    setTfrVisible(next);
+    if (mapRef.current) {
+      setTfrVisibility(mapRef.current, next);
+      if (next) void refreshTfrs(mapRef.current);
+    }
+  };
+
+  const handleSuaToggle = () => {
+    const next = !suaVisible;
+    suaVisibleRef.current = next;
+    setSuaVisible(next);
+    if (mapRef.current) {
+      setSpecialUseAirspaceVisibility(mapRef.current, next);
+      if (next) void refreshSpecialUseAirspace(mapRef.current);
+    }
+  };
+
+  const handleNexradToggle = () => {
+    const next = !nexradVisible;
+    nexradVisibleRef.current = next;
+    setNexradVisible(next);
+    if (mapRef.current) setNexradVisibility(mapRef.current, next);
+  };
+
+  const handleNoaaInfraredToggle = () => {
+    const next = !noaaInfraredVisible;
+    noaaInfraredVisibleRef.current = next;
+    setNoaaInfraredVisible(next);
+    if (mapRef.current) setNoaaInfraredVisibility(mapRef.current, next);
+  };
+
+  const handleNoaaRadarToggle = () => {
+    const next = !noaaRadarVisible;
+    noaaRadarVisibleRef.current = next;
+    setNoaaRadarVisible(next);
+    if (mapRef.current) setNoaaRadarVisibility(mapRef.current, next);
+  };
+
+  const handleDwdRadolanToggle = () => {
+    const next = !dwdRadolanVisible;
+    dwdRadolanVisibleRef.current = next;
+    setDwdRadolanVisible(next);
+    if (mapRef.current) setDwdRadolanVisibility(mapRef.current, next);
   };
 
   const handleJumpToLocation = () => {
@@ -350,6 +474,70 @@ export default function MapView() {
           onClick={handleTerminatorToggle}
         >
           {terminatorVisible ? "Hide day/night terminator" : "Show day/night terminator"}
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          data-active={openAipVisible}
+          onClick={handleOpenAipToggle}
+        >
+          {openAipVisible ? "Hide OpenAIP airspace" : "Show OpenAIP airspace"}
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          data-active={rainViewerVisible}
+          onClick={handleRainViewerToggle}
+        >
+          {rainViewerVisible ? "Hide RainViewer radar" : "Show RainViewer radar"}
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          data-active={tfrVisible}
+          onClick={handleTfrToggle}
+        >
+          {tfrVisible ? "Hide TFRs" : "Show TFRs"}
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          data-active={suaVisible}
+          onClick={handleSuaToggle}
+        >
+          {suaVisible ? "Hide special use airspace" : "Show special use airspace"}
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          data-active={nexradVisible}
+          onClick={handleNexradToggle}
+        >
+          {nexradVisible ? "Hide NEXRAD" : "Show NEXRAD"}
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          data-active={noaaInfraredVisible}
+          onClick={handleNoaaInfraredToggle}
+        >
+          {noaaInfraredVisible ? "Hide NOAA infrared" : "Show NOAA infrared"}
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          data-active={noaaRadarVisible}
+          onClick={handleNoaaRadarToggle}
+        >
+          {noaaRadarVisible ? "Hide NOAA Radar" : "Show NOAA Radar"}
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          data-active={dwdRadolanVisible}
+          onClick={handleDwdRadolanToggle}
+        >
+          {dwdRadolanVisible ? "Hide DWD RADOLAN" : "Show DWD RADOLAN"}
         </button>
         <button
           type="button"
