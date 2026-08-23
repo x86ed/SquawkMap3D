@@ -7,8 +7,6 @@ import { NextResponse } from "next/server";
  *
  * @returns {NextResponse} JSON payload describing service status.
  */
-export const dynamic = "force-static";
-
 export async function GET() {
   return NextResponse.json({
     status: "ok",
