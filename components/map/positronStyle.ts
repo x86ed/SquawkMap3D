@@ -22,11 +22,17 @@ import type { StyleSpecification } from "maplibre-gl";
  * palette below since they still need *some* color to render sensibly on a
  * light background.
  *
- * Unlike the dark theme (see `getDarkMatterStyle`), no hillshade/contour
- * layers are spliced in here: Positron is a flat, non-terrain style by
- * design, and 3D terrain elevation (`applyTerrain`/`setTerrain` in
+ * Unlike the dark theme (see `getDarkMatterStyle`), no contour layers are
+ * spliced in here — 3D terrain elevation (`applyTerrain`/`setTerrain` in
  * `terrain.ts`) is applied independently of the active style's layers, so
- * pitched 3D terrain still works with this theme regardless.
+ * pitched 3D terrain still works with this theme regardless of contours.
+ *
+ * A `Hillshade` layer *is* spliced in (see `getPositronStyle`), right after
+ * `background` like the dark theme's, but with stronger shadow contrast and
+ * exaggeration than `HILLSHADE_LAYER` in `darkMatterStyle.ts` — relief
+ * shading reads much fainter against this style's light, low-contrast
+ * palette than it does against Dark Matter's near-black one, so it needs a
+ * heavier hand here to stay legible.
  */
 const BASE_LAYERS: StyleSpecification["layers"] = [
   {
@@ -800,7 +806,32 @@ const BASE_LAYERS: StyleSpecification["layers"] = [
   },
 ] as unknown as StyleSpecification["layers"];
 
-/** Builds the light theme's style, with the MapTiler API key filled in. */
+// Stronger shadow contrast and exaggeration than `HILLSHADE_LAYER` in
+// `darkMatterStyle.ts` (see module comment) so relief reads clearly against
+// this style's light `rgb(242,243,240)` background instead of washing out.
+const HILLSHADE_LAYER = {
+  id: "Hillshade",
+  type: "hillshade",
+  source: "terrain-rgb",
+  minzoom: 3,
+  layout: { visibility: "visible" },
+  paint: {
+    "hillshade-accent-color": "hsl(98, 10%, 55%)",
+    "hillshade-exaggeration": {
+      stops: [
+        [6, 0.7],
+        [14, 0.6],
+        [18, 0.45],
+      ],
+    } as unknown as number,
+    "hillshade-highlight-color": "hsl(0, 0%, 100%)",
+    "hillshade-shadow-color": "hsl(220, 15%, 35%)",
+  },
+} as unknown as StyleSpecification["layers"][number];
+
+/** Builds the light theme's style, with the MapTiler API key filled in. `
+ * Hillshade` is spliced in right after `background`, matching where
+ * `getDarkMatterStyle` places its own hillshade layer. */
 export function getPositronStyle(apiKey: string): StyleSpecification {
   return {
     version: 8,
@@ -810,9 +841,13 @@ export function getPositronStyle(apiKey: string): StyleSpecification {
         type: "vector",
         url: `https://api.maptiler.com/tiles/v3-openmaptiles/tiles.json?key=${apiKey}`,
       },
+      "terrain-rgb": {
+        type: "raster-dem",
+        url: `https://api.maptiler.com/tiles/terrain-rgb-v2/tiles.json?key=${apiKey}`,
+      },
     },
     sprite: "https://openmaptiles.github.io/positron-gl-style/sprite",
     glyphs: `https://api.maptiler.com/fonts/{fontstack}/{range}.pbf?key=${apiKey}`,
-    layers: BASE_LAYERS,
+    layers: [BASE_LAYERS[0], HILLSHADE_LAYER, ...BASE_LAYERS.slice(1)],
   };
 }
