@@ -52,5 +52,6 @@ MapLibre `symbol` layers render `icon-image` from images registered via `map.add
 
 ## Open Questions
 
-- Should the airports toggle default to visible (matching military bases' `militaryVisibleRef = true` default) or hidden? Proposal assumes **visible by default**, consistent with military bases and with airports already being visible today.
-- Should cursor-pointer-on-hover (not explicitly requested) be included as part of this change, or deferred? Design assumes **included**, since a click-only layer with no hover affordance is a poor discoverability UX.
+None outstanding. Previously open, now confirmed by the user:
+- Airports toggle defaults to **visible** (matches military bases' `militaryVisibleRef = true` default, and airports being visible today).
+- Cursor-pointer-on-hover is **included** in this change.
