@@ -17,9 +17,13 @@ const geistMono = Geist_Mono({
 // Matches adsb.win's dashboard font (Inter) — used for the airport popup
 // card, which is styled to match that site's aircraft cards (see
 // `.airport-popup` in globals.css and components/map/airportPopup.ts).
+// `preload: false`: the popup only renders after a map click, so eagerly
+// preloading it on every page load just triggers the browser's "preloaded
+// but not used within a few seconds" warning.
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
+  preload: false,
 });
 
 export const metadata: Metadata = {
