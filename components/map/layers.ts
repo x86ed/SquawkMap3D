@@ -372,6 +372,24 @@ export function addCustomLayers(
     });
   }
 
+  if (!map.getSource(AIRSPACE_BOUNDARIES_SOURCE_ID)) {
+    map.addSource(AIRSPACE_BOUNDARIES_SOURCE_ID, {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
+  }
+  if (!map.getLayer(AIRSPACE_BOUNDARIES_LINE_LAYER_ID)) {
+    map.addLayer({
+      id: AIRSPACE_BOUNDARIES_LINE_LAYER_ID,
+      type: "line",
+      source: AIRSPACE_BOUNDARIES_SOURCE_ID,
+      layout: {
+        visibility: (visibility.airspaceBoundaries ?? true) ? "visible" : "none",
+      },
+      paint: { "line-color": AIRSPACE_BOUNDARIES_LINE_COLOR, "line-width": 1 },
+    });
+  }
+
   if (!map.getSource(NEXRAD_SOURCE_ID)) {
     map.addSource(NEXRAD_SOURCE_ID, {
       type: "raster",
@@ -621,6 +639,30 @@ export function setSpecialUseAirspaceVisibility(
 export async function refreshSpecialUseAirspace(map: MapLibreMap): Promise<void> {
   const data = await fetchSpecialUseAirspace();
   const source = map.getSource(SUA_SOURCE_ID) as GeoJSONSource | undefined;
+  source?.setData(data);
+}
+
+/** Shows/hides the airspace boundaries layer. */
+export function setAirspaceBoundariesVisibility(
+  map: MapLibreMap,
+  visible: boolean,
+): void {
+  if (map.getLayer(AIRSPACE_BOUNDARIES_LINE_LAYER_ID)) {
+    map.setLayoutProperty(
+      AIRSPACE_BOUNDARIES_LINE_LAYER_ID,
+      "visibility",
+      visible ? "visible" : "none",
+    );
+  }
+}
+
+/** Refetches current FIR/UIR/oceanic airspace boundary polygons and updates
+ * the source in place. No-ops if the source doesn't exist yet. */
+export async function refreshAirspaceBoundaries(map: MapLibreMap): Promise<void> {
+  const data = await fetchAirspaceBoundaries();
+  const source = map.getSource(AIRSPACE_BOUNDARIES_SOURCE_ID) as
+    | GeoJSONSource
+    | undefined;
   source?.setData(data);
 }
 
