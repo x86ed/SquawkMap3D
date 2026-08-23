@@ -7,16 +7,33 @@ import {
 } from "maplibre-gl";
 import type { FeatureCollection, Polygon } from "geojson";
 
-/** Cool-white tint applied per band. Screen-blended and stacked across
- * `TERMINATOR_ELEVATION_BANDS_DEG.length` bands, this composes into a bright
- * wash at the daylight core and a smooth falloff toward night — see
- * `terminator.ts`'s `addTerminatorLayers` doc comment for why dark theme
- * needs this (brightening the day side) rather than darkening night. Most of
- * the visible day area only stacks a handful of the 8 bands (only points
- * very near the subsolar longitude reach all 8), so this needs to be
- * noticeably brighter than a naive "divide the target opacity by 8" guess
- * would suggest — tuned up after the first pass read as barely visible. */
-const BAND_TINT: [number, number, number] = [0.32, 0.36, 0.42];
+/** Cool-white tint applied per band, screen-blended and stacked across
+ * `TERMINATOR_ELEVATION_BANDS_DEG.length` (8) bands — see `terminator.ts`'s
+ * `addTerminatorLayers` doc comment for why dark theme needs this
+ * (brightening the day side) rather than darkening night.
+ *
+ * Screen blend of N stacked *same-color* layers converges toward
+ * `1 - (1-x)^N` per channel, and that convergence is aggressive — this has
+ * been tuned twice already, hitting both failure modes:
+ *   - `x≈0.19` (the first attempt): 8-stack converges to only ~65-83%,
+ *     which sounds like a lot but reads as barely-there at typical
+ *     zoomed-out map view, especially competing with other bright map
+ *     elements (airport/military markers) — reported by the user as "not
+ *     noticeable."
+ *   - `x=0.32` (the second attempt, overcorrecting): 8-stack converges to
+ *     ~95-99%, washing every pixel under the daylight core toward the same
+ *     near-white value regardless of what's underneath — confirmed via a
+ *     zoomed-in screenshot at the exact subsolar point showing a perfectly
+ *     flat color with *zero* visible coastline/basemap detail. That's the
+ *     opposite of the point of a screen blend (brighten while preserving
+ *     underlying detail) — a flat wash is just what the alpha-blended
+ *     `fill` layers already did, with extra steps.
+ * `x≈0.12` converges to ~62-72% at full 8-stack: noticeably brighter than
+ * the first attempt at a glance, while still leaving real headroom (~30%+)
+ * for underlying color/detail to read through even at the core — confirmed
+ * both at the zoomed-in core (detail preserved) and at typical zoomed-out
+ * view (visibly brighter day region). */
+const BAND_TINT: [number, number, number] = [0.11, 0.12, 0.14];
 
 const VERTEX_SHADER = `#version 300 es
 uniform mat4 u_matrix;

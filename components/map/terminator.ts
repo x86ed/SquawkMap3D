@@ -17,16 +17,33 @@ export const TERMINATOR_LAYER_IDS = [
   TERMINATOR_GL_LAYER_ID,
 ];
 
-/** The dark-theme terminator layer, once added (see `addTerminatorLayers`).
- * `refreshTerminator`/`setTerminatorVisibility` call methods on this same
- * instance rather than going through `map.get*`/`map.set*Property`, since
- * those APIs are for style-spec layer types — a `type: "custom"` layer like
- * this one owns its own visibility/data state instead. Module-level rather
- * than per-map: this app only ever has one map instance, and re-checking
- * `map.getLayer(TERMINATOR_GL_LAYER_ID)` before reusing it means a stale
- * reference (e.g. from a torn-down dev-mode double-mount) self-heals on the
- * next `addTerminatorLayers` call for whichever map is actually active. */
-let glLayer: TerminatorScreenBlendLayer | null = null;
+/**
+ * Recovers the live `TerminatorScreenBlendLayer` instance from the map
+ * itself, rather than trusting a module-level variable.
+ *
+ * This isn't paranoia — a module-level `let glLayer` was the original
+ * design here, and it has a real, reproducible bug: on any HMR reload of
+ * this module (routine during active development — every edit to this
+ * file triggers one), the module re-executes and resets that variable to
+ * `null`, but the *already-running* map/layer isn't torn down by React Fast
+ * Refresh — MapLibre still holds the original instance internally, added
+ * via `map.addLayer(glLayer)` before the reload. After that, every
+ * `updateBands`/`setVisible` call silently no-ops on the stale `null`
+ * reference (optional chaining swallows it), while the real layer sits
+ * frozen on the map with whatever data it had before the reload — it looks
+ * "broken" in a long-running dev session despite working in any fresh
+ * page load or test. `map.getLayer(id)` returns MapLibre's own
+ * `CustomStyleLayer` wrapper, whose `implementation` property is the exact
+ * instance passed to `addLayer` — recovering it from there instead means
+ * there's no separate piece of state that can ever drift out of sync with
+ * what's actually attached to the map.
+ */
+function getGLLayer(map: MapLibreMap): TerminatorScreenBlendLayer | undefined {
+  const layer = map.getLayer(TERMINATOR_GL_LAYER_ID) as
+    | { implementation?: TerminatorScreenBlendLayer }
+    | undefined;
+  return layer?.implementation;
+}
 
 const DEG = Math.PI / 180;
 const RAD = 180 / Math.PI;
@@ -278,11 +295,11 @@ export function addTerminatorLayers(
 ): void {
   if (theme === "dark") {
     if (!map.getLayer(TERMINATOR_GL_LAYER_ID)) {
-      glLayer = new TerminatorScreenBlendLayer(TERMINATOR_GL_LAYER_ID);
-      map.addLayer(glLayer);
+      map.addLayer(new TerminatorScreenBlendLayer(TERMINATOR_GL_LAYER_ID));
     }
-    glLayer?.updateBands(buildTerminatorBands(date, "day"));
-    glLayer?.setVisible(visible);
+    const layer = getGLLayer(map);
+    layer?.updateBands(buildTerminatorBands(date, "day"));
+    layer?.setVisible(visible);
     return;
   }
 
@@ -330,7 +347,7 @@ export function setTerminatorVisibility(map: MapLibreMap, visible: boolean): voi
       map.setLayoutProperty(layerId, "visibility", visibility);
     }
   }
-  glLayer?.setVisible(visible);
+  getGLLayer(map)?.setVisible(visible);
 }
 
 /** Recomputes the terminator bands for `date`/`theme` and updates the
@@ -343,7 +360,7 @@ export function refreshTerminator(
   date = new Date(),
 ): void {
   if (theme === "dark") {
-    glLayer?.updateBands(buildTerminatorBands(date, "day"));
+    getGLLayer(map)?.updateBands(buildTerminatorBands(date, "day"));
     return;
   }
   const source = map.getSource(TERMINATOR_SOURCE_ID) as GeoJSONSource | undefined;
