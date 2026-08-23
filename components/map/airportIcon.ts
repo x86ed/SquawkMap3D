@@ -152,9 +152,8 @@ async function registerAirportIcon(
   // The awaited rasterization may race a concurrent request for the same
   // id — recheck before adding, since `addImage` throws on a duplicate id.
   if (map.hasImage(imageId)) return;
-  // `getOrRasterize` caches by color, and both themes currently share the
-  // same `AIRPORT_FILL_COLOR` — so this cached `ImageData` is the same
-  // object reused across every id that shares that color. `addImage`
+  // `getOrRasterize` caches by color, so two ids that happen to share a
+  // color would share this cached `ImageData` instance. `addImage`
   // transfers its pixel buffer internally, which detaches the source
   // typed array; reusing that same instance for a second `addImage` call
   // hands it a zero-length buffer (`RangeError: mismatched image size`).
@@ -189,9 +188,15 @@ async function registerAirportIcon(
  * an equivalent resolver) and cheap to call repeatedly since rasterization
  * itself is cached by color in `getOrRasterize`.
  */
-export function registerAirportIconResolver(map: MapLibreMap, color: string): void {
+export function registerAirportIconResolver(
+  map: MapLibreMap,
+  colors: Record<MapTheme, string>,
+): void {
   map.setMissingStyleImageResolver((id) => {
-    if (id !== airportIconImageId("light") && id !== airportIconImageId("dark")) {
+    let theme: MapTheme;
+    if (id === airportIconImageId("light")) theme = "light";
+    else if (id === airportIconImageId("dark")) theme = "dark";
+    else {
       // Not ours — return nothing so MapLibre falls through to its normal
       // "styleimagemissing" handling for other missing images.
       return undefined;
@@ -199,6 +204,6 @@ export function registerAirportIconResolver(map: MapLibreMap, color: string): vo
     // Returned (not fire-and-forget): `ImageManager._getImagesForIds`
     // awaits this before finalizing a tile's icon dependencies — see the
     // race explained on `registerAirportIconResolver` above.
-    return registerAirportIcon(map, id, color);
+    return registerAirportIcon(map, id, colors[theme]);
   });
 }
