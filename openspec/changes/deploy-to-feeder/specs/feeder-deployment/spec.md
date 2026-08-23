@@ -4,8 +4,8 @@
 Running the deploy script SHALL produce and ship a production build of the app (compiled ahead of time via `next build`) to the feeder box, and SHALL NOT start or rely on `next dev` or any file-watching/hot-reload server, on either the local machine or the feeder box.
 
 #### Scenario: Successful deploy
-- **WHEN** the deploy script is run from a developer machine with the feeder reachable over SSH at `root@adsb-feeder.local` using the key at `~/.ssh/adsb_feeder`, and Node.js is already present on the feeder box
-- **THEN** the script builds the app locally with `next build`, ships the compiled output to the feeder box, and the feeder box ends up running that precompiled build with no on-box compilation or dev-server process
+- **WHEN** the deploy script is run from a developer machine with the feeder reachable over SSH at `root@adsb-feeder.local` using the key at `~/.ssh/adsb_feeder`, and the feeder box's required file-server runtime is already present
+- **THEN** the script builds the app locally with `next build`, ships the compiled static output to the feeder box, and the feeder box ends up serving that precompiled build with no on-box compilation, no dev-server process, and no application runtime process beyond a static file server
 
 #### Scenario: Redeploy picks up new code
 - **WHEN** the deploy script is run again after the local working tree has changed since the previous deploy
