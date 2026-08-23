@@ -9,9 +9,9 @@ const ATC_SVG_MARKUP = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="htt
 export const AIRPORT_ICON_RASTER_SIZE = 128;
 export const AIRPORT_ICON_PIXEL_RATIO = 2;
 
-// Inset the glyph within the raster so it doesn't touch the white backing
-// circle's edge.
-const ICON_PADDING_RATIO = 0.16;
+// Small inset so the glyph doesn't get clipped by anti-aliasing at the
+// raster's edge.
+const ICON_PADDING_RATIO = 0.05;
 
 export function airportIconImageId(theme: MapTheme): string {
   return `airport-icon-${theme}`;
@@ -34,11 +34,78 @@ function loadSvgImage(markup: string): Promise<HTMLImageElement> {
   });
 }
 
+function hexToRgb(hex: string): [number, number, number] {
+  const match = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!match) throw new Error(`Invalid hex color: ${hex}`);
+  return [parseInt(match[1], 16), parseInt(match[2], 16), parseInt(match[3], 16)];
+}
+
 /**
- * Rasterizes `atc.svg`, recolored to `color`, on a solid white backing disc
- * sized to the raster — so the glyph's negative space (any area within its
- * own footprint not covered by its path) reads as opaque white rather than
- * transparent to whatever's rendered beneath the map icon.
+ * `atc.svg`'s tower body is authored as several overlapping/oppositely-wound
+ * subpaths, so rasterizing it as-is leaves transparent "holes" inside the
+ * silhouette (e.g. the tower body reads as a hollow outline rather than a
+ * solid shape). Rather than hand-editing that path data, this solidifies
+ * the raster directly: flood-fill from every edge pixel to find the
+ * "outside" (background actually reachable from outside the glyph), then
+ * fill every remaining transparent pixel — which must be an enclosed hole —
+ * with `color` at full opacity.
+ */
+function solidifyEnclosedHoles(
+  imageData: ImageData,
+  color: [number, number, number],
+): void {
+  const { width, height, data } = imageData;
+  const isTransparent = (x: number, y: number) => data[(y * width + x) * 4 + 3] === 0;
+  const outside = new Uint8Array(width * height);
+  const stack: number[] = [];
+
+  for (let x = 0; x < width; x++) {
+    for (const y of [0, height - 1]) {
+      if (isTransparent(x, y)) stack.push(y * width + x);
+    }
+  }
+  for (let y = 0; y < height; y++) {
+    for (const x of [0, width - 1]) {
+      if (isTransparent(x, y)) stack.push(y * width + x);
+    }
+  }
+  for (const i of stack) outside[i] = 1;
+
+  while (stack.length > 0) {
+    const i = stack.pop() as number;
+    const x = i % width;
+    const y = (i / width) | 0;
+    const neighbors: Array<[number, number]> = [
+      [x - 1, y],
+      [x + 1, y],
+      [x, y - 1],
+      [x, y + 1],
+    ];
+    for (const [nx, ny] of neighbors) {
+      if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+      const ni = ny * width + nx;
+      if (outside[ni] || !isTransparent(nx, ny)) continue;
+      outside[ni] = 1;
+      stack.push(ni);
+    }
+  }
+
+  const [r, g, b] = color;
+  for (let i = 0; i < width * height; i++) {
+    if (outside[i]) continue;
+    const alphaIdx = i * 4 + 3;
+    if (data[alphaIdx] !== 0) continue; // already-opaque glyph pixel
+    data[i * 4] = r;
+    data[i * 4 + 1] = g;
+    data[i * 4 + 2] = b;
+    data[alphaIdx] = 255;
+  }
+}
+
+/**
+ * Rasterizes `atc.svg` recolored to `color`, on a transparent background
+ * (no backing shape) — just the glyph itself, with any enclosed holes in
+ * its silhouette solidified (see `solidifyEnclosedHoles`).
  */
 async function rasterizeAirportIcon(color: string): Promise<ImageData> {
   const img = await loadSvgImage(ATC_SVG_MARKUP);
@@ -49,29 +116,19 @@ async function rasterizeAirportIcon(color: string): Promise<ImageData> {
   // Recolor the glyph: draw it, then use `source-in` to replace its opaque
   // pixels with `color` while preserving its alpha (so transparent stays
   // transparent, anti-aliased edges stay anti-aliased).
-  const glyphCanvas = document.createElement("canvas");
-  glyphCanvas.width = size;
-  glyphCanvas.height = size;
-  const glyphCtx = glyphCanvas.getContext("2d");
-  if (!glyphCtx) throw new Error("2D canvas context unavailable");
-  glyphCtx.drawImage(img, inset, inset, glyphSize, glyphSize);
-  glyphCtx.globalCompositeOperation = "source-in";
-  glyphCtx.fillStyle = color;
-  glyphCtx.fillRect(0, 0, size, size);
-
-  // White backing disc, then the recolored glyph composited on top.
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("2D canvas context unavailable");
-  ctx.fillStyle = "#ffffff";
-  ctx.beginPath();
-  ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.drawImage(glyphCanvas, 0, 0);
+  ctx.drawImage(img, inset, inset, glyphSize, glyphSize);
+  ctx.globalCompositeOperation = "source-in";
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, size, size);
 
-  return ctx.getImageData(0, 0, size, size);
+  const imageData = ctx.getImageData(0, 0, size, size);
+  solidifyEnclosedHoles(imageData, hexToRgb(color));
+  return imageData;
 }
 
 const rasterCache = new Map<string, Promise<ImageData>>();
