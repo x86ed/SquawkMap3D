@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Map as MapLibreMap, NavigationControl, setWorkerUrl } from "maplibre-gl";
+import {
+  Map as MapLibreMap,
+  NavigationControl,
+  Popup,
+  setWorkerUrl,
+  type MapGeoJSONFeature,
+} from "maplibre-gl";
 import styles from "./MapView.module.css";
 import {
   getMapTilerKey,
@@ -12,9 +18,17 @@ import { getInitialTheme, storeTheme } from "./theme";
 import { applySky, applyTerrain } from "./terrain";
 import {
   addCustomLayers,
+  AIRPORTS_LAYER_ID,
+  setAirportsVisibility,
   setMilitaryBasesVisibility,
   setPilotModeVisibility,
 } from "./layers";
+import {
+  airportImageSlotId,
+  buildAirportPopupHtml,
+  fetchAirportImage,
+  type AirportProperties,
+} from "./airportPopup";
 import {
   addUserLocationLayers,
   getUserLocationBounds,
@@ -49,6 +63,7 @@ export default function MapView() {
   const themeRef = useRef<MapTheme>(getInitialTheme());
   const pilotModeRef = useRef(false);
   const militaryVisibleRef = useRef(true);
+  const airportsVisibleRef = useRef(true);
   const userLocationRef = useRef<GeoCoords | null>(null);
   const styleReadyRef = useRef(false);
   const dishRotationStopRef = useRef<(() => void) | null>(null);
@@ -56,6 +71,7 @@ export default function MapView() {
   const [theme, setTheme] = useState<MapTheme>(() => getInitialTheme());
   const [pilotMode, setPilotMode] = useState(false);
   const [militaryVisible, setMilitaryVisible] = useState(true);
+  const [airportsVisible, setAirportsVisible] = useState(true);
   const [error, setError] = useState<string | null>(() =>
     getMapTilerKey()
       ? null
@@ -124,7 +140,12 @@ export default function MapView() {
       styleReadyRef.current = true;
       applyTerrain(map);
       applySky(map);
-      addCustomLayers(map, themeRef.current, militaryVisibleRef.current);
+      addCustomLayers(
+        map,
+        themeRef.current,
+        militaryVisibleRef.current,
+        airportsVisibleRef.current,
+      );
       setPilotModeVisibility(map, pilotModeRef.current);
       addUserLocationLayers(map, userLocationRef.current);
       if (userLocationRef.current) {
@@ -142,6 +163,37 @@ export default function MapView() {
           "Map unavailable: the MapTiler API key was rejected. Check NEXT_PUBLIC_MAPTILER_KEY.",
         );
       }
+    });
+
+    map.on("mouseenter", AIRPORTS_LAYER_ID, () => {
+      map.getCanvas().style.cursor = "pointer";
+    });
+    map.on("mouseleave", AIRPORTS_LAYER_ID, () => {
+      map.getCanvas().style.cursor = "";
+    });
+    map.on("click", AIRPORTS_LAYER_ID, (event) => {
+      const feature = event.features?.[0] as MapGeoJSONFeature | undefined;
+      if (!feature || feature.geometry.type !== "Point") return;
+
+      const properties = feature.properties as AirportProperties;
+      const [lng, lat] = feature.geometry.coordinates;
+      new Popup()
+        .setLngLat([lng, lat])
+        .setHTML(buildAirportPopupHtml(properties))
+        .addTo(map);
+
+      const name = properties.name;
+      const ident = properties.ident ?? name;
+      if (!name || !ident) return;
+      fetchAirportImage(name).then((imageUrl) => {
+        const slot = document.getElementById(airportImageSlotId(ident));
+        if (!slot) return; // popup closed/replaced before the lookup resolved
+        if (imageUrl) {
+          slot.innerHTML = `<img src="${imageUrl}" alt="${name}" style="width:100%;height:100%;object-fit:cover;" onerror="this.closest('div').textContent='No image available'" />`;
+        } else {
+          slot.textContent = "No image available";
+        }
+      });
     });
 
     getCurrentLocation().then((coords) => {
@@ -197,6 +249,15 @@ export default function MapView() {
     }
   };
 
+  const handleAirportsToggle = () => {
+    const next = !airportsVisible;
+    airportsVisibleRef.current = next;
+    setAirportsVisible(next);
+    if (mapRef.current) {
+      setAirportsVisibility(mapRef.current, next);
+    }
+  };
+
   const handleJumpToLocation = () => {
     getCurrentLocation().then((coords) => {
       handleLocationResolved(coords);
@@ -242,6 +303,14 @@ export default function MapView() {
           onClick={handleMilitaryToggle}
         >
           {militaryVisible ? "Hide military bases" : "Show military bases"}
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          data-active={airportsVisible}
+          onClick={handleAirportsToggle}
+        >
+          {airportsVisible ? "Hide airports" : "Show airports"}
         </button>
         <button
           type="button"

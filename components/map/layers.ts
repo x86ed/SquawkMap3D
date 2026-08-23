@@ -1,5 +1,6 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
 import type { MapTheme } from "./mapStyles";
+import { airportIconImageId, ensureAirportIcon } from "./airportIcon";
 import {
   FAA_SECTIONAL_TILE_URL,
   FAA_SECTIONAL_MINZOOM,
@@ -23,17 +24,14 @@ const CUSTOM_LAYER_IDS = [
   AIRPORTS_LAYER_ID,
 ];
 
-// Saturated orange — reads clearly against both the light and dark
-// MapTiler outdoor styles.
-const AIRPORT_FILL_COLOR = "#ffffff";
+// Foreground color of the airport icon's glyph (see airportIcon.ts), reused
+// as-is for both the light and dark map views — the icon's negative space is
+// separately rasterized to solid white regardless of this color.
+export const AIRPORT_FILL_COLOR = "#ffffff";
 // Olive/drab — distinct from the airport orange and from the basemap's
 // greens/tans in both themes.
 const MILITARY_FILL_COLOR = "#ed6bff";
 const MILITARY_LINE_COLOR = "#e12afb";
-
-function haloColorFor(theme: MapTheme): string {
-  return theme === "dark" ? "#0a0a0a" : "#ffffff";
-}
 
 /**
  * Adds (or idempotently re-adds) the FAA sectional, military-base,
@@ -42,15 +40,16 @@ function haloColorFor(theme: MapTheme): string {
  * `style.load` (post `setStyle`), since MapLibre discards custom
  * sources/layers on a style swap.
  *
- * `militaryVisible` sets the initial visibility of the re-added military-base
- * layers so a user's toggle choice survives a style swap (theme change) —
- * callers that already persist this choice (e.g. a ref) should pass it
- * through on every re-add.
+ * `militaryVisible`/`airportsVisible` set the initial visibility of the
+ * re-added military-base/airport layers so a user's toggle choice survives a
+ * style swap (theme change) — callers that already persist this choice (e.g.
+ * a ref) should pass it through on every re-add.
  */
 export function addCustomLayers(
   map: MapLibreMap,
   theme: MapTheme,
   militaryVisible = true,
+  airportsVisible = true,
 ): void {
   if (!map.getSource(FAA_SECTIONAL_SOURCE_ID)) {
     map.addSource(FAA_SECTIONAL_SOURCE_ID, {
@@ -109,33 +108,40 @@ export function addCustomLayers(
       data: "/data/airports.geojson",
     });
   }
+  // Fire-and-forget: rasterization is async (canvas + Image decode), but
+  // `addCustomLayers` itself must stay synchronous to match its callers.
+  // The symbol layer below can reference this image id before it's
+  // registered — MapLibre just renders nothing for it until `addImage`
+  // resolves and the next repaint picks it up.
+  void ensureAirportIcon(map, theme, AIRPORT_FILL_COLOR);
+  const airportsVisibility = airportsVisible ? "visible" : "none";
   if (!map.getLayer(AIRPORTS_LAYER_ID)) {
     map.addLayer({
       id: AIRPORTS_LAYER_ID,
-      type: "circle",
+      type: "symbol",
       source: AIRPORTS_SOURCE_ID,
-      paint: {
-        "circle-radius": [
+      layout: {
+        visibility: airportsVisibility,
+        "icon-image": airportIconImageId(theme),
+        "icon-allow-overlap": true,
+        "icon-size": [
           "interpolate",
           ["linear"],
           ["zoom"],
           3,
-          2,
+          0.15,
           8,
-          5,
+          0.35,
           12,
-          8,
+          0.55,
         ],
-        "circle-color": AIRPORT_FILL_COLOR,
-        "circle-stroke-width": 1.5,
-        "circle-stroke-color": haloColorFor(theme),
       },
     });
   } else {
-    map.setPaintProperty(
+    map.setLayoutProperty(
       AIRPORTS_LAYER_ID,
-      "circle-stroke-color",
-      haloColorFor(theme),
+      "icon-image",
+      airportIconImageId(theme),
     );
   }
 }
@@ -178,5 +184,19 @@ export function setMilitaryBasesVisibility(map: MapLibreMap, visible: boolean): 
   }
   if (map.getLayer(MILITARY_LINE_LAYER_ID)) {
     map.setLayoutProperty(MILITARY_LINE_LAYER_ID, "visibility", visibility);
+  }
+}
+
+/**
+ * Shows/hides the airports layer. Independent of pilot mode, same as
+ * military bases (see `setMilitaryBasesVisibility`).
+ */
+export function setAirportsVisibility(map: MapLibreMap, visible: boolean): void {
+  if (map.getLayer(AIRPORTS_LAYER_ID)) {
+    map.setLayoutProperty(
+      AIRPORTS_LAYER_ID,
+      "visibility",
+      visible ? "visible" : "none",
+    );
   }
 }
