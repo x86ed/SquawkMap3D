@@ -19,8 +19,8 @@ The deployed app SHALL run as a system service bound to port 7500 on the feeder 
 - **THEN** the app responds to HTTP requests on `adsb-feeder.local:7500`
 
 #### Scenario: Service recovers from a crash
-- **WHEN** the deployed app process exits unexpectedly while the feeder box stays running
-- **THEN** the service supervisor restarts the app process without manual intervention
+- **WHEN** the web server process serving the deployed app exits unexpectedly while the feeder box stays running
+- **THEN** its service supervisor restarts it without manual intervention, and the deployed app becomes reachable again
 
 #### Scenario: Service survives a reboot
 - **WHEN** the feeder box is rebooted after a successful deploy
@@ -48,9 +48,9 @@ The deploy script SHALL check its required local and remote prerequisites before
 - **WHEN** the deploy script is run and `root@adsb-feeder.local` cannot be reached over SSH with the configured key
 - **THEN** the script aborts before building or shipping anything, with an error identifying the connection failure
 
-#### Scenario: Remote file-server runtime missing
-- **WHEN** the deploy script is run and the feeder box does not have the runtime required to serve the deployed static build installed
-- **THEN** the script aborts before shipping a build, with an error identifying the missing runtime and instructions to install it manually
+#### Scenario: Remote web server missing
+- **WHEN** the deploy script is run and the feeder box does not have the web server required to serve the deployed static build (lighttpd) present and running
+- **THEN** the script aborts before shipping a build, with an error identifying the missing/unrecognized web server and instructions to resolve it manually
 
 ### Requirement: Deploy wires the app to the feeder's own live decoder feed, same-origin, without modifying the decoder or web server that provides it
 When deploying to a feeder box that already has a recognizable ADS-B decoder output (an `aircraft.json` file at one of the well-known decoder locations), the deploy script SHALL make that live feed available to the deployed app from the same origin it is served from (no cross-origin request required), without reading, writing, or otherwise modifying any configuration or service belonging to software already running on the feeder box.

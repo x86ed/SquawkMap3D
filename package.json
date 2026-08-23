@@ -23,13 +23,14 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "npx serve@latest out",
     "lint": "eslint .",
     "test": "node --import tsx --test",
     "coverage": "nyc --reporter=text --reporter=lcov --reporter=html npm test",
     "test:coverage": "npm run coverage",
     "docs": "jsdoc -c jsdoc.json",
-    "postinstall": "node scripts/copy-flag-icons.mjs"
+    "postinstall": "node scripts/copy-flag-icons.mjs",
+    "deploy:feeder": "bash scripts/deploy-to-feeder.sh"
   },
   "dependencies": {
     "@deck.gl/core": "^9.3.10",
