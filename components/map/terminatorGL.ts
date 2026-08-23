@@ -7,12 +7,16 @@ import {
 } from "maplibre-gl";
 import type { FeatureCollection, Polygon } from "geojson";
 
-/** Dim, cool-white tint applied per band. Screen-blended and stacked across
- * `TERMINATOR_ELEVATION_BANDS_DEG.length` bands, this composes into a full
- * bright wash at the daylight core and a smooth falloff toward night — see
- * `terminator.ts`'s `TERMINATOR_REGION_FOR_THEME` doc comment for why dark
- * theme needs this (brightening the day side) rather than darkening night. */
-const BAND_TINT: [number, number, number] = [0.16, 0.18, 0.22];
+/** Cool-white tint applied per band. Screen-blended and stacked across
+ * `TERMINATOR_ELEVATION_BANDS_DEG.length` bands, this composes into a bright
+ * wash at the daylight core and a smooth falloff toward night — see
+ * `terminator.ts`'s `addTerminatorLayers` doc comment for why dark theme
+ * needs this (brightening the day side) rather than darkening night. Most of
+ * the visible day area only stacks a handful of the 8 bands (only points
+ * very near the subsolar longitude reach all 8), so this needs to be
+ * noticeably brighter than a naive "divide the target opacity by 8" guess
+ * would suggest — tuned up after the first pass read as barely visible. */
+const BAND_TINT: [number, number, number] = [0.32, 0.36, 0.42];
 
 const VERTEX_SHADER = `#version 300 es
 uniform mat4 u_matrix;
