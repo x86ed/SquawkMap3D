@@ -534,6 +534,16 @@ export default function MapView() {
         <button
           type="button"
           className={styles.controlButton}
+          data-active={airspaceBoundariesVisible}
+          onClick={handleAirspaceBoundariesToggle}
+        >
+          {airspaceBoundariesVisible
+            ? "Hide airspace boundaries"
+            : "Show airspace boundaries"}
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
           data-active={nexradVisible}
           onClick={handleNexradToggle}
         >
