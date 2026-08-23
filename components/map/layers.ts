@@ -32,7 +32,7 @@ const CUSTOM_LAYER_IDS = [
 // dot, indistinguishable from the old circle marker, until this was caught
 // in a real-browser screenshot). Saturated orange reads clearly against
 // both the light and dark MapTiler styles.
-export const AIRPORT_FILL_COLOR = "#f97316";
+export const AIRPORT_FILL_COLOR = "#ce00ff";
 // Olive/drab — distinct from the airport orange and from the basemap's
 // greens/tans in both themes.
 const MILITARY_FILL_COLOR = "#ed6bff";
