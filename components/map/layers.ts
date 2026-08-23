@@ -30,6 +30,7 @@ import {
 import { fetchCurrentRainViewerTileUrl } from "./rainviewer";
 import { fetchTfrs } from "./tfr";
 import { fetchSpecialUseAirspace } from "./specialUseAirspace";
+import { fetchAirspaceBoundaries } from "./airspaceBoundaries";
 
 export const AIRPORTS_SOURCE_ID = "airports";
 export const AIRPORTS_LAYER_ID = "airports-circle";
@@ -55,6 +56,9 @@ export const SUA_SOURCE_ID = "special-use-airspace";
 export const SUA_FILL_LAYER_ID = "special-use-airspace-fill";
 export const SUA_LINE_LAYER_ID = "special-use-airspace-line";
 
+export const AIRSPACE_BOUNDARIES_SOURCE_ID = "airspace-boundaries";
+export const AIRSPACE_BOUNDARIES_LINE_LAYER_ID = "airspace-boundaries-line";
+
 export const NEXRAD_SOURCE_ID = "nexrad";
 export const NEXRAD_LAYER_ID = "nexrad-raster";
 
@@ -78,6 +82,7 @@ const CUSTOM_LAYER_IDS = [
   TFR_LINE_LAYER_ID,
   SUA_FILL_LAYER_ID,
   SUA_LINE_LAYER_ID,
+  AIRSPACE_BOUNDARIES_LINE_LAYER_ID,
   NEXRAD_LAYER_ID,
   NOAA_INFRARED_LAYER_ID,
   NOAA_RADAR_LAYER_ID,
@@ -108,6 +113,11 @@ const TFR_LINE_COLOR = "#d1001f";
 // Amber — distinct from TFR red and military bases' pink.
 const SUA_FILL_COLOR = "#ff9500";
 const SUA_LINE_COLOR = "#c96f00";
+
+// Cool blue/cyan — distinct from the warm palette above (military's magenta,
+// TFR's red, SUA's amber), so FIR/UIR boundaries stay legible when layered
+// with those filled-polygon layers.
+const AIRSPACE_BOUNDARIES_LINE_COLOR = "#2fd0ff";
 
 // Zoom -> icon-size stops for the airports symbol layer, and the single
 // source of truth for `getAirportIconDisplayHeight` below (which popup
@@ -155,6 +165,7 @@ export interface CustomLayerVisibility {
   rainViewer?: boolean;
   tfr?: boolean;
   specialUseAirspace?: boolean;
+  airspaceBoundaries?: boolean;
   nexrad?: boolean;
   noaaInfrared?: boolean;
   noaaRadar?: boolean;
