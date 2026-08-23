@@ -129,6 +129,7 @@ export function addCustomLayers(
       layout: {
         visibility: airportsVisibility,
         "icon-image": airportIconImageId(theme),
+        "icon-anchor": "bottom",
         "icon-allow-overlap": true,
         "icon-size": [
           "interpolate",
