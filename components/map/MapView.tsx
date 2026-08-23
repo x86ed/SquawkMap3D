@@ -149,13 +149,17 @@ export default function MapView() {
       styleReadyRef.current = true;
       applyTerrain(map);
       applySky(map);
+      // Added before `addCustomLayers` so it lands at the bottom of the
+      // custom-layer stack (MapLibre draws layers in insertion order) —
+      // the day/night tint sits just above the base style, underneath the
+      // sectional chart/military bases/airports, so those stay undimmed.
+      addTerminatorLayers(map, themeRef.current, terminatorVisibleRef.current);
       addCustomLayers(
         map,
         themeRef.current,
         militaryVisibleRef.current,
         airportsVisibleRef.current,
       );
-      addTerminatorLayers(map, themeRef.current, terminatorVisibleRef.current);
       setPilotModeVisibility(map, pilotModeRef.current);
       addUserLocationLayers(map, userLocationRef.current);
       if (userLocationRef.current) {

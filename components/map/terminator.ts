@@ -1,49 +1,18 @@
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { Feature, FeatureCollection, Polygon } from "geojson";
 import type { MapTheme } from "./mapStyles";
-import { TerminatorScreenBlendLayer } from "./terminatorGL";
 import { TERMINATOR_ELEVATION_BANDS_DEG } from "./constants";
 
 export const TERMINATOR_SOURCE_ID = "day-night-terminator";
 const TERMINATOR_LAYER_ID_PREFIX = "day-night-terminator-band-";
-export const TERMINATOR_GL_LAYER_ID = "day-night-terminator-gl";
 
 function terminatorLayerId(bandIndex: number): string {
   return `${TERMINATOR_LAYER_ID_PREFIX}${bandIndex}`;
 }
 
-export const TERMINATOR_LAYER_IDS = [
-  ...TERMINATOR_ELEVATION_BANDS_DEG.map((_, bandIndex) => terminatorLayerId(bandIndex)),
-  TERMINATOR_GL_LAYER_ID,
-];
-
-/**
- * Recovers the live `TerminatorScreenBlendLayer` instance from the map
- * itself, rather than trusting a module-level variable.
- *
- * This isn't paranoia — a module-level `let glLayer` was the original
- * design here, and it has a real, reproducible bug: on any HMR reload of
- * this module (routine during active development — every edit to this
- * file triggers one), the module re-executes and resets that variable to
- * `null`, but the *already-running* map/layer isn't torn down by React Fast
- * Refresh — MapLibre still holds the original instance internally, added
- * via `map.addLayer(glLayer)` before the reload. After that, every
- * `updateBands`/`setVisible` call silently no-ops on the stale `null`
- * reference (optional chaining swallows it), while the real layer sits
- * frozen on the map with whatever data it had before the reload — it looks
- * "broken" in a long-running dev session despite working in any fresh
- * page load or test. `map.getLayer(id)` returns MapLibre's own
- * `CustomStyleLayer` wrapper, whose `implementation` property is the exact
- * instance passed to `addLayer` — recovering it from there instead means
- * there's no separate piece of state that can ever drift out of sync with
- * what's actually attached to the map.
- */
-function getGLLayer(map: MapLibreMap): TerminatorScreenBlendLayer | undefined {
-  const layer = map.getLayer(TERMINATOR_GL_LAYER_ID) as
-    | { implementation?: TerminatorScreenBlendLayer }
-    | undefined;
-  return layer?.implementation;
-}
+export const TERMINATOR_LAYER_IDS = TERMINATOR_ELEVATION_BANDS_DEG.map((_, bandIndex) =>
+  terminatorLayerId(bandIndex),
+);
 
 const DEG = Math.PI / 180;
 const RAD = 180 / Math.PI;
@@ -51,24 +20,49 @@ const RAD = 180 / Math.PI;
 /** Longitude step (degrees) for walking the terminator curve. */
 const LONGITUDE_STEP_DEG = 2;
 
-/** Per-band fill opacity for the light theme's night-darkening `fill`
- * layers. Stacked, these ~8 layers compose to roughly `1-(1-0.1)**8 ≈ 0.57`
- * opacity at the darkest (fully-enclosed) point. The dark theme doesn't use
- * this — see `TerminatorScreenBlendLayer` in `terminatorGL.ts`, which
- * brightens the day side with a true screen blend instead of an alpha-
- * blended fill (no headroom to darken further against an already-dark
- * basemap without either being invisible or washing everything toward one
- * flat tint). */
-const LIGHT_FILL_OPACITY = 0.1;
+/**
+ * Both themes render the same way: a GeoJSON source + one alpha-blended
+ * `fill` layer per twilight band. Light theme darkens the night region;
+ * dark theme brightens the day region instead (see `TERMINATOR_REGION_FOR_THEME`
+ * below) — a previous version used a hand-written WebGL layer with a true
+ * "screen" GL blend for dark theme specifically, to brighten while better
+ * preserving underlying map detail than a flat alpha fill can. That traded
+ * a lot of complexity (custom shaders, manual blend-state management, an
+ * `earcut` triangulation step) for a real but marginal visual improvement,
+ * and came with real bugs of its own (a module-level layer reference that
+ * went stale on every HMR reload; an intensity easy to overtune into
+ * washing out all detail via repeated-blend convergence). Reverted to this
+ * simpler, uniform approach — same mechanism, same tuning knobs, for both
+ * themes.
+ */
+// Same value in both themes converges to the same cumulative opacity at
+// full 8-band stack (`1-(1-x)^8`) — but that reads very differently per
+// theme: darkening toward near-black on the light basemap looks fine at
+// 0.1, while brightening toward near-white on the dark basemap read as far
+// too opaque/washed-out at that same value, and still noticeably too strong
+// at half that (0.04) — dark theme needs a much lower value than light to
+// land at a comparable *visual* strength, not just the same number.
+const FILL_OPACITY: Record<MapTheme, number> = {
+  light: 0.1,
+  dark: 0.02,
+};
 
-const LIGHT_FILL_COLOR = "#0a1030";
+const FILL_COLOR: Record<MapTheme, string> = {
+  light: "#0a1030",
+  dark: "#e8f2ff",
+};
 
 /** Which side of the terminator a band's polygon covers, for
  * `buildTerminatorBand`/`buildTerminatorBands`. `"night"` = elevation at or
- * below the threshold (used by the light theme's darkening bands); `"day"` =
- * at or above it (used by the dark theme's brightening bands, via
- * `TerminatorScreenBlendLayer`). */
+ * below the threshold (light theme darkens this); `"day"` = at or above it
+ * (dark theme brightens this instead — darkening has no headroom against an
+ * already-dark basemap). */
 export type TerminatorRegion = "night" | "day";
+
+const REGION_FOR_THEME: Record<MapTheme, TerminatorRegion> = {
+  light: "night",
+  dark: "day",
+};
 
 function normalizeDeg(deg: number): number {
   const wrapped = deg % 360;
@@ -274,18 +268,10 @@ export function buildTerminatorBands(
 }
 
 /**
- * Idempotently adds the terminator layer(s) for `theme` and seeds them with
- * `date`'s bands. Must be re-run on every `load`/`style.load`, same as the
- * other custom layers in `layers.ts`, since `setStyle` discards them.
- *
- * The two themes use genuinely different rendering: light theme darkens the
- * night side with plain alpha-blended `fill` layers (works fine — the
- * light basemap has headroom to darken). Dark theme brightens the day side
- * instead, via `TerminatorScreenBlendLayer`'s custom WebGL screen blend
- * (`terminatorGL.ts`) — a flat alpha overlay has no room to "brighten"
- * against an already-uniformly-dark basemap without either being invisible
- * or washing everything toward one flat tint; a true screen blend
- * brightens while preserving the map's underlying color/detail instead.
+ * Idempotently adds the terminator source and one `fill` layer per twilight
+ * band, seeded with `date`'s bands for `theme`'s region/color/opacity. Must
+ * be re-run on every `load`/`style.load`, same as the other custom layers
+ * in `layers.ts`, since `setStyle` discards them.
  */
 export function addTerminatorLayers(
   map: MapLibreMap,
@@ -293,30 +279,21 @@ export function addTerminatorLayers(
   visible = true,
   date = new Date(),
 ): void {
-  if (theme === "dark") {
-    if (!map.getLayer(TERMINATOR_GL_LAYER_ID)) {
-      map.addLayer(new TerminatorScreenBlendLayer(TERMINATOR_GL_LAYER_ID));
-    }
-    const layer = getGLLayer(map);
-    layer?.updateBands(buildTerminatorBands(date, "day"));
-    layer?.setVisible(visible);
-    return;
-  }
-
   if (!map.getSource(TERMINATOR_SOURCE_ID)) {
     map.addSource(TERMINATOR_SOURCE_ID, {
       type: "geojson",
-      data: buildTerminatorBands(date, "night"),
+      data: buildTerminatorBands(date, REGION_FOR_THEME[theme]),
     });
   }
   const visibility = visible ? "visible" : "none";
-  const fillColor = LIGHT_FILL_COLOR;
-  const fillOpacity = LIGHT_FILL_OPACITY;
+  const fillColor = FILL_COLOR[theme];
+  const fillOpacity = FILL_OPACITY[theme];
   for (const bandIndex of TERMINATOR_ELEVATION_BANDS_DEG.keys()) {
     const layerId = terminatorLayerId(bandIndex);
     if (map.getLayer(layerId)) {
       map.setPaintProperty(layerId, "fill-color", fillColor);
       map.setPaintProperty(layerId, "fill-opacity", fillOpacity);
+      map.setLayoutProperty(layerId, "visibility", visibility);
       continue;
     }
     map.addLayer({
@@ -333,36 +310,29 @@ export function addTerminatorLayers(
   }
 }
 
-/** Shows/hides the terminator layer(s), whichever theme's variant is
- * currently active. Independent of pilot mode, same as military
- * bases/airports (see `setMilitaryBasesVisibility` in `layers.ts`) —
- * `TERMINATOR_LAYER_IDS` must be included in that file's `CUSTOM_LAYER_IDS`
- * list so pilot mode's hide-everything-else pass leaves this layer's own
- * visibility state alone. */
+/** Shows/hides the terminator layer. Independent of pilot mode, same as
+ * military bases/airports (see `setMilitaryBasesVisibility` in
+ * `layers.ts`) — `TERMINATOR_LAYER_IDS` must be included in that file's
+ * `CUSTOM_LAYER_IDS` list so pilot mode's hide-everything-else pass leaves
+ * this layer's own visibility state alone. */
 export function setTerminatorVisibility(map: MapLibreMap, visible: boolean): void {
   const visibility = visible ? "visible" : "none";
-  for (const bandIndex of TERMINATOR_ELEVATION_BANDS_DEG.keys()) {
-    const layerId = terminatorLayerId(bandIndex);
+  for (const layerId of TERMINATOR_LAYER_IDS) {
     if (map.getLayer(layerId)) {
       map.setLayoutProperty(layerId, "visibility", visibility);
     }
   }
-  getGLLayer(map)?.setVisible(visible);
 }
 
 /** Recomputes the terminator bands for `date`/`theme` and updates the
- * active layer(s) in place. No-ops if neither the GL layer nor the GeoJSON
- * source exist yet (e.g. a refresh tick landing mid-style-swap, between
- * `setStyle` discarding the old layer and `style.load` re-adding it). */
+ * existing source in place. No-ops if the source doesn't exist yet (e.g. a
+ * refresh tick landing mid-style-swap, between `setStyle` discarding the
+ * old source and `style.load` re-adding it). */
 export function refreshTerminator(
   map: MapLibreMap,
   theme: MapTheme,
   date = new Date(),
 ): void {
-  if (theme === "dark") {
-    getGLLayer(map)?.updateBands(buildTerminatorBands(date, "day"));
-    return;
-  }
   const source = map.getSource(TERMINATOR_SOURCE_ID) as GeoJSONSource | undefined;
-  source?.setData(buildTerminatorBands(date, "night"));
+  source?.setData(buildTerminatorBands(date, REGION_FOR_THEME[theme]));
 }
