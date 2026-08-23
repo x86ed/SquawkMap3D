@@ -30,6 +30,7 @@ import {
 import { fetchCurrentRainViewerTileUrl } from "./rainviewer";
 import { fetchTfrs } from "./tfr";
 import { fetchSpecialUseAirspace } from "./specialUseAirspace";
+import { fetchAirspaceBoundaries } from "./airspaceBoundaries";
 
 export const AIRPORTS_SOURCE_ID = "airports";
 export const AIRPORTS_LAYER_ID = "airports-circle";
@@ -55,6 +56,9 @@ export const SUA_SOURCE_ID = "special-use-airspace";
 export const SUA_FILL_LAYER_ID = "special-use-airspace-fill";
 export const SUA_LINE_LAYER_ID = "special-use-airspace-line";
 
+export const AIRSPACE_BOUNDARIES_SOURCE_ID = "airspace-boundaries";
+export const AIRSPACE_BOUNDARIES_LINE_LAYER_ID = "airspace-boundaries-line";
+
 export const NEXRAD_SOURCE_ID = "nexrad";
 export const NEXRAD_LAYER_ID = "nexrad-raster";
 
@@ -78,6 +82,7 @@ const CUSTOM_LAYER_IDS = [
   TFR_LINE_LAYER_ID,
   SUA_FILL_LAYER_ID,
   SUA_LINE_LAYER_ID,
+  AIRSPACE_BOUNDARIES_LINE_LAYER_ID,
   NEXRAD_LAYER_ID,
   NOAA_INFRARED_LAYER_ID,
   NOAA_RADAR_LAYER_ID,
@@ -108,6 +113,11 @@ const TFR_LINE_COLOR = "#d1001f";
 // Amber — distinct from TFR red and military bases' pink.
 const SUA_FILL_COLOR = "#ff9500";
 const SUA_LINE_COLOR = "#c96f00";
+
+// Cool blue/cyan — distinct from the warm palette above (military's magenta,
+// TFR's red, SUA's amber), so FIR/UIR boundaries stay legible when layered
+// with those filled-polygon layers.
+const AIRSPACE_BOUNDARIES_LINE_COLOR = "#2fd0ff";
 
 // Zoom -> icon-size stops for the airports symbol layer, and the single
 // source of truth for `getAirportIconDisplayHeight` below (which popup
@@ -155,6 +165,7 @@ export interface CustomLayerVisibility {
   rainViewer?: boolean;
   tfr?: boolean;
   specialUseAirspace?: boolean;
+  airspaceBoundaries?: boolean;
   nexrad?: boolean;
   noaaInfrared?: boolean;
   noaaRadar?: boolean;
@@ -358,6 +369,24 @@ export function addCustomLayers(
       source: SUA_SOURCE_ID,
       layout: { visibility: suaVisibility },
       paint: { "line-color": SUA_LINE_COLOR, "line-width": 1.5 },
+    });
+  }
+
+  if (!map.getSource(AIRSPACE_BOUNDARIES_SOURCE_ID)) {
+    map.addSource(AIRSPACE_BOUNDARIES_SOURCE_ID, {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
+  }
+  if (!map.getLayer(AIRSPACE_BOUNDARIES_LINE_LAYER_ID)) {
+    map.addLayer({
+      id: AIRSPACE_BOUNDARIES_LINE_LAYER_ID,
+      type: "line",
+      source: AIRSPACE_BOUNDARIES_SOURCE_ID,
+      layout: {
+        visibility: (visibility.airspaceBoundaries ?? true) ? "visible" : "none",
+      },
+      paint: { "line-color": AIRSPACE_BOUNDARIES_LINE_COLOR, "line-width": 1 },
     });
   }
 
@@ -610,6 +639,30 @@ export function setSpecialUseAirspaceVisibility(
 export async function refreshSpecialUseAirspace(map: MapLibreMap): Promise<void> {
   const data = await fetchSpecialUseAirspace();
   const source = map.getSource(SUA_SOURCE_ID) as GeoJSONSource | undefined;
+  source?.setData(data);
+}
+
+/** Shows/hides the airspace boundaries layer. */
+export function setAirspaceBoundariesVisibility(
+  map: MapLibreMap,
+  visible: boolean,
+): void {
+  if (map.getLayer(AIRSPACE_BOUNDARIES_LINE_LAYER_ID)) {
+    map.setLayoutProperty(
+      AIRSPACE_BOUNDARIES_LINE_LAYER_ID,
+      "visibility",
+      visible ? "visible" : "none",
+    );
+  }
+}
+
+/** Refetches current FIR/UIR/oceanic airspace boundary polygons and updates
+ * the source in place. No-ops if the source doesn't exist yet. */
+export async function refreshAirspaceBoundaries(map: MapLibreMap): Promise<void> {
+  const data = await fetchAirspaceBoundaries();
+  const source = map.getSource(AIRSPACE_BOUNDARIES_SOURCE_ID) as
+    | GeoJSONSource
+    | undefined;
   source?.setData(data);
 }
 

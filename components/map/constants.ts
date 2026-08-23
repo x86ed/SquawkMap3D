@@ -96,6 +96,16 @@ export const SUA_REFRESH_INTERVAL_MS = 10 * 60_000;
 export const TFR_FEED_URL: string | undefined = undefined;
 export const TFR_REFRESH_INTERVAL_MS = 5 * 60_000;
 
+// VATSIM's `vatspy-data-project` publishes global FIR/UIR/oceanic ATC
+// boundary polygons as a public, unauthenticated GeoJSON feed — confirmed
+// live: a `FeatureCollection` of `MultiPolygon` features, each with
+// `properties.id`/`oceanic`/`region`/`division`/`label_lon`/`label_lat`.
+// Always fetched live at request time (never vendored) per the acceptance
+// criteria; hourly refresh matches how rarely the boundary set changes.
+export const AIRSPACE_BOUNDARIES_GEOJSON_URL =
+  "https://raw.githubusercontent.com/vatsimnetwork/vatspy-data-project/refs/heads/master/Boundaries.geojson";
+export const AIRSPACE_BOUNDARIES_REFRESH_INTERVAL_MS = 60 * 60_000;
+
 // No free/no-key NOAA GOES infrared satellite tile source was confirmed at
 // implementation time. Left unset so the layer no-ops (like OpenAIP without
 // a key) until a real tile/WMS source is wired in.
