@@ -1,6 +1,6 @@
 {
   "name": "squawkmap3d",
-  "version": "0.4.5",
+  "version": "0.4.18",
   "description": "an adsb map",
   "keywords": [
     "ADSB",
@@ -28,10 +28,12 @@
     "test": "node --test",
     "coverage": "nyc --reporter=text --reporter=lcov --reporter=html npm test",
     "test:coverage": "npm run coverage",
-    "docs": "jsdoc -c jsdoc.json"
+    "docs": "jsdoc -c jsdoc.json",
+    "postinstall": "node scripts/copy-flag-icons.mjs"
   },
   "dependencies": {
     "@turf/turf": "^7.4.0",
+    "flag-icons": "^7.5.0",
     "maplibre-gl": "^6.5.0",
     "next": "^16.3.2",
     "react": "^19.2.8",

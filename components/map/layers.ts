@@ -1,6 +1,12 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
 import type { MapTheme } from "./mapStyles";
 import {
+  AIRPORT_ICON_PIXEL_RATIO,
+  AIRPORT_ICON_RASTER_SIZE,
+  airportIconImageId,
+  registerAirportIconResolver,
+} from "./airportIcon";
+import {
   FAA_SECTIONAL_TILE_URL,
   FAA_SECTIONAL_MINZOOM,
   FAA_SECTIONAL_MAXZOOM,
@@ -23,16 +29,54 @@ const CUSTOM_LAYER_IDS = [
   AIRPORTS_LAYER_ID,
 ];
 
-// Saturated orange — reads clearly against both the light and dark
-// MapTiler outdoor styles.
-const AIRPORT_FILL_COLOR = "#ffffff";
+// Foreground color of the airport icon's glyph (see airportIcon.ts), one per
+// map view so it reads clearly against each. Must not be white: earlier the
+// icon's negative space was rasterized to solid white and this color was
+// also white, so the glyph was invisible against its own backing — the icon
+// rendered as a plain white dot, indistinguishable from the old circle
+// marker, until that was caught in a real-browser screenshot.
+export const AIRPORT_FILL_COLOR: Record<MapTheme, string> = {
+  light: "#6600ff",
+  dark: "#ce00ff",
+};
 // Olive/drab — distinct from the airport orange and from the basemap's
 // greens/tans in both themes.
 const MILITARY_FILL_COLOR = "#ed6bff";
 const MILITARY_LINE_COLOR = "#e12afb";
 
-function haloColorFor(theme: MapTheme): string {
-  return theme === "dark" ? "#0a0a0a" : "#ffffff";
+// Zoom -> icon-size stops for the airports symbol layer, and the single
+// source of truth for `getAirportIconDisplayHeight` below (which popup
+// placement uses to offset by half the icon's on-screen height) — both
+// must agree on the same interpolation, so neither hardcodes its own copy.
+const AIRPORT_ICON_SIZE_STOPS: Array<[zoom: number, size: number]> = [
+  [3, 0.3],
+  [8, 0.7],
+  [12, 1.1],
+];
+
+/**
+ * The airport icon's rendered height in screen pixels at `zoom`, replicating
+ * the `icon-size` interpolation above. `AIRPORT_ICON_RASTER_SIZE /
+ * AIRPORT_ICON_PIXEL_RATIO` is the icon's natural display size (CSS px) at
+ * `icon-size: 1`; `icon-anchor: "bottom"` means the icon spans upward from
+ * the feature's coordinate by exactly this height.
+ */
+export function getAirportIconDisplayHeight(zoom: number): number {
+  const stops = AIRPORT_ICON_SIZE_STOPS;
+  let size = stops[stops.length - 1][1];
+  if (zoom <= stops[0][0]) {
+    size = stops[0][1];
+  } else {
+    for (let i = 0; i < stops.length - 1; i++) {
+      const [z0, s0] = stops[i];
+      const [z1, s1] = stops[i + 1];
+      if (zoom >= z0 && zoom <= z1) {
+        size = s0 + ((zoom - z0) / (z1 - z0)) * (s1 - s0);
+        break;
+      }
+    }
+  }
+  return (AIRPORT_ICON_RASTER_SIZE / AIRPORT_ICON_PIXEL_RATIO) * size;
 }
 
 /**
@@ -42,15 +86,16 @@ function haloColorFor(theme: MapTheme): string {
  * `style.load` (post `setStyle`), since MapLibre discards custom
  * sources/layers on a style swap.
  *
- * `militaryVisible` sets the initial visibility of the re-added military-base
- * layers so a user's toggle choice survives a style swap (theme change) —
- * callers that already persist this choice (e.g. a ref) should pass it
- * through on every re-add.
+ * `militaryVisible`/`airportsVisible` set the initial visibility of the
+ * re-added military-base/airport layers so a user's toggle choice survives a
+ * style swap (theme change) — callers that already persist this choice (e.g.
+ * a ref) should pass it through on every re-add.
  */
 export function addCustomLayers(
   map: MapLibreMap,
   theme: MapTheme,
   militaryVisible = true,
+  airportsVisible = true,
 ): void {
   if (!map.getSource(FAA_SECTIONAL_SOURCE_ID)) {
     map.addSource(FAA_SECTIONAL_SOURCE_ID, {
@@ -109,33 +154,37 @@ export function addCustomLayers(
       data: "/data/airports.geojson",
     });
   }
+  // Must be installed before the symbol layer below is (re)added: a
+  // GeoJSON source's symbol bucket resolves `icon-image` in the tile
+  // worker shortly after `addSource`, and only a registered
+  // `missingStyleImageResolver` is awaited by that resolution — see
+  // `registerAirportIconResolver`'s doc comment for why a bare
+  // `map.addImage` call after the fact can't fix an already-built bucket.
+  registerAirportIconResolver(map, AIRPORT_FILL_COLOR);
+  const airportsVisibility = airportsVisible ? "visible" : "none";
   if (!map.getLayer(AIRPORTS_LAYER_ID)) {
     map.addLayer({
       id: AIRPORTS_LAYER_ID,
-      type: "circle",
+      type: "symbol",
       source: AIRPORTS_SOURCE_ID,
-      paint: {
-        "circle-radius": [
+      layout: {
+        visibility: airportsVisibility,
+        "icon-image": airportIconImageId(theme),
+        "icon-anchor": "bottom",
+        "icon-allow-overlap": true,
+        "icon-size": [
           "interpolate",
           ["linear"],
           ["zoom"],
-          3,
-          2,
-          8,
-          5,
-          12,
-          8,
+          ...AIRPORT_ICON_SIZE_STOPS.flat(),
         ],
-        "circle-color": AIRPORT_FILL_COLOR,
-        "circle-stroke-width": 1.5,
-        "circle-stroke-color": haloColorFor(theme),
       },
     });
   } else {
-    map.setPaintProperty(
+    map.setLayoutProperty(
       AIRPORTS_LAYER_ID,
-      "circle-stroke-color",
-      haloColorFor(theme),
+      "icon-image",
+      airportIconImageId(theme),
     );
   }
 }
@@ -178,5 +227,19 @@ export function setMilitaryBasesVisibility(map: MapLibreMap, visible: boolean): 
   }
   if (map.getLayer(MILITARY_LINE_LAYER_ID)) {
     map.setLayoutProperty(MILITARY_LINE_LAYER_ID, "visibility", visibility);
+  }
+}
+
+/**
+ * Shows/hides the airports layer. Independent of pilot mode, same as
+ * military bases (see `setMilitaryBasesVisibility`).
+ */
+export function setAirportsVisibility(map: MapLibreMap, visible: boolean): void {
+  if (map.getLayer(AIRPORTS_LAYER_ID)) {
+    map.setLayoutProperty(
+      AIRPORTS_LAYER_ID,
+      "visibility",
+      visible ? "visible" : "none",
+    );
   }
 }
