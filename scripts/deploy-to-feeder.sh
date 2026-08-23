@@ -75,6 +75,7 @@ log "Shipping build to $SSH_TARGET:$REMOTE_DIR"
 remote "mkdir -p '$REMOTE_DIR'"
 rsync -az --delete -e "ssh ${SSH_OPTS[*]}" "$REPO_ROOT/out/" "$SSH_TARGET:$REMOTE_DIR/out/"
 scp "${SSH_OPTS[@]}" "$SCRIPT_DIR/Dockerfile.squawkmap3d" "$SSH_TARGET:$REMOTE_DIR/Dockerfile" >/dev/null
+scp "${SSH_OPTS[@]}" "$SCRIPT_DIR/squawkmap3d.nginx.conf" "$SSH_TARGET:$REMOTE_DIR/squawkmap3d.nginx.conf" >/dev/null
 
 # --- 4. Build and (re)run the container on the box ------------------------
 

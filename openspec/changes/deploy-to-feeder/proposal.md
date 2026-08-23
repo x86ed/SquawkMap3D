@@ -24,7 +24,7 @@ This is deployment/ops tooling, not an app feature — kept as its own change, s
 
 ## Impact
 
-- New files: `scripts/deploy-to-feeder.sh`, `scripts/Dockerfile.squawkmap3d`.
+- New files: `scripts/deploy-to-feeder.sh`, `scripts/Dockerfile.squawkmap3d`, `scripts/squawkmap3d.nginx.conf` (fixes `nginx:alpine`'s missing `.mjs` MIME type, discovered on the real deploy — see design.md Risks).
 - `next.config.js`: add `output: "export"`. `app/api/health/route.ts`: add `export const dynamic = "force-static";`. `package.json`: `start` script updated to `npx serve@latest out` (required once `output: "export"` is set — `next start` no longer works, confirmed locally) and a new `deploy:feeder` script added.
 - `README.md`: new "Deploying to the feeder" section, including the recommended `NEXT_PUBLIC_FEEDER_URL=http://adsb-feeder.local:8080/data/aircraft.json` value for this deploy target.
 - No new npm dependencies (uses the local machine's `ssh`/`rsync`, both expected present on macOS/Linux dev machines).

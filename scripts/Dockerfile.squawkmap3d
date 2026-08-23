@@ -5,3 +5,4 @@
 # openspec/changes/deploy-to-feeder/design.md Decision 4.
 FROM nginx:alpine
 COPY out/ /usr/share/nginx/html/
+COPY squawkmap3d.nginx.conf /etc/nginx/conf.d/default.conf

@@ -11,7 +11,7 @@
 
 ## 3. Docker image and deploy script
 
-- [x] 3.1 Add `scripts/Dockerfile.squawkmap3d`: minimal `nginx:alpine` base, `COPY out/ /usr/share/nginx/html/`, no build step (the actual Next.js build already happened locally)
+- [x] 3.1 Add `scripts/Dockerfile.squawkmap3d`: minimal `nginx:alpine` base, `COPY out/ /usr/share/nginx/html/`, no build step (the actual Next.js build already happened locally). **Follow-up fix after real-deploy testing**: also `COPY`s `scripts/squawkmap3d.nginx.conf` over the image's default server block — `nginx:alpine`'s default `mime.types` has no `.mjs` entry, which broke MapLibre's worker script (served as `application/octet-stream`, rejected by browsers under strict module-script MIME checking) and left the map blank. Fixed and verified live in a real browser against the deployed site — see design.md's Risks for the full writeup
 - [x] 3.2 Add `scripts/deploy-to-feeder.sh` (bash, `set -euo pipefail`) with configurable-via-env-var, defaulted settings: `FEEDER_HOST` (default `adsb-feeder.local`), `FEEDER_USER` (default `root`), `FEEDER_SSH_KEY` (default `~/.ssh/adsb_feeder`), `FEEDER_PORT` (default `7500`), `REMOTE_DIR` (default `/opt/squawkmap3d`), `CONTAINER_NAME` (default `squawkmap3d`), `IMAGE_TAG` (default `squawkmap3d:latest`)
 - [x] 3.3 Preflight checks (abort with a specific error, before any remote/destructive action, on failure — see spec.md "Deploy script fails fast on missing prerequisites"):
   - `rsync` and `ssh` available locally
