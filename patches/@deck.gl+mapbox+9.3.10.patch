@@ -1,0 +1,13 @@
+diff --git a/node_modules/@deck.gl/mapbox/dist/deck-utils.js b/node_modules/@deck.gl/mapbox/dist/deck-utils.js
+index 0000000..0000000 100644
+--- a/node_modules/@deck.gl/mapbox/dist/deck-utils.js
++++ b/node_modules/@deck.gl/mapbox/dist/deck-utils.js
+@@ -192,7 +192,7 @@ function centerCameraOnTerrain(map, viewState) {
+         viewState.position = [0, 0, surfaceElevation / unitsPerMeter(latitude)];
+     }
+     // @ts-ignore transform is not typed
+-    else if (typeof map.transform.elevation === 'number') {
++    else if (typeof map.transform?.elevation === 'number') {
+         // maplibre-gl
+         // @ts-ignore transform is not typed
+         viewState.position = [0, 0, map.transform.elevation];

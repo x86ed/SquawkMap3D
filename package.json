@@ -29,7 +29,7 @@
     "coverage": "nyc --reporter=text --reporter=lcov --reporter=html npm test",
     "test:coverage": "npm run coverage",
     "docs": "jsdoc -c jsdoc.json",
-    "postinstall": "node scripts/copy-flag-icons.mjs",
+    "postinstall": "node scripts/copy-flag-icons.mjs && patch-package",
     "deploy:feeder": "bash scripts/deploy-to-feeder.sh"
   },
   "dependencies": {
@@ -51,6 +51,7 @@
     "eslint-config-next": "^16.3.2",
     "jsdoc": "^4.0.5",
     "nyc": "^18.0.0",
+    "patch-package": "^8.0.1",
     "tsx": "^4.23.12",
     "typescript": "^5.9.0"
   }

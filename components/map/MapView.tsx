@@ -211,24 +211,27 @@ export default function MapView() {
     // added once here and only needs `setProps({ layers })` afterward. See
     // design.md Decision 2.
     //
-    // `interleaved: false`, NOT `true` as originally designed (design.md
-    // Decision 1): verified live that `interleaved: true` crashes this
-    // app's render loop entirely (blank/black map) with this app's terrain
-    // enabled — `@deck.gl/mapbox` 9.3.10's interleaved-mode
-    // `centerCameraOnTerrain` throws `Cannot read properties of undefined
-    // (reading 'elevation')` against MapLibre GL JS 6.5's terrain internals,
-    // and since interleaved mode runs inside MapLibre's own custom-layer
-    // render call, the exception aborts that frame. `interleaved: false`
-    // (deck.gl draws to its own overlay canvas instead) avoids that failure
-    // path and renders correctly. The same underlying incompatibility still
-    // logs one caught, non-fatal exception per MapLibre render/resize event
-    // (from `MapboxOverlay`'s view-state sync, not the render path) — noisy
-    // but harmless; a real upstream deck.gl/MapLibre version gap, not
-    // something fixable from this app's code. Trade-off: non-interleaved
-    // mode draws all deck.gl content as a flat layer on top of the map
-    // rather than depth-sorted against the 3D terrain mesh, so an aircraft
-    // icon won't be occluded by a mountain in front of it — acceptable for
-    // small overhead icons/tracks, revisit if deck.gl ships a MapLibre 6 fix.
+    // `interleaved: false`: with this app's terrain enabled,
+    // `@deck.gl/mapbox` 9.3.10's `centerCameraOnTerrain` (in
+    // `getViewState`, called on every render) unconditionally read
+    // `map.transform.elevation` with no guard — MapLibre GL JS 6.5's `Map`
+    // exposes `transform` as undefined at the point this runs, so every
+    // single call threw, and `getViewState` never returned a value.
+    // Root-caused and fixed via `patches/@deck.gl+mapbox+9.3.10.patch`
+    // (`patch-package`, applied on `postinstall`): adds the missing `?.`.
+    // Before that fix this exception aborted `_updateViewState` on every
+    // render, which corrupted deck.gl's view-state sync with MapLibre's
+    // camera — the visible symptom wasn't just console noise, aircraft
+    // icons rendered at the wrong screen position because deck.gl's
+    // overlay camera had desynced from MapLibre's. With the patch applied
+    // the exception is gone and view-state sync is correct. `interleaved`
+    // is still kept `false` — `interleaved: true` was verified to crash
+    // this app's render loop entirely (blank map) before the patch existed
+    // (an uncaught exception inside MapLibre's own custom-layer render call
+    // aborts that frame); revisit `interleaved: true` now that the root
+    // cause is patched, since it would restore proper depth-sorting against
+    // the 3D terrain mesh (an aircraft icon currently isn't occluded by a
+    // mountain in front of it) — not re-tested here, left as a follow-up.
     const deckOverlay = new MapboxOverlay({ interleaved: false, layers: [] });
     deckOverlayRef.current = deckOverlay;
     map.addControl(deckOverlay);
