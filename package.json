@@ -32,6 +32,9 @@
     "postinstall": "node scripts/copy-flag-icons.mjs"
   },
   "dependencies": {
+    "@deck.gl/core": "^9.3.10",
+    "@deck.gl/layers": "^9.3.10",
+    "@deck.gl/mapbox": "^9.3.10",
     "@turf/turf": "^7.4.0",
     "flag-icons": "^7.5.0",
     "maplibre-gl": "^6.5.0",

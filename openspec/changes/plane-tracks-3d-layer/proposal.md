@@ -21,7 +21,7 @@ SquawkMap3D has no live aircraft data at all — every existing layer is static 
 
 ## Impact
 
-- New dependencies: `@deck.gl/core`, `@deck.gl/layers`, `@deck.gl/geo-layers`, `@deck.gl/mapbox` (interleaved overlay controller for MapLibre).
+- New dependencies: `@deck.gl/core`, `@deck.gl/layers`, `@deck.gl/mapbox` (interleaved overlay controller for MapLibre).
 - `components/map/aircraft.ts` (new): feeder polling module — fetch/parse `aircraft.json`, normalize into the app's aircraft/track model, returns empty on failure/unset config (mirrors `tfr.ts`/`specialUseAirspace.ts` failure handling).
 - `components/map/aircraftIcons.ts` (new): type-designator → icon resolution, category → generic-silhouette fallback mapping, SVG-to-deck.gl-icon-atlas conversion.
 - `public/aircraft-shapes/` and `public/aircraft-silhouettes/` (new, vendored): static SVG assets from AircraftShapesSVG (GPL-3.0) and pw-silhouettes (CC BY-NC-SA 4.0) with their LICENSE files included; attribution added to README. The pw-silhouettes non-commercial clause is compatible with SquawkMap3D's non-commercial personal/OSS use but should be called out explicitly since it constrains downstream reuse.

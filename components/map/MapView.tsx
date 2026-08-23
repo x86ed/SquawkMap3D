@@ -8,6 +8,7 @@ import {
   setWorkerUrl,
   type MapGeoJSONFeature,
 } from "maplibre-gl";
+import { MapboxOverlay } from "@deck.gl/mapbox";
 import styles from "./MapView.module.css";
 import {
   getMapTilerKey,
@@ -16,6 +17,9 @@ import {
 } from "./mapStyles";
 import { getInitialTheme, storeTheme } from "./theme";
 import { applySky, applyTerrain } from "./terrain";
+import { fetchAircraft, updateTracks, getAllTracks, clearTracks } from "./aircraft";
+import { buildAircraftIconAtlas, type IconAtlas } from "./aircraftIcons";
+import { buildAircraftLayers } from "./aircraftLayer";
 import {
   addCustomLayers,
   AIRPORTS_LAYER_ID,
@@ -55,6 +59,7 @@ import {
 } from "./terminator";
 import { getCurrentLocation, type GeoCoords } from "./geolocation";
 import {
+  AIRCRAFT_FEED_REFRESH_INTERVAL_MS,
   AIRSPACE_BOUNDARIES_REFRESH_INTERVAL_MS,
   DEFAULT_VIEW,
   INITIAL_BEARING,
@@ -98,9 +103,12 @@ export default function MapView() {
   const noaaInfraredVisibleRef = useRef(true);
   const noaaRadarVisibleRef = useRef(true);
   const dwdRadolanVisibleRef = useRef(true);
+  const aircraftVisibleRef = useRef(true);
   const userLocationRef = useRef<GeoCoords | null>(null);
   const styleReadyRef = useRef(false);
   const dishRotationStopRef = useRef<(() => void) | null>(null);
+  const deckOverlayRef = useRef<MapboxOverlay | null>(null);
+  const aircraftIconAtlasRef = useRef<IconAtlas | null>(null);
 
   const [theme, setTheme] = useState<MapTheme>(() => getInitialTheme());
   const [pilotMode, setPilotMode] = useState(false);
@@ -116,6 +124,7 @@ export default function MapView() {
   const [noaaInfraredVisible, setNoaaInfraredVisible] = useState(true);
   const [noaaRadarVisible, setNoaaRadarVisible] = useState(true);
   const [dwdRadolanVisible, setDwdRadolanVisible] = useState(true);
+  const [aircraftVisible, setAircraftVisible] = useState(true);
   const [error, setError] = useState<string | null>(() =>
     getMapTilerKey()
       ? null
@@ -132,6 +141,22 @@ export default function MapView() {
       coords,
       () => styleReadyRef.current,
     );
+  };
+
+  const refreshAircraft = async () => {
+    if (!deckOverlayRef.current) return;
+    if (!aircraftVisibleRef.current) {
+      deckOverlayRef.current.setProps({ layers: [] });
+      return;
+    }
+    const aircraft = await fetchAircraft();
+    updateTracks(aircraft);
+    const layers = buildAircraftLayers({
+      aircraft,
+      tracks: getAllTracks(),
+      iconAtlas: aircraftIconAtlasRef.current,
+    });
+    deckOverlayRef.current.setProps({ layers });
   };
 
   const handleLocationResolved = (coords: GeoCoords | null) => {
@@ -179,6 +204,43 @@ export default function MapView() {
       }),
       "top-left",
     );
+
+    // Unlike the style-owned custom layers below (re-added in
+    // `setupStyleDependentState` on every `style.load`), this overlay is
+    // NOT part of the MapLibre style — `setStyle` never discards it, so it's
+    // added once here and only needs `setProps({ layers })` afterward. See
+    // design.md Decision 2.
+    //
+    // `interleaved: false`, NOT `true` as originally designed (design.md
+    // Decision 1): verified live that `interleaved: true` crashes this
+    // app's render loop entirely (blank/black map) with this app's terrain
+    // enabled — `@deck.gl/mapbox` 9.3.10's interleaved-mode
+    // `centerCameraOnTerrain` throws `Cannot read properties of undefined
+    // (reading 'elevation')` against MapLibre GL JS 6.5's terrain internals,
+    // and since interleaved mode runs inside MapLibre's own custom-layer
+    // render call, the exception aborts that frame. `interleaved: false`
+    // (deck.gl draws to its own overlay canvas instead) avoids that failure
+    // path and renders correctly. The same underlying incompatibility still
+    // logs one caught, non-fatal exception per MapLibre render/resize event
+    // (from `MapboxOverlay`'s view-state sync, not the render path) — noisy
+    // but harmless; a real upstream deck.gl/MapLibre version gap, not
+    // something fixable from this app's code. Trade-off: non-interleaved
+    // mode draws all deck.gl content as a flat layer on top of the map
+    // rather than depth-sorted against the 3D terrain mesh, so an aircraft
+    // icon won't be occluded by a mountain in front of it — acceptable for
+    // small overhead icons/tracks, revisit if deck.gl ships a MapLibre 6 fix.
+    const deckOverlay = new MapboxOverlay({ interleaved: false, layers: [] });
+    deckOverlayRef.current = deckOverlay;
+    map.addControl(deckOverlay);
+
+    // Built once (rasterizing every vendored SVG into a single canvas atlas
+    // — see aircraftIcons.ts) rather than per-poll; the first refresh is
+    // kicked off once it's ready so aircraft render with icons from the
+    // start rather than needing a second poll interval to pick them up.
+    buildAircraftIconAtlas().then((atlas) => {
+      aircraftIconAtlasRef.current = atlas;
+      void refreshAircraft();
+    });
 
     const setupStyleDependentState = () => {
       styleReadyRef.current = true;
@@ -294,12 +356,21 @@ export default function MapView() {
       }
     }, AIRSPACE_BOUNDARIES_REFRESH_INTERVAL_MS);
 
+    // Much faster than every other layer's refresh interval (5-60 minutes
+    // above) — this polls the user's own feeder, not a rate-limited public
+    // API, so it can run fast enough for smooth-looking live motion. See
+    // constants.ts.
+    const aircraftIntervalId = setInterval(() => {
+      void refreshAircraft();
+    }, AIRCRAFT_FEED_REFRESH_INTERVAL_MS);
+
     return () => {
       clearInterval(terminatorIntervalId);
       clearInterval(rainViewerIntervalId);
       clearInterval(tfrIntervalId);
       clearInterval(suaIntervalId);
       clearInterval(airspaceBoundariesIntervalId);
+      clearInterval(aircraftIntervalId);
       dishRotationStopRef.current?.();
       dishRotationStopRef.current = null;
       map.remove();
@@ -437,6 +508,18 @@ export default function MapView() {
     if (mapRef.current) setDwdRadolanVisibility(mapRef.current, next);
   };
 
+  const handleAircraftToggle = () => {
+    const next = !aircraftVisible;
+    aircraftVisibleRef.current = next;
+    setAircraftVisible(next);
+    if (!next) {
+      // Tracks reset on re-enable rather than resuming a stale trail — see
+      // aircraft.ts's clearTracks doc comment.
+      clearTracks();
+    }
+    void refreshAircraft();
+  };
+
   const handleJumpToLocation = () => {
     getCurrentLocation().then((coords) => {
       handleLocationResolved(coords);
@@ -572,6 +655,14 @@ export default function MapView() {
           onClick={handleDwdRadolanToggle}
         >
           {dwdRadolanVisible ? "Hide DWD RADOLAN" : "Show DWD RADOLAN"}
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          data-active={aircraftVisible}
+          onClick={handleAircraftToggle}
+        >
+          {aircraftVisible ? "Hide aircraft" : "Show aircraft"}
         </button>
         <button
           type="button"
