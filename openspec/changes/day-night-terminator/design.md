@@ -42,5 +42,7 @@
 
 ## Open Questions
 
-- Exact twilight band count/step and base color/opacity — a reasonable default (8 bands, 3° steps, dark navy ~55% max opacity) is assumed in tasks.md; tune visually during implementation rather than over-specifying pixel values here.
-- Refresh interval — 60 seconds is assumed as a reasonable default (imperceptible motion, negligible cost); no strong reason to pick a different value, but easy to adjust if it ever matters.
+None outstanding. Previously open, now confirmed by the user:
+- Twilight band count/step and base color/opacity: **8 bands, 3° steps, dark navy ~55% max opacity** (tune visually during implementation, not pixel-specified here).
+- Refresh interval: **60 seconds**.
+- Hand-rolled solar-position math over `suncalc`: confirmed acceptable **as long as functionality is equivalent** (i.e. astronomically correct) — the sanity-check unit tests in tasks.md (1.3: declination ≈ 23.44° at solstice, ≈ 0° at equinox) exist specifically to verify that equivalence before this is wired into the map.
