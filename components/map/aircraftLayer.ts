@@ -48,12 +48,11 @@ export function buildAircraftLayers(params: {
     iconMapping: iconAtlas.mapping,
     getIcon: (d) => resolveIconKey(d).key,
     getPosition: (d) => [d.lon, d.lat, (d.altitude ?? 0) * FEET_TO_METERS],
-    // Icon SVGs are drawn nose-up in the atlas; this passes the aircraft's
-    // compass track straight through as the rotation angle. Whether that
-    // needs negating to read correctly (compass bearing is clockwise from
-    // north; deck.gl's rotation direction is unverified against a real
-    // feeder) — check during e2e testing (tasks.md 6.1) and flip the sign
-    // here if aircraft appear to fly backwards relative to their icon.
+    // Icon SVGs are drawn nose-up in the atlas (verified per-asset; two
+    // pw-silhouettes exceptions corrected in aircraftIcons.ts's atlas
+    // builder). deck.gl's IconLayer rotates clockwise for positive `angle`
+    // (icon-layer-vertex.glsl.js), matching compass track directly — no
+    // sign flip needed.
     getAngle: (d) => d.track ?? 0,
     getColor: (d) => altitudeToColor(d.altitude ?? 0),
     getSize: 28,

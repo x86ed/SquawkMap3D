@@ -58,6 +58,15 @@ export interface IconAtlas {
   mapping: Record<string, IconAtlasEntry>;
 }
 
+// pw-silhouettes draws every category nose-up except these two, which are
+// nose-left in the source SVG (verified by rendering each vendored file) —
+// `getAngle` in aircraftLayer.ts assumes nose-up, so these render 90° off
+// from the aircraft's real track unless corrected here at atlas-build time.
+const ICON_ORIENTATION_OFFSET_DEG: Record<string, number> = {
+  A1: 90,
+  B1: 90,
+};
+
 const CELL_SIZE = 64;
 // Padding kept between drawn shapes and the cell edge so deck.gl's IconLayer
 // (which samples slightly outside a tightly-packed sprite when scaling)
@@ -138,7 +147,16 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
       const scale = Math.min(drawable / image.naturalWidth, drawable / image.naturalHeight);
       const w = image.naturalWidth * scale;
       const h = image.naturalHeight * scale;
-      ctx.drawImage(image, cx - w / 2, cy - h / 2, w, h);
+      const offsetDeg = ICON_ORIENTATION_OFFSET_DEG[entry.key] ?? 0;
+      if (offsetDeg) {
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate((offsetDeg * Math.PI) / 180);
+        ctx.drawImage(image, -w / 2, -h / 2, w, h);
+        ctx.restore();
+      } else {
+        ctx.drawImage(image, cx - w / 2, cy - h / 2, w, h);
+      }
     } else {
       drawGenericMarker(ctx, cx, cy, drawable);
     }
