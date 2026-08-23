@@ -29,7 +29,7 @@ The user SHALL be able to show or hide the airports layer independently of any o
 - **THEN** the airports layer remains hidden until the user explicitly turns it back on
 
 ### Requirement: Clicking an airport opens a details popup
-Clicking an airport icon on the map SHALL open a popup showing that airport's IATA code, ICAO code, name, country flag, city, and country.
+Clicking an airport icon on the map SHALL open a popup showing that airport's IATA code, ICAO code, name, an image of the airport, country flag, city, and country.
 
 #### Scenario: Clicking an airport with both codes present
 - **WHEN** the user clicks an airport icon whose feature has a non-null `iata_code` and `icao_code`
@@ -38,6 +38,14 @@ Clicking an airport icon on the map SHALL open a popup showing that airport's IA
 #### Scenario: Clicking an airport missing a code
 - **WHEN** the user clicks an airport icon whose feature has a `null` `iata_code` or `icao_code`
 - **THEN** the popup opens without showing the literal string "null" for that field (e.g. omits the row or shows a placeholder)
+
+#### Scenario: Airport image found
+- **WHEN** the user clicks an airport icon and a matching Wikipedia page with a thumbnail image is found for that airport's name
+- **THEN** the popup's image row shows that thumbnail image once the lookup resolves
+
+#### Scenario: Airport image not found
+- **WHEN** the user clicks an airport icon and no matching Wikipedia page or thumbnail is found (or the lookup fails)
+- **THEN** the popup's image row shows a fallback (e.g. the airport icon) instead of a broken image or an indefinite loading state
 
 #### Scenario: Popup closes on request
 - **WHEN** the user closes an open airport popup (close control or clicking elsewhere per default MapLibre popup behavior)

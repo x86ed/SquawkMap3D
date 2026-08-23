@@ -18,9 +18,10 @@
 ## 4. Click popup
 
 - [ ] 4.1 Create country-name/flag helpers (e.g. in `components/map/airportPopup.ts`): `flagEmojiForCountryCode(iso: string): string` (regional-indicator trick) and `countryNameForCode(iso: string): string` (via `Intl.DisplayNames`, falling back to the raw code if it returns `undefined`/the same code).
-- [ ] 4.2 Add a `buildAirportPopupHtml(properties): string` helper formatting IATA code, ICAO code, name, flag, city (`municipality`), and country (derived) — omitting/placeholder-ing any `null` code field instead of rendering the literal `"null"`.
-- [ ] 4.3 In `MapView.tsx`, wire a `click` listener on `AIRPORTS_LAYER_ID` (registered once, alongside the other map event listeners in the mount effect) that reads `event.features[0].properties`, builds popup HTML, and opens a `maplibregl.Popup` anchored at the clicked feature's coordinates.
-- [ ] 4.4 Add `mouseenter`/`mouseleave` handlers on `AIRPORTS_LAYER_ID` toggling `map.getCanvas().style.cursor` between `"pointer"` and `""`.
+- [ ] 4.2 Add a `buildAirportPopupHtml(properties): string` helper formatting IATA code, ICAO code, name, flag, city (`municipality`), country (derived), and an image slot (placeholder markup with a stable `id`/class to swap into) — omitting/placeholder-ing any `null` code field instead of rendering the literal `"null"`.
+- [ ] 4.3 Add `fetchAirportImage(name: string): Promise<string | null>` in `airportPopup.ts`: calls `https://en.wikipedia.org/api/rest_v1/page/summary/<encodeURIComponent(name)>`, returns `thumbnail.source` on success or `null` on any non-2xx/missing-thumbnail/error, with an in-memory `Map` cache keyed by name to dedupe repeat lookups within the session.
+- [ ] 4.4 In `MapView.tsx`, wire a `click` listener on `AIRPORTS_LAYER_ID` (registered once, alongside the other map event listeners in the mount effect) that reads `event.features[0].properties`, builds popup HTML (image slot starts as a loading placeholder), opens a `maplibregl.Popup` anchored at the clicked feature's coordinates, then calls `fetchAirportImage` and swaps the image slot's content in (or to the fallback) when it resolves — guarding against the popup having since been closed/replaced.
+- [ ] 4.5 Add `mouseenter`/`mouseleave` handlers on `AIRPORTS_LAYER_ID` toggling `map.getCanvas().style.cursor` between `"pointer"` and `""`.
 
 ## 5. Verification
 
@@ -28,3 +29,4 @@
 - [ ] 5.2 Manually verify the airports toggle hides/shows icons and survives a theme switch and a pilot-mode toggle while hidden.
 - [ ] 5.3 Manually verify clicking an airport with both codes present shows a correct popup (codes, name, flag, city, country); click one with a `null` code and confirm no literal `"null"` appears.
 - [ ] 5.4 Manually verify the popup closes via its close control, and that no popup can be opened while the airports layer is toggled off.
+- [ ] 5.5 Manually verify the image row: a well-known airport (e.g. one with an obvious Wikipedia page) shows a loading placeholder then the real thumbnail; an obscure/small airport with no matching page falls back cleanly (no broken-image icon, no stuck loading state); rapid repeat clicks on the same airport don't visibly re-fetch (cache hit).
