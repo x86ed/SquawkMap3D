@@ -20,10 +20,12 @@ import {
   addCustomLayers,
   AIRPORTS_LAYER_ID,
   getAirportIconDisplayHeight,
+  refreshAirspaceBoundaries,
   refreshRainViewer,
   refreshSpecialUseAirspace,
   refreshTfrs,
   setAirportsVisibility,
+  setAirspaceBoundariesVisibility,
   setDwdRadolanVisibility,
   setMilitaryBasesVisibility,
   setNexradVisibility,
@@ -53,6 +55,7 @@ import {
 } from "./terminator";
 import { getCurrentLocation, type GeoCoords } from "./geolocation";
 import {
+  AIRSPACE_BOUNDARIES_REFRESH_INTERVAL_MS,
   DEFAULT_VIEW,
   INITIAL_BEARING,
   INITIAL_PITCH,
@@ -90,6 +93,7 @@ export default function MapView() {
   const rainViewerVisibleRef = useRef(true);
   const tfrVisibleRef = useRef(true);
   const suaVisibleRef = useRef(true);
+  const airspaceBoundariesVisibleRef = useRef(true);
   const nexradVisibleRef = useRef(true);
   const noaaInfraredVisibleRef = useRef(true);
   const noaaRadarVisibleRef = useRef(true);
@@ -107,6 +111,7 @@ export default function MapView() {
   const [rainViewerVisible, setRainViewerVisible] = useState(true);
   const [tfrVisible, setTfrVisible] = useState(true);
   const [suaVisible, setSuaVisible] = useState(true);
+  const [airspaceBoundariesVisible, setAirspaceBoundariesVisible] = useState(true);
   const [nexradVisible, setNexradVisible] = useState(true);
   const [noaaInfraredVisible, setNoaaInfraredVisible] = useState(true);
   const [noaaRadarVisible, setNoaaRadarVisible] = useState(true);
@@ -191,6 +196,7 @@ export default function MapView() {
         rainViewer: rainViewerVisibleRef.current,
         tfr: tfrVisibleRef.current,
         specialUseAirspace: suaVisibleRef.current,
+        airspaceBoundaries: airspaceBoundariesVisibleRef.current,
         nexrad: nexradVisibleRef.current,
         noaaInfrared: noaaInfraredVisibleRef.current,
         noaaRadar: noaaRadarVisibleRef.current,
@@ -198,6 +204,7 @@ export default function MapView() {
       });
       void refreshTfrs(map);
       void refreshSpecialUseAirspace(map);
+      if (airspaceBoundariesVisibleRef.current) void refreshAirspaceBoundaries(map);
       setPilotModeVisibility(map, pilotModeRef.current);
       addUserLocationLayers(map, userLocationRef.current);
       if (userLocationRef.current) {
@@ -281,11 +288,18 @@ export default function MapView() {
       }
     }, SUA_REFRESH_INTERVAL_MS);
 
+    const airspaceBoundariesIntervalId = setInterval(() => {
+      if (mapRef.current && airspaceBoundariesVisibleRef.current) {
+        void refreshAirspaceBoundaries(mapRef.current);
+      }
+    }, AIRSPACE_BOUNDARIES_REFRESH_INTERVAL_MS);
+
     return () => {
       clearInterval(terminatorIntervalId);
       clearInterval(rainViewerIntervalId);
       clearInterval(tfrIntervalId);
       clearInterval(suaIntervalId);
+      clearInterval(airspaceBoundariesIntervalId);
       dishRotationStopRef.current?.();
       dishRotationStopRef.current = null;
       map.remove();
@@ -382,6 +396,16 @@ export default function MapView() {
     if (mapRef.current) {
       setSpecialUseAirspaceVisibility(mapRef.current, next);
       if (next) void refreshSpecialUseAirspace(mapRef.current);
+    }
+  };
+
+  const handleAirspaceBoundariesToggle = () => {
+    const next = !airspaceBoundariesVisible;
+    airspaceBoundariesVisibleRef.current = next;
+    setAirspaceBoundariesVisible(next);
+    if (mapRef.current) {
+      setAirspaceBoundariesVisibility(mapRef.current, next);
+      if (next) void refreshAirspaceBoundaries(mapRef.current);
     }
   };
 
