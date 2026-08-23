@@ -1,0 +1,7 @@
+# Serves SquawkMap3D's static export (out/) on the ADS-B feeder box. No
+# build step here — the actual Next.js build already happened locally
+# (scripts/deploy-to-feeder.sh runs `npm run build` before shipping this
+# Dockerfile alongside out/). Built on the box itself (native aarch64), see
+# openspec/changes/deploy-to-feeder/design.md Decision 4.
+FROM nginx:alpine
+COPY out/ /usr/share/nginx/html/

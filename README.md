@@ -17,15 +17,15 @@ Both are vendored (not live-fetched) via `scripts/vendor-aircraft-icons.mjs`; re
 
 ## Deploying to the feeder
 
-`npm run deploy:feeder` (or `bash scripts/deploy-to-feeder.sh`) builds a static export of this app and ships it to an ADS-B feeder box running [wiedehopf/tar1090](https://github.com/wiedehopf/tar1090), serving it on port 7500 via the box's existing lighttpd — sideloaded alongside tar1090, without touching its config or availability, as a drop-in-parity viewer reading the same live decoder feed tar1090 reads.
+`npm run deploy:feeder` (or `bash scripts/deploy-to-feeder.sh`) builds a static export of this app and runs it as its own Docker sidecar container on the ADS-B feeder box, port 7500 — the same pattern every other tool on that box (tar1090/ultrafeeder, piaware, dump978, ...) already runs as, independent of the box's own `docker compose` stack. Reads the same live decoder feed tar1090 shows, as a drop-in-parity viewer alongside it.
 
 **Prerequisites:**
 - SSH key at `~/.ssh/adsb_feeder`, authorized for `root@adsb-feeder.local` (override via `FEEDER_SSH_KEY`/`FEEDER_USER`/`FEEDER_HOST` env vars)
-- The feeder box already has lighttpd (standard for a tar1090 install) — the script checks this and fails clearly if not
-- Local `.env.local` populated before deploying, since `NEXT_PUBLIC_*` values are baked in at build time. Set `NEXT_PUBLIC_FEEDER_URL=/data/aircraft.json` specifically for this deploy target — a relative URL that resolves same-origin against wherever the app is actually served from, avoiding CORS/LAN-IP issues (see `openspec/changes/deploy-to-feeder/design.md` Decision 6)
+- The feeder box already has Docker (it runs every existing feeder tool) — the script checks this and fails clearly if not
+- Local `.env.local` populated before deploying, since `NEXT_PUBLIC_*` values are baked in at build time. Set `NEXT_PUBLIC_FEEDER_URL=http://adsb-feeder.local:8080/data/aircraft.json` — the feeder's `ultrafeeder` container already serves that endpoint with `Access-Control-Allow-Origin: *`, so a plain cross-origin fetch works with no extra wiring (see `openspec/changes/deploy-to-feeder/design.md` Decision 6)
 
-**What it does:** builds locally (`npm run build`) → ships `out/` via `rsync` → auto-detects the feeder's decoder output and symlinks it into the deployed directory as `data/aircraft.json` (same mechanism tar1090's own installer uses to locate it) → installs a new lighttpd site config for port 7500 and reloads lighttpd → polls `/api/health` until it responds successfully.
+**What it does:** builds locally (`npm run build`) → ships `out/` + a `Dockerfile` via `rsync`/`scp` → builds a minimal `nginx:alpine` image on the box itself (native arch, no cross-compilation) → runs it as its own container (`docker run -d --restart unless-stopped -p 7500:80`) → polls `/api/health` until it responds successfully.
 
-**Logs:** `ssh -i ~/.ssh/adsb_feeder root@adsb-feeder.local journalctl -u lighttpd -f`
+**Logs:** `ssh -i ~/.ssh/adsb_feeder root@adsb-feeder.local docker logs -f squawkmap3d`
 
-**Uninstall:** on the feeder box, remove `/etc/lighttpd/conf-enabled/98-squawkmap3d.conf` and its `conf-available` source, `rm -rf /opt/squawkmap3d`, then `systemctl reload lighttpd`. tar1090 itself is untouched by both deploy and uninstall.
+**Uninstall:** on the feeder box, `docker rm -f squawkmap3d && docker rmi squawkmap3d:latest`. Every other container, including tar1090/ultrafeeder, is untouched by both deploy and uninstall.

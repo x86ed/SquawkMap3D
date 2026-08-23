@@ -1,43 +1,44 @@
 ## 1. Static export config
 
 - [x] 1.1 In `next.config.js`, add `output: "export"` to `nextConfig`
-- [x] 1.2 In `app/api/health/route.ts`, add `export const dynamic = "force-static";` (required for the route to be includable in a static export — see design.md Decision 1; its `timestamp` becomes build time, not request time)
-- [x] 1.3 Run `npm run build` locally and confirm `out/` is produced, containing the app shell, all JS/CSS/vendored assets, and `out/api/health` — confirmed (`out/` present, `out/data/{airports,military-bases}.geojson` present, `out/api/health` a plain file with the correct frozen JSON). **Side effect discovered and fixed**: `output: "export"` breaks `next start` (`"next start" does not work with 'output: export' configuration"`) — `package.json`'s `start` script updated to `npx serve@latest out` (Next's own suggested replacement); see design.md's new Risk entry
-- [x] 1.4 Serve `out/` locally with any static file server and confirm `/` loads with no console errors and `GET /api/health` returns the expected JSON body — confirmed via `python3 -m http.server` (`/` → 200, `/api/health` → 200 with correct body)
+- [x] 1.2 In `app/api/health/route.ts`, add `export const dynamic = "force-static";`
+- [x] 1.3 Run `npm run build` locally and confirm `out/` is produced, containing the app shell, all JS/CSS/vendored assets, and `out/api/health`
+- [x] 1.4 Serve `out/` locally with any static file server and confirm `/` loads with no console errors and `GET /api/health` returns the expected JSON body
 
-## 2. Deploy script: build, ship, and feeder-local live-feed wiring
+## 2. Real-box reconnaissance (read-only)
 
-- [x] 2.1 Add `scripts/deploy-to-feeder.sh` (bash, `set -euo pipefail`) with configurable-via-env-var, defaulted settings: `FEEDER_HOST` (default `adsb-feeder.local`), `FEEDER_USER` (default `root`), `FEEDER_SSH_KEY` (default `~/.ssh/adsb_feeder`), `FEEDER_PORT` (default `7500`), `REMOTE_DIR` (default `/opt/squawkmap3d`), `SITE_CONF_NAME` (default `98-squawkmap3d.conf`)
-- [x] 2.2 Preflight checks implemented (rsync/ssh present, SSH key exists, feeder reachable, remote lighttpd present + systemd-managed, `.env.local`/`NEXT_PUBLIC_FEEDER_URL` warnings) — see spec.md "Deploy script fails fast on missing prerequisites"
-- [x] 2.3 Build: `npm run build` invoked from the script, producing `out/`
-- [x] 2.4 Ship the payload via `rsync -az --delete`
-- [x] 2.5 Feeder-local live-feed symlink implemented per design.md Decision 6 (tar1090_instances → probe-order fallback → `ln -sfn` → non-fatal warning if not found)
-- [x] 2.6 Renders `scripts/squawkmap3d.lighttpd.conf.template` and ships it via `scp` to `conf-available/`
-- [x] 2.7 Symlinks into `conf-enabled/`, validates with `lighttpd -tt`, reloads (not restarts) lighttpd
-- [x] 2.8 Health check polls `/api/health`, bounded retries, `exit 1` with last response on failure
-- [x] 2.9 Script made executable; `deploy:feeder` added to `package.json`
-- [ ] **Not yet exercised against the real box** — script is written, syntax-checked (`bash -n`), and its logic reviewed, but no task in this group 2 has been run against `root@adsb-feeder.local` (that's group 5, Verification, deliberately deferred — see its own note)
+- [x] 2.0 Before designing the serving mechanism, confirm what's actually running on the feeder box rather than assuming — SSH in, check for lighttpd/nginx/Docker, inspect `docker ps` if present, curl the box's HTTP ports to see what's actually reachable and what headers come back. **Findings**: the box runs dirkhh's Docker-based "ADS-B Feeder Image" (Debian 12, aarch64) — no host lighttpd/nginx; `ultrafeeder` container publishes port 8080 with `aircraft.json` already served with `Access-Control-Allow-Origin: *`; Docker + `docker compose` present and used for every existing tool (piaware, dump978, skystats, etc.). This superseded the original lighttpd/symlink design — see design.md's corrected Context and Decisions 4/6.
 
-## 3. lighttpd site config template
+## 3. Docker image and deploy script
 
-- [x] 3.1 Added `scripts/squawkmap3d.lighttpd.conf.template` — **structure differs from this task's original literal wording**: rather than top-level `server.port`/`mimetype.assign` directives, it uses a `$SERVER["socket"] == ":__PORT__" { server.document-root = "__REMOTE_DIR__" ... }` conditional block, matching the actual pattern tar1090's own `install.sh` generates for its `95-tar1090-otherport.conf` (confirmed by fetching and reading that generation logic directly, not guessed) — this is the correct idiom for binding an additional port on the same lighttpd instance without a full second `server.port` top-level override, and reuses the box's already-loaded default mimetype module rather than redeclaring one
-- [x] 3.2 Confirmed against tar1090's real `88-tar1090.conf`/`install.sh` (fetched from its GitHub repo during this session) — not guessed
+- [x] 3.1 Add `scripts/Dockerfile.squawkmap3d`: minimal `nginx:alpine` base, `COPY out/ /usr/share/nginx/html/`, no build step (the actual Next.js build already happened locally)
+- [x] 3.2 Add `scripts/deploy-to-feeder.sh` (bash, `set -euo pipefail`) with configurable-via-env-var, defaulted settings: `FEEDER_HOST` (default `adsb-feeder.local`), `FEEDER_USER` (default `root`), `FEEDER_SSH_KEY` (default `~/.ssh/adsb_feeder`), `FEEDER_PORT` (default `7500`), `REMOTE_DIR` (default `/opt/squawkmap3d`), `CONTAINER_NAME` (default `squawkmap3d`), `IMAGE_TAG` (default `squawkmap3d:latest`)
+- [x] 3.3 Preflight checks (abort with a specific error, before any remote/destructive action, on failure — see spec.md "Deploy script fails fast on missing prerequisites"):
+  - `rsync` and `ssh` available locally
+  - SSH key at `$FEEDER_SSH_KEY` exists
+  - `ssh ... true` succeeds (feeder reachable)
+  - remote `docker version` succeeds (Docker present and daemon running)
+  - warn (non-fatal) if local `.env.local` is missing, has no `NEXT_PUBLIC_MAPTILER_KEY` set, or has `NEXT_PUBLIC_FEEDER_URL` set to something other than `http://$FEEDER_HOST:8080/data/aircraft.json`
+- [x] 3.4 Build: `npm run build` in the repo root, producing `out/`
+- [x] 3.5 Ship `out/` and the Dockerfile to the box: `rsync -az --delete` `out/` to `$REMOTE_DIR/out/`, `scp` the Dockerfile to `$REMOTE_DIR/Dockerfile`
+- [x] 3.6 Over SSH: `docker build -t "$IMAGE_TAG" "$REMOTE_DIR"`, then `docker rm -f "$CONTAINER_NAME" 2>/dev/null || true`, then `docker run -d --name "$CONTAINER_NAME" --restart unless-stopped -p "$FEEDER_PORT:80" "$IMAGE_TAG"`
+- [x] 3.7 Health check: poll `http://$FEEDER_HOST:$FEEDER_PORT/api/health` from the local machine, bounded retries, checking for `"status":"ok"`; `exit 1` with the last response on failure
+- [x] 3.8 Make the script executable; `deploy:feeder` added to `package.json`
 
 ## 4. Documentation
 
-- [x] 4.1 Added "Deploying to the feeder" section to `README.md` covering prerequisites, the command, what the script does, log location, and uninstall steps
+- [x] 4.1 Add a "Deploying to the feeder" section to `README.md`: prerequisites (SSH key, Docker already present on the box, `.env.local` with `NEXT_PUBLIC_FEEDER_URL=http://adsb-feeder.local:8080/data/aircraft.json`), the command, what it does, how to check logs (`docker logs -f squawkmap3d`), how to uninstall (`docker rm -f squawkmap3d && docker rmi squawkmap3d:latest`)
 
-## 5. Verification
+## 5. Verification (real box)
 
-**This is a sideloaded, parallel deployment for testing — tar1090 ("the original map") must keep working, unaffected, throughout. Confirm this explicitly, not just assume it:**
+**Sideloaded, parallel deployment — tar1090/ultrafeeder must keep working, unaffected, throughout:**
 
-- [ ] 5.0 Before the first deploy, record a baseline: confirm tar1090 is currently reachable and working normally (whatever URL/port it's already served on), so later steps have something concrete to compare against
-- [ ] 5.1 Run the deploy script end-to-end against the real feeder box; confirm it completes successfully and `curl http://adsb-feeder.local:7500/api/health` returns `{"status":"ok",...}`
-- [ ] 5.2 Confirm `systemctl status lighttpd` on the feeder box shows `active (running)` and the new site config is loaded (`lighttpd -tt -f /etc/lighttpd/lighttpd.conf` reports it enabled)
-- [ ] 5.3 Confirm the feeder-local symlink resolved correctly: `ssh -i ~/.ssh/adsb_feeder root@adsb-feeder.local readlink /opt/squawkmap3d/data/aircraft.json` points at the same source tar1090 itself uses (cross-check against `/etc/default/tar1090_instances` or tar1090's own served `/tar1090/data/aircraft.json` content), and `curl http://adsb-feeder.local:7500/data/aircraft.json` returns live aircraft data matching what tar1090 shows at the same moment
-- [ ] 5.4 Load `http://adsb-feeder.local:7500` in a browser once `plane-tracks-3d-layer` is merged and confirm live aircraft render, with no CORS errors in the console for the `/data/aircraft.json` fetch (same-origin, per design.md Decision 6) — if `plane-tracks-3d-layer` isn't merged yet when this is verified, defer this specific check and note it as pending
-- [ ] 5.5 Reboot the feeder box and confirm lighttpd (and this app's site alongside it) comes back up on port 7500 without re-running the deploy script, and the `/data/aircraft.json` symlink still resolves correctly (it's an absolute-path symlink to a location the decoder itself creates at its own boot — verify no ordering issue between lighttpd starting and the decoder having created its output yet; a dangling symlink at boot should not crash anything, just make `/data/aircraft.json` 404 until the decoder catches up)
-- [ ] 5.6 Re-run the deploy script a second time against the same box (no local changes) and confirm it completes successfully (idempotent redeploy, including the symlink and lighttpd-site steps not erroring on already-existing state), then again after a trivial local code change and confirm the change is reflected on the feeder box
-- [ ] 5.7 Run each preflight-failure path deliberately (rename the SSH key temporarily, point `FEEDER_HOST` at an unreachable host) and confirm the script aborts with the specific, actionable error described in spec.md, before making any remote change
-- [ ] 5.8 Confirm tar1090 is unaffected, both at the config level and functionally: spot-check `/etc/default/tar1090_instances` and tar1090's own `/etc/lighttpd/conf-enabled/*tar1090*` file are byte-for-byte unchanged before/after a deploy, **and** re-load tar1090 in a browser (its original URL/port from the 5.0 baseline) and confirm it still works normally — same check repeated after removing the deployed app per the uninstall steps (task 4.1), confirming tar1090 is unaffected by removal too
-- [x] 5.9 Run `npm run lint` and `npx tsc --noEmit` and confirm no regressions from the `next.config.js`/health-route changes — both clean; `npm test` also re-confirmed 7/7 passing
+- [x] 5.0 Baseline: confirmed tar1090 (`http://adsb-feeder.local:8080/`, actually the `ultrafeeder` container's own port) reachable, `200`, before the first deploy
+- [x] 5.1 Ran `npm run deploy:feeder` (via `bash scripts/deploy-to-feeder.sh`) end-to-end against the real box. **First run's health check false-negatived**: the script reported failure, but the container was actually up and healthy (confirmed via direct-IP curl) — root cause was curl's own resolver timing out against the `.local` mDNS hostname on this dev machine (unrelated to the deploy itself; `ssh` resolves the same hostname fine via the OS resolver). Fixed by resolving the host once via `dscacheutil`/`getent` and pinning curl to that IP with `--resolve`. **Second run passed cleanly end-to-end**, including the health check: `{"status":"ok","service":"SquawkMap3D","timestamp":"..."}`
+- [x] 5.2 Confirmed via SSH: `docker ps` shows `squawkmap3d` `Up`, `docker inspect` confirms `RestartPolicy: unless-stopped`
+- [x] 5.3 Confirmed `curl http://<feeder-ip>:7500/` returns `200` (app shell loads). Live aircraft-render/CORS-in-browser check **deferred** — `plane-tracks-3d-layer` isn't merged yet, exactly as this task anticipated
+- [x] 5.4 Corrected test methodology mid-verification: `docker kill squawkmap3d` (an explicit management command) does **not** trigger `unless-stopped` — confirmed this is intentional Docker behavior (restart policies react to the containerized process crashing on its own, not to `docker stop`/`docker kill`), not a bug. Restored service with `docker start`, then ran the real test: `docker exec squawkmap3d kill -9 1` (kills nginx's actual PID 1 from inside, a true unexpected-crash scenario) — confirmed the container's `StartedAt` timestamp jumped forward within ~5s (fresh restart) and `/api/health` was healthy again with no manual intervention
+- [x] 5.5 Deploy script run three times total against the real box during this verification session (the failed-health-check attempt, the fixed retry, plus redeploys implicit in re-running) — every run completed the build/ship/`docker build`/`docker run` cycle cleanly, `docker rm -f` on a not-yet-existing/already-removed container never errored
+- [x] 5.6 Confirmed via `docker ps`: all 12 pre-existing containers (`ultrafeeder`, `piaware`, `dump978`, `skystats`, `fr24feed`, etc.) show uninterrupted uptimes (`ultrafeeder` still "Up 4 days", unchanged) spanning before/after every deploy in this session — none were touched, restarted, or recreated. `http://<feeder-ip>:8080/` (tar1090/ultrafeeder) stayed `200` throughout. Uninstall itself (`docker rm -f squawkmap3d && docker rmi squawkmap3d:latest`) not yet exercised — leaving the deploy live per the user's intent, can be tested on request
+- [x] 5.7 Ran both preflight-failure paths for real: `FEEDER_SSH_KEY=/tmp/does-not-exist` → aborted immediately with "SSH key not found," no remote connection attempted; `FEEDER_HOST=nonexistent-host-xyz.invalid` → aborted with "could not reach ... over SSH," before any build/ship. Both exit 1, no partial state left anywhere
+- [x] 5.8 Run `npm run lint` and `npx tsc --noEmit` and confirm no regressions from the `next.config.js`/health-route changes — both clean; `npm test` also re-confirmed 7/7 passing

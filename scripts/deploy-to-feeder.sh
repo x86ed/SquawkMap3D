@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Deploys a static export of SquawkMap3D to the ADS-B feeder box, served by
-# the box's existing lighttpd (the same web server tar1090 already depends
-# on) on its own port, sideloaded alongside tar1090 without touching its
-# config. See openspec/changes/deploy-to-feeder/design.md for the full
-# rationale; openspec/changes/deploy-to-feeder/tasks.md for the checklist
-# this script implements.
+# Deploys a static export of SquawkMap3D to the ADS-B feeder box as its own
+# Docker sidecar container — the same pattern every other tool on that box
+# already uses (piaware, dump978, skystats, ...), independent of the box's
+# existing `docker compose` stack. See
+# openspec/changes/deploy-to-feeder/design.md for the full rationale
+# (including why this isn't a lighttpd-based deploy — see that doc's
+# Context for the real-box reconnaissance that superseded the original
+# plan); openspec/changes/deploy-to-feeder/tasks.md for the checklist this
+# script implements.
 #
 # Usage: bash scripts/deploy-to-feeder.sh   (or: npm run deploy:feeder)
 # All settings below are overridable via environment variables.
@@ -16,7 +19,8 @@ FEEDER_USER="${FEEDER_USER:-root}"
 FEEDER_SSH_KEY="${FEEDER_SSH_KEY:-$HOME/.ssh/adsb_feeder}"
 FEEDER_PORT="${FEEDER_PORT:-7500}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/squawkmap3d}"
-SITE_CONF_NAME="${SITE_CONF_NAME:-98-squawkmap3d.conf}"
+CONTAINER_NAME="${CONTAINER_NAME:-squawkmap3d}"
+IMAGE_TAG="${IMAGE_TAG:-squawkmap3d:latest}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -31,6 +35,8 @@ remote() {
   ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "$@"
 }
 
+EXPECTED_FEEDER_URL="http://${FEEDER_HOST}:8080/data/aircraft.json"
+
 # --- 1. Preflight ------------------------------------------------------
 
 log "Preflight checks"
@@ -42,9 +48,7 @@ command -v ssh >/dev/null 2>&1 || fail "ssh is required locally but was not foun
 
 remote true 2>/dev/null || fail "could not reach $SSH_TARGET over SSH with key $FEEDER_SSH_KEY — check the feeder is reachable and the key is authorized"
 
-if ! remote "command -v lighttpd" >/dev/null 2>&1 || ! remote "systemctl is-active --quiet lighttpd || systemctl is-enabled --quiet lighttpd" >/dev/null 2>&1; then
-  fail "lighttpd was not found (or is not systemd-managed) on $FEEDER_HOST — this script expects a standard tar1090 install, which already depends on lighttpd. Resolve manually before retrying."
-fi
+remote "docker version" >/dev/null 2>&1 || fail "Docker was not found (or its daemon is not running) on $FEEDER_HOST — this deploy runs SquawkMap3D as a Docker container, matching every other tool already on this box. Resolve manually before retrying."
 
 ENV_FILE="$REPO_ROOT/.env.local"
 if [ ! -f "$ENV_FILE" ]; then
@@ -53,8 +57,8 @@ else
   if ! grep -q "^NEXT_PUBLIC_MAPTILER_KEY=.\+" "$ENV_FILE"; then
     warn "NEXT_PUBLIC_MAPTILER_KEY is not set in $ENV_FILE — the map will not render on the deployed build"
   fi
-  if grep -q "^NEXT_PUBLIC_FEEDER_URL=" "$ENV_FILE" && ! grep -q "^NEXT_PUBLIC_FEEDER_URL=/data/aircraft\.json\s*$" "$ENV_FILE"; then
-    warn "NEXT_PUBLIC_FEEDER_URL in $ENV_FILE is not /data/aircraft.json — this defeats the same-origin, no-CORS feeder wiring this deploy sets up (see design.md Decision 6). Recommended: NEXT_PUBLIC_FEEDER_URL=/data/aircraft.json"
+  if grep -q "^NEXT_PUBLIC_FEEDER_URL=" "$ENV_FILE" && ! grep -qF "NEXT_PUBLIC_FEEDER_URL=$EXPECTED_FEEDER_URL" "$ENV_FILE"; then
+    warn "NEXT_PUBLIC_FEEDER_URL in $ENV_FILE does not match $EXPECTED_FEEDER_URL — this feeder's ultrafeeder container serves aircraft.json there (already CORS-enabled). Recommended: NEXT_PUBLIC_FEEDER_URL=$EXPECTED_FEEDER_URL"
   fi
 fi
 
@@ -69,62 +73,41 @@ log "Building static export locally (npm run build)"
 
 log "Shipping build to $SSH_TARGET:$REMOTE_DIR"
 remote "mkdir -p '$REMOTE_DIR'"
-rsync -az --delete -e "ssh ${SSH_OPTS[*]}" "$REPO_ROOT/out/" "$SSH_TARGET:$REMOTE_DIR/"
+rsync -az --delete -e "ssh ${SSH_OPTS[*]}" "$REPO_ROOT/out/" "$SSH_TARGET:$REMOTE_DIR/out/"
+scp "${SSH_OPTS[@]}" "$SCRIPT_DIR/Dockerfile.squawkmap3d" "$SSH_TARGET:$REMOTE_DIR/Dockerfile" >/dev/null
 
-# --- 4. Feeder-local live-feed symlink ------------------------------------
+# --- 4. Build and (re)run the container on the box ------------------------
 
-log "Resolving feeder's decoder source for aircraft.json"
+log "Building image on the feeder box (native arch, no cross-compilation)"
+remote "cd '$REMOTE_DIR' && docker build -t '$IMAGE_TAG' ."
 
-DECODER_SRC="$(remote '
-  set -e
-  if [ -f /etc/default/tar1090_instances ]; then
-    awk "{print \$1; exit}" /etc/default/tar1090_instances
-  fi
-' 2>/dev/null || true)"
+log "Starting container $CONTAINER_NAME on port $FEEDER_PORT"
+remote "docker rm -f '$CONTAINER_NAME' >/dev/null 2>&1 || true"
+remote "docker run -d --name '$CONTAINER_NAME' --restart unless-stopped -p '$FEEDER_PORT:80' '$IMAGE_TAG'" >/dev/null
 
-if [ -z "$DECODER_SRC" ] || ! remote "[ -f \"$DECODER_SRC/aircraft.json\" ]" 2>/dev/null; then
-  DECODER_SRC=""
-  for candidate in /run/dump1090-fa /run/readsb /run/adsbexchange-feed /run/dump1090 /run/dump1090-mutability /run/skyaware978 /run/shm; do
-    if remote "[ -f '$candidate/aircraft.json' ]" 2>/dev/null; then
-      DECODER_SRC="$candidate"
-      break
-    fi
-  done
-fi
-
-if [ -n "$DECODER_SRC" ]; then
-  log "Found decoder feed at $DECODER_SRC/aircraft.json — linking into $REMOTE_DIR/data/aircraft.json"
-  remote "ln -sfn '$DECODER_SRC/aircraft.json' '$REMOTE_DIR/data/aircraft.json'"
-else
-  warn "no decoder aircraft.json found at any known location — aircraft layer will stay empty until one is available. This does not fail the deploy."
-fi
-
-# --- 5. Install/refresh the lighttpd site config --------------------------
-
-log "Installing lighttpd site config on port $FEEDER_PORT"
-
-RENDERED_CONF="$(mktemp)"
-trap 'rm -f "$RENDERED_CONF"' EXIT
-
-sed -e "s#__REMOTE_DIR__#$REMOTE_DIR#g" -e "s#__PORT__#$FEEDER_PORT#g" \
-  "$SCRIPT_DIR/squawkmap3d.lighttpd.conf.template" > "$RENDERED_CONF"
-
-scp "${SSH_OPTS[@]}" "$RENDERED_CONF" "$SSH_TARGET:/etc/lighttpd/conf-available/$SITE_CONF_NAME" >/dev/null
-
-remote "
-  set -e
-  ln -sf '/etc/lighttpd/conf-available/$SITE_CONF_NAME' '/etc/lighttpd/conf-enabled/$SITE_CONF_NAME'
-  lighttpd -tt -f /etc/lighttpd/lighttpd.conf
-  systemctl reload lighttpd
-"
-
-# --- 6. Health check --------------------------------------------------
+# --- 5. Health check --------------------------------------------------
 
 log "Waiting for http://$FEEDER_HOST:$FEEDER_PORT/api/health to come up"
 
+# curl's own resolver has been observed to fail/timeout against this
+# hostname's mDNS (.local) address on some networks even though `ssh`
+# resolves it fine (macOS's system resolver handles mDNS; curl's built-in
+# one doesn't always). Resolve once up front and pin curl to that IP via
+# --resolve (keeps the Host header correct) so the health check doesn't
+# false-negative a deploy that actually succeeded.
+FEEDER_IP="$(
+  { command -v dscacheutil >/dev/null 2>&1 && dscacheutil -q host -a name "$FEEDER_HOST" 2>/dev/null | awk '/^ip_address:/ {print $2; exit}'; } ||
+  { command -v getent >/dev/null 2>&1 && getent ahosts "$FEEDER_HOST" 2>/dev/null | awk '{print $1; exit}'; } ||
+  true
+)"
+CURL_RESOLVE_OPTS=()
+if [ -n "$FEEDER_IP" ]; then
+  CURL_RESOLVE_OPTS=(--resolve "$FEEDER_HOST:$FEEDER_PORT:$FEEDER_IP")
+fi
+
 HEALTHY=0
 for _ in $(seq 1 10); do
-  RESPONSE="$(curl -fsS --max-time 3 "http://$FEEDER_HOST:$FEEDER_PORT/api/health" 2>/dev/null || true)"
+  RESPONSE="$(curl -fsS "${CURL_RESOLVE_OPTS[@]}" --max-time 5 "http://$FEEDER_HOST:$FEEDER_PORT/api/health" 2>/dev/null || true)"
   if printf '%s' "$RESPONSE" | grep -q '"status":"ok"'; then
     HEALTHY=1
     break
