@@ -1,6 +1,6 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
 import type { MapTheme } from "./mapStyles";
-import { airportIconImageId, ensureAirportIcon } from "./airportIcon";
+import { airportIconImageId, registerAirportIconResolver } from "./airportIcon";
 import {
   FAA_SECTIONAL_TILE_URL,
   FAA_SECTIONAL_MINZOOM,
@@ -108,12 +108,13 @@ export function addCustomLayers(
       data: "/data/airports.geojson",
     });
   }
-  // Fire-and-forget: rasterization is async (canvas + Image decode), but
-  // `addCustomLayers` itself must stay synchronous to match its callers.
-  // The symbol layer below can reference this image id before it's
-  // registered — MapLibre just renders nothing for it until `addImage`
-  // resolves and the next repaint picks it up.
-  void ensureAirportIcon(map, theme, AIRPORT_FILL_COLOR);
+  // Must be installed before the symbol layer below is (re)added: a
+  // GeoJSON source's symbol bucket resolves `icon-image` in the tile
+  // worker shortly after `addSource`, and only a registered
+  // `missingStyleImageResolver` is awaited by that resolution — see
+  // `registerAirportIconResolver`'s doc comment for why a bare
+  // `map.addImage` call after the fact can't fix an already-built bucket.
+  registerAirportIconResolver(map, AIRPORT_FILL_COLOR);
   const airportsVisibility = airportsVisible ? "visible" : "none";
   if (!map.getLayer(AIRPORTS_LAYER_ID)) {
     map.addLayer({

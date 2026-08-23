@@ -85,26 +85,19 @@ function getOrRasterize(color: string): Promise<ImageData> {
   return cached;
 }
 
-/**
- * Idempotently registers the airport icon image for `theme`/`color` with
- * `map.addImage`. Safe to call on every `load`/`style.load` — MapLibre
- * discards registered images on a style swap, same as sources/layers.
- */
-export async function ensureAirportIcon(
+async function registerAirportIcon(
   map: MapLibreMap,
-  theme: MapTheme,
+  imageId: string,
   color: string,
 ): Promise<void> {
-  const imageId = airportIconImageId(theme);
   if (map.hasImage(imageId)) return;
   const cached = await getOrRasterize(color);
-  // The awaited rasterization may race a concurrent call (e.g. a rapid
-  // theme toggle) that already registered this image — recheck before
-  // adding, since `addImage` throws on a duplicate id.
+  // The awaited rasterization may race a concurrent request for the same
+  // id — recheck before adding, since `addImage` throws on a duplicate id.
   if (map.hasImage(imageId)) return;
   // `getOrRasterize` caches by color, and both themes currently share the
   // same `AIRPORT_FILL_COLOR` — so this cached `ImageData` is the same
-  // object reused across every theme/id that shares that color. `addImage`
+  // object reused across every id that shares that color. `addImage`
   // transfers its pixel buffer internally, which detaches the source
   // typed array; reusing that same instance for a second `addImage` call
   // hands it a zero-length buffer (`RangeError: mismatched image size`).
@@ -116,4 +109,39 @@ export async function ensureAirportIcon(
     cached.height,
   );
   map.addImage(imageId, imageData, { pixelRatio: AIRPORT_ICON_PIXEL_RATIO });
+}
+
+/**
+ * Registers a `missingStyleImageResolver` that rasterizes and registers the
+ * airport icon on demand, the first time the symbol layer's tile worker
+ * actually asks for it.
+ *
+ * This isn't just a nicety — it's required for correctness. A GeoJSON
+ * source's symbol bucket resolves its `icon-image` dependency once, in the
+ * tile worker, at parse time (shortly after `addSource`/`addLayer`). A
+ * bare, unawaited `map.addImage(...)` call racing that parse can lose: if
+ * the bucket finishes building before the image is registered, the icon is
+ * permanently missing from that bucket — `addImage` afterwards does not
+ * retroactively fix already-built buckets, so airports would render with no
+ * icon at all despite `map.hasImage` eventually returning true.
+ * `setMissingStyleImageResolver`'s callback is `await`ed by the worker's
+ * image-dependency resolution before it finalizes the bucket (see
+ * MapLibre's `ImageManager._getImagesForIds`), which closes that race.
+ *
+ * Safe to call on every `load`/`style.load` (idempotent: just re-installs
+ * an equivalent resolver) and cheap to call repeatedly since rasterization
+ * itself is cached by color in `getOrRasterize`.
+ */
+export function registerAirportIconResolver(map: MapLibreMap, color: string): void {
+  map.setMissingStyleImageResolver((id) => {
+    if (id !== airportIconImageId("light") && id !== airportIconImageId("dark")) {
+      // Not ours — return nothing so MapLibre falls through to its normal
+      // "styleimagemissing" handling for other missing images.
+      return undefined;
+    }
+    // Returned (not fire-and-forget): `ImageManager._getImagesForIds`
+    // awaits this before finalizing a tile's icon dependencies — see the
+    // race explained on `registerAirportIconResolver` above.
+    return registerAirportIcon(map, id, color);
+  });
 }
