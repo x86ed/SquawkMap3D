@@ -21,3 +21,14 @@ export const FAA_SECTIONAL_MAXZOOM = 12;
 
 export const METERS_PER_NM = 1852;
 export const RANGE_RING_RADII_NM = [50, 100, 150, 200] as const;
+
+// Solar-elevation thresholds (degrees) for the day/night terminator's
+// twilight bands, from a light dusk threshold down to -18° (the end of
+// astronomical twilight — beyond this the sky is fully dark). Ordered
+// highest (largest, lightest band) to lowest (smallest, darkest band) —
+// `addTerminatorLayers` relies on this order to stack them correctly.
+export const TERMINATOR_ELEVATION_BANDS_DEG = [
+  3, 0, -3, -6, -9, -12, -15, -18,
+] as const;
+
+export const TERMINATOR_REFRESH_INTERVAL_MS = 60_000;

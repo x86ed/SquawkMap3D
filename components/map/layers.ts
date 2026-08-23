@@ -6,6 +6,7 @@ import {
   airportIconImageId,
   registerAirportIconResolver,
 } from "./airportIcon";
+import { TERMINATOR_LAYER_IDS } from "./terminator";
 import {
   FAA_SECTIONAL_TILE_URL,
   FAA_SECTIONAL_MINZOOM,
@@ -27,6 +28,7 @@ const CUSTOM_LAYER_IDS = [
   MILITARY_FILL_LAYER_ID,
   MILITARY_LINE_LAYER_ID,
   AIRPORTS_LAYER_ID,
+  ...TERMINATOR_LAYER_IDS,
 ];
 
 // Foreground color of the airport icon's glyph (see airportIcon.ts), one per
