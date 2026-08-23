@@ -48,6 +48,32 @@ The deploy script SHALL check its required local and remote prerequisites before
 - **WHEN** the deploy script is run and `root@adsb-feeder.local` cannot be reached over SSH with the configured key
 - **THEN** the script aborts before building or shipping anything, with an error identifying the connection failure
 
-#### Scenario: Remote Node.js missing or too old
-- **WHEN** the deploy script is run and the feeder box does not have a Node.js runtime installed, or has a version older than this app's minimum supported Node version
-- **THEN** the script aborts before shipping a build, with an error identifying the missing/insufficient Node.js version and instructions to install it manually
+#### Scenario: Remote file-server runtime missing
+- **WHEN** the deploy script is run and the feeder box does not have the runtime required to serve the deployed static build installed
+- **THEN** the script aborts before shipping a build, with an error identifying the missing runtime and instructions to install it manually
+
+### Requirement: Deploy wires the app to the feeder's own live decoder feed, same-origin, without modifying the decoder or web server that provides it
+When deploying to a feeder box that already has a recognizable ADS-B decoder output (an `aircraft.json` file at one of the well-known decoder locations), the deploy script SHALL make that live feed available to the deployed app from the same origin it is served from (no cross-origin request required), without reading, writing, or otherwise modifying any configuration or service belonging to software already running on the feeder box.
+
+#### Scenario: Decoder feed found and wired up
+- **WHEN** the deploy script runs against a feeder box with a recognizable decoder `aircraft.json` output present
+- **THEN** after the deploy, the deployed app can fetch that live feed from its own origin (the same host and port the app itself is served from), without a cross-origin request and without any CORS configuration having been added anywhere
+
+#### Scenario: No decoder feed found
+- **WHEN** the deploy script runs against a feeder box where no recognizable decoder `aircraft.json` output can be located
+- **THEN** the deploy still completes successfully; the script logs a clear, visible warning that no feed was found, rather than failing the deploy or silently succeeding with no indication
+
+#### Scenario: Existing decoder/web-server configuration is untouched
+- **WHEN** a deploy runs, whether or not a decoder feed is found
+- **THEN** no file, configuration, or service belonging to the feeder's existing ADS-B decoder or web server is created, modified, or removed by the deploy script — only files under the deployed app's own directory and its own service definition are written
+
+### Requirement: Deploy does not interfere with the feeder's existing tar1090 install
+The deployed app is a sideloaded viewer running alongside the feeder's existing tar1090 install, not a replacement for it. Deploying, redeploying, or removing the deployed app SHALL NOT stop, restart, reconfigure, degrade, or otherwise affect tar1090's own availability or behavior on the feeder box.
+
+#### Scenario: tar1090 remains available through a deploy
+- **WHEN** a deploy (or redeploy) completes on a feeder box where tar1090 was already running and reachable
+- **THEN** tar1090 remains reachable and functioning exactly as before the deploy, on whatever port/path it was already using
+
+#### Scenario: Removing the deployed app leaves tar1090 unaffected
+- **WHEN** the deployed app's service and files are removed from the feeder box (per the documented uninstall steps)
+- **THEN** tar1090's own service, configuration, and availability are unaffected
