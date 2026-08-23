@@ -95,7 +95,7 @@ export function buildAirportPopupHtml(properties: AirportProperties): string {
     : "";
 
   return `
-    <div style="padding:16px;min-width:220px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+    <div style="padding:16px;min-width:220px;">
       <div style="font-weight:900;font-size:15px;color:#f1f5f9;letter-spacing:-0.01em;margin-bottom:10px;">${escapeHtml(name)}</div>
       <div id="${airportImageSlotId(ident)}" style="width:100%;height:120px;border-radius:12px;overflow:hidden;background:#1b1c21;border:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;color:#64748b;font-size:11px;font-weight:700;margin-bottom:14px;">
         Loading image…

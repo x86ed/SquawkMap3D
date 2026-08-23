@@ -46,6 +46,11 @@ a {
  * values) — see components/map/airportPopup.ts for the content markup.
  * Overrides MapLibre's default white `.maplibregl-popup-content` chrome so
  * the popup itself reads as the card, not a white box wrapping a dark one. */
+.airport-popup {
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+}
+
 .airport-popup .maplibregl-popup-content {
   padding: 0;
   border-radius: 20px;
