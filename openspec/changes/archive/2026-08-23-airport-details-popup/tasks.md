@@ -1,6 +1,6 @@
 ## 1. Icon generation
 
-- [x] 1.1 Create `components/map/airportIcon.ts`: load `app/atc.svg` client-side, rasterize to canvas per theme (`source-in` composite onto white backing so negative space is opaque white, foreground recolored to `AIRPORT_FILL_COLOR`), export a function returning `ImageData`/`HTMLCanvasElement` keyed by theme.
+- [x] 1.1 Create `components/map/airportIcon.ts`: load `app/atc.svg` client-side, rasterize to canvas per theme (`source-in` composite, foreground recolored to `AIRPORT_FILL_COLOR`), export a function returning `ImageData`/`HTMLCanvasElement` keyed by theme. **Superseded**: the white backing disc described here was implemented then removed per user feedback — see design.md's Post-Implementation Addendum for what actually shipped (transparent background, flood-filled enclosed holes, per-theme color).
 - [x] 1.2 Register the rasterized image(s) via `map.addImage("airport-icon-<theme>", ..., { pixelRatio: 2 })`, idempotently (skip if `map.hasImage(...)` already true), called from `addCustomLayers`/`setupStyleDependentState` on every `load`/`style.load`.
 
 ## 2. Layer swap
@@ -26,8 +26,8 @@
 
 ## 5. Verification
 
-- [ ] 5.1 Manually verify in both light and dark themes: airport icons render (not dots), icon foreground color matches the existing per-view airport color, negative space reads as solid white (not transparent to the basemap underneath).
-- [ ] 5.2 Manually verify the airports toggle hides/shows icons and survives a theme switch and a pilot-mode toggle while hidden.
-- [ ] 5.3 Manually verify clicking an airport with both codes present shows a correct popup (codes, name, flag, city, country); click one with a `null` code and confirm no literal `"null"` appears.
-- [ ] 5.4 Manually verify the popup closes via its close control, and that no popup can be opened while the airports layer is toggled off.
-- [ ] 5.5 Manually verify the image row: a well-known airport (e.g. one with an obvious Wikipedia page) shows a loading placeholder then the real thumbnail; an obscure/small airport with no matching page falls back cleanly (no broken-image icon, no stuck loading state); rapid repeat clicks on the same airport don't visibly re-fetch (cache hit).
+- [x] 5.1 Manually verify in both light and dark themes: airport icons render as the solid `atc.svg` tower glyph (not dots, not a hollow outline), on a transparent background, in each theme's own foreground color (`#6600ff` light / `#ce00ff` dark). Verified via real-Chromium screenshots at both themes.
+- [x] 5.2 Manually verify the airports toggle hides/shows icons and survives a theme switch and a pilot-mode toggle while hidden. Verified: layer visibility stayed `"none"` through a theme switch and a pilot-mode toggle-on/off while hidden, then correctly returned to `"visible"` on re-enable.
+- [x] 5.3 Manually verify clicking an airport with both codes present shows a correct popup (codes, name, flag, city, country); click one with a `null` code and confirm no literal `"null"` appears. Verified: JFK popup showed correct IATA/ICAO/name/flag/city/country; a standalone test with a `null` `icao_code` confirmed no literal `"null"` in the rendered HTML.
+- [x] 5.4 Manually verify the popup closes via its close control, and that no popup can be opened while the airports layer is toggled off. Verified via real-Chromium automation: popup opened (count 1), closed via `.maplibregl-popup-close-button` (count 0), and a click at the same coordinates while the layer was hidden opened nothing (count 0).
+- [x] 5.5 Manually verify the image row: a well-known airport (e.g. one with an obvious Wikipedia page) shows a loading placeholder then the real thumbnail; an obscure/small airport with no matching page falls back cleanly (no broken-image icon, no stuck loading state); rapid repeat clicks on the same airport don't visibly re-fetch (cache hit). Verified via a standalone script: JFK returned a real Wikimedia thumbnail URL, a nonsense name returned `null` (fallback path) without throwing, and a repeat call returned the same cached `Promise` instance (no re-fetch).
