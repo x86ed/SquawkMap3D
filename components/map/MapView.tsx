@@ -127,6 +127,8 @@ export default function MapView() {
       bearing: INITIAL_BEARING,
     });
     mapRef.current = map;
+    // @ts-expect-error temporary debug hook
+    window.__map = map;
     map.addControl(
       new NavigationControl({
         showZoom: true,
