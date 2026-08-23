@@ -1,7 +1,7 @@
 ## 1. Setup
 
 - [ ] 1.1 Confirm live tile/API endpoints, required API keys, and attribution text for each provider (OpenAIP, RainViewer, FAA TFR feed, FAA SUA feed, IEM NEXRAD, IEM/NOAA infrared, NOAA Radar, DWD RADOLAN) per design.md's Open Questions
-- [ ] 1.2 Add required env var(s) (e.g. `NEXT_PUBLIC_OPENAIP_API_KEY`) to `.env.example` and document setup
+- [x] 1.2 Add required env var(s) (e.g. `NEXT_PUBLIC_OPENAIP_API_KEY`) to `.env.example` and document setup
 
 ## 2. OpenAIP TMS layer
 
