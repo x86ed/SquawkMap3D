@@ -202,7 +202,6 @@ export default function MapView() {
         }
       });
     });
-
     getCurrentLocation().then((coords) => {
       handleLocationResolved(coords);
       if (!coords || !mapRef.current) return;
