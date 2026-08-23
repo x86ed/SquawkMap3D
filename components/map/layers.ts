@@ -25,9 +25,14 @@ const CUSTOM_LAYER_IDS = [
 ];
 
 // Foreground color of the airport icon's glyph (see airportIcon.ts), reused
-// as-is for both the light and dark map views — the icon's negative space is
-// separately rasterized to solid white regardless of this color.
-export const AIRPORT_FILL_COLOR = "#ffffff";
+// as-is for both the light and dark map views. Must not be white: the
+// icon's negative space is separately rasterized to solid white regardless
+// of this color, and a white-on-white glyph is invisible against its own
+// backing disc (this was a real bug — the icon rendered as a plain white
+// dot, indistinguishable from the old circle marker, until this was caught
+// in a real-browser screenshot). Saturated orange reads clearly against
+// both the light and dark MapTiler styles.
+export const AIRPORT_FILL_COLOR = "#f97316";
 // Olive/drab — distinct from the airport orange and from the basemap's
 // greens/tans in both themes.
 const MILITARY_FILL_COLOR = "#ed6bff";
