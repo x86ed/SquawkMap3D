@@ -156,7 +156,6 @@ export default function MapView() {
         airportsVisibleRef.current,
       );
       addTerminatorLayers(map, themeRef.current, terminatorVisibleRef.current);
-      refreshTerminator(map);
       setPilotModeVisibility(map, pilotModeRef.current);
       addUserLocationLayers(map, userLocationRef.current);
       if (userLocationRef.current) {
@@ -219,7 +218,7 @@ export default function MapView() {
     });
 
     const terminatorIntervalId = setInterval(() => {
-      if (mapRef.current) refreshTerminator(mapRef.current);
+      if (mapRef.current) refreshTerminator(mapRef.current, themeRef.current);
     }, TERMINATOR_REFRESH_INTERVAL_MS);
 
     return () => {
