@@ -19,6 +19,7 @@ import { applySky, applyTerrain } from "./terrain";
 import {
   addCustomLayers,
   AIRPORTS_LAYER_ID,
+  getAirportIconDisplayHeight,
   setAirportsVisibility,
   setMilitaryBasesVisibility,
   setPilotModeVisibility,
@@ -179,7 +180,11 @@ export default function MapView() {
 
       const properties = feature.properties as AirportProperties;
       const [lng, lat] = feature.geometry.coordinates;
-      new Popup({ className: "airport-popup" })
+      // Half the icon's on-screen height: `icon-anchor: "bottom"` puts the
+      // feature coordinate at the icon's base, so this raises the popup's
+      // origin from the ground to the icon's midpoint instead.
+      const offset = getAirportIconDisplayHeight(map.getZoom()) / 2;
+      new Popup({ className: "airport-popup", offset })
         .setLngLat([lng, lat])
         .setHTML(buildAirportPopupHtml(properties))
         .addTo(map);
