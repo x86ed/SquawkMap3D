@@ -1,19 +1,19 @@
 ## MODIFIED Requirements
 
 ### Requirement: Airports use a contrasting color
-Airport markers SHALL be rendered as an SVG-derived icon (based on `atc.svg`) whose negative space is filled solid white and whose foreground color matches the airport accent color used in the currently active map view (light or dark), remaining visually distinguishable from the map surface in both the light and dark base styles.
+Airport markers SHALL be rendered as an SVG-derived icon (based on `atc.svg`, rendered on a transparent background with no backing shape), with a solid interior — any transparent region fully enclosed by the glyph's own outline is filled rather than left as a hole — and a per-view foreground color: `#6600ff` in the light map view and `#ce00ff` in the dark map view, each remaining visually distinguishable from that view's basemap surface.
 
 #### Scenario: Airports visible against light style
 - **WHEN** the map is showing its light style with the airports layer enabled
-- **THEN** airport markers render as the icon with a foreground color matching the light view's airport accent color, clearly distinguishable from the light basemap surface
+- **THEN** airport markers render as the icon in `#6600ff`, clearly distinguishable from the light basemap surface
 
 #### Scenario: Airports visible against dark style
 - **WHEN** the map is showing its dark style with the airports layer enabled
-- **THEN** airport markers render as the icon with a foreground color matching the dark view's airport accent color, clearly distinguishable from the dark basemap surface
+- **THEN** airport markers render as the icon in `#ce00ff`, clearly distinguishable from the dark basemap surface
 
-#### Scenario: Icon negative space is not transparent
+#### Scenario: Icon silhouette has no internal holes
 - **WHEN** the airport icon is rendered on the map, in either theme
-- **THEN** the icon's negative space (any area within the glyph not covered by its foreground shape) is filled solid white rather than left transparent
+- **THEN** any transparent region enclosed within the glyph's own silhouette is filled solid with that theme's foreground color, so the tower shape reads as solid rather than a hollow outline; the area outside the glyph's silhouette (the icon's background) stays transparent
 
 ## ADDED Requirements
 
