@@ -28,8 +28,8 @@ const CUSTOM_LAYER_IDS = [
 const AIRPORT_FILL_COLOR = "#ffffff";
 // Olive/drab — distinct from the airport orange and from the basemap's
 // greens/tans in both themes.
-const MILITARY_FILL_COLOR = "#5c5c1f";
-const MILITARY_LINE_COLOR = "#3d3d14";
+const MILITARY_FILL_COLOR = "#ed6bff";
+const MILITARY_LINE_COLOR = "#e12afb";
 
 function haloColorFor(theme: MapTheme): string {
   return theme === "dark" ? "#0a0a0a" : "#ffffff";
