@@ -177,7 +177,7 @@ export default function MapView() {
 
       const properties = feature.properties as AirportProperties;
       const [lng, lat] = feature.geometry.coordinates;
-      new Popup()
+      new Popup({ className: "airport-popup" })
         .setLngLat([lng, lat])
         .setHTML(buildAirportPopupHtml(properties))
         .addTo(map);

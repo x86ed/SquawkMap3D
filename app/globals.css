@@ -40,3 +40,35 @@ a {
     color-scheme: dark;
   }
 }
+
+/* Airport popup: styled to match adsb.win's dashboard aircraft cards
+ * (dark gradient card, subtle border, uppercase micro-labels, heavy-weight
+ * values) — see components/map/airportPopup.ts for the content markup.
+ * Overrides MapLibre's default white `.maplibregl-popup-content` chrome so
+ * the popup itself reads as the card, not a white box wrapping a dark one. */
+.airport-popup .maplibregl-popup-content {
+  padding: 0;
+  border-radius: 20px;
+  overflow: hidden;
+  background: linear-gradient(145deg, #29292d, #111216 62%, #1b1c21);
+  border: 1px solid rgba(63, 63, 70, 0.42);
+  box-shadow:
+    0 10px 15px -3px rgba(2, 6, 23, 0.35),
+    0 4px 6px -4px rgba(2, 6, 23, 0.35);
+}
+
+.airport-popup .maplibregl-popup-tip {
+  border-top-color: #1b1c21 !important;
+  border-bottom-color: #1b1c21 !important;
+}
+
+.airport-popup .maplibregl-popup-close-button {
+  color: #94a3b8;
+  font-size: 18px;
+  padding: 4px 8px;
+}
+
+.airport-popup .maplibregl-popup-close-button:hover {
+  color: #f1f5f9;
+  background-color: rgba(255, 255, 255, 0.08);
+}
