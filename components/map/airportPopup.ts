@@ -56,9 +56,17 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function codeRow(label: string, code: string | null | undefined): string {
-  if (!code) return "";
-  return `<div style="display:flex;justify-content:space-between;gap:8px;"><span style="color:#666;">${label}</span><span style="font-weight:600;">${escapeHtml(code)}</span></div>`;
+// Tokens lifted from adsb.win's dashboard aircraft cards (dark gradient
+// card, slate-500 uppercase micro-labels, near-white heavy-weight values) —
+// see the `.airport-popup` rules in app/globals.css for the card chrome
+// itself (background/border/radius/shadow on the popup's own container).
+const LABEL_STYLE =
+  "font-size:10px;font-weight:900;letter-spacing:0.05em;text-transform:uppercase;color:#64748b;";
+const VALUE_STYLE = "font-weight:900;font-size:16px;color:#f1f5f9;";
+
+function statCell(label: string, code: string | null | undefined): string {
+  if (!code) return "<div></div>";
+  return `<div><div style="${LABEL_STYLE}">${label}</div><div style="${VALUE_STYLE}margin-top:2px;">${escapeHtml(code)}</div></div>`;
 }
 
 /** DOM id of the `<img>`/placeholder element `fetchAirportImage`'s caller
@@ -68,15 +76,13 @@ export function airportImageSlotId(ident: string): string {
   return `${IMAGE_SLOT_ID_PREFIX}${ident}`;
 }
 
-/** Builds the popup's HTML. The image slot starts as a loading placeholder;
- * callers swap in the resolved thumbnail (or a fallback) once
- * `fetchAirportImage` settles, keyed by `airportImageSlotId`.
- *
- * Every element sets its own text color explicitly rather than relying on
- * inheritance: this markup is appended into `<body>`, whose `color` is the
- * app's theme `--foreground` (light gray in dark mode), but the popup's own
- * background is always white/light — inheriting the page color reads as
- * washed-out, low-contrast text against it. */
+/** Builds the popup's HTML, styled as a dark card matching adsb.win's
+ * dashboard aircraft cards (see LABEL_STYLE/VALUE_STYLE above and the
+ * `.airport-popup` rules in app/globals.css, which supply the card's own
+ * gradient/border/radius/shadow on the popup's outer chrome). The image
+ * slot starts as a loading placeholder; callers swap in the resolved
+ * thumbnail (or a fallback) once `fetchAirportImage` settles, keyed by
+ * `airportImageSlotId`. */
 export function buildAirportPopupHtml(properties: AirportProperties): string {
   const name = properties.name ?? "Unknown airport";
   const ident = properties.ident ?? name;
@@ -89,20 +95,20 @@ export function buildAirportPopupHtml(properties: AirportProperties): string {
     : "";
 
   return `
-    <div style="min-width:200px;font-family:inherit;color:#171717;">
-      <div style="font-weight:700;font-size:14px;margin-bottom:6px;">${escapeHtml(name)}</div>
-      <div id="${airportImageSlotId(ident)}" style="width:100%;height:110px;border-radius:6px;overflow:hidden;background:#e5e5e5;display:flex;align-items:center;justify-content:center;color:#999;font-size:12px;margin-bottom:8px;">
+    <div style="padding:16px;min-width:220px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+      <div style="font-weight:900;font-size:15px;color:#f1f5f9;letter-spacing:-0.01em;margin-bottom:10px;">${escapeHtml(name)}</div>
+      <div id="${airportImageSlotId(ident)}" style="width:100%;height:120px;border-radius:12px;overflow:hidden;background:#1b1c21;border:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;color:#64748b;font-size:11px;font-weight:700;margin-bottom:14px;">
         Loading image…
       </div>
-      <div style="display:flex;flex-direction:column;gap:2px;font-size:13px;">
-        ${codeRow("IATA", properties.iata_code)}
-        ${codeRow("ICAO", properties.icao_code)}
-        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;">
-          <span style="color:#666;">Location</span>
-          <span style="display:flex;align-items:center;gap:6px;font-weight:600;">
-            ${flagHtml}
-            ${escapeHtml([city, countryName].filter(Boolean).join(", "))}
-          </span>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin-bottom:12px;">
+        ${statCell("IATA", properties.iata_code)}
+        ${statCell("ICAO", properties.icao_code)}
+      </div>
+      <div>
+        <div style="${LABEL_STYLE}">Location</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font-weight:800;font-size:14px;color:#f1f5f9;">
+          ${flagHtml}
+          <span>${escapeHtml([city, countryName].filter(Boolean).join(", "))}</span>
         </div>
       </div>
     </div>
