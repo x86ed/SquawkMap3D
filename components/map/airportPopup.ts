@@ -70,7 +70,13 @@ export function airportImageSlotId(ident: string): string {
 
 /** Builds the popup's HTML. The image slot starts as a loading placeholder;
  * callers swap in the resolved thumbnail (or a fallback) once
- * `fetchAirportImage` settles, keyed by `airportImageSlotId`. */
+ * `fetchAirportImage` settles, keyed by `airportImageSlotId`.
+ *
+ * Every element sets its own text color explicitly rather than relying on
+ * inheritance: this markup is appended into `<body>`, whose `color` is the
+ * app's theme `--foreground` (light gray in dark mode), but the popup's own
+ * background is always white/light — inheriting the page color reads as
+ * washed-out, low-contrast text against it. */
 export function buildAirportPopupHtml(properties: AirportProperties): string {
   const name = properties.name ?? "Unknown airport";
   const ident = properties.ident ?? name;
@@ -83,7 +89,7 @@ export function buildAirportPopupHtml(properties: AirportProperties): string {
     : "";
 
   return `
-    <div style="min-width:200px;font-family:inherit;">
+    <div style="min-width:200px;font-family:inherit;color:#171717;">
       <div style="font-weight:700;font-size:14px;margin-bottom:6px;">${escapeHtml(name)}</div>
       <div id="${airportImageSlotId(ident)}" style="width:100%;height:110px;border-radius:6px;overflow:hidden;background:#e5e5e5;display:flex;align-items:center;justify-content:center;color:#999;font-size:12px;margin-bottom:8px;">
         Loading image…

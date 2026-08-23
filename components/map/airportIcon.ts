@@ -97,10 +97,23 @@ export async function ensureAirportIcon(
 ): Promise<void> {
   const imageId = airportIconImageId(theme);
   if (map.hasImage(imageId)) return;
-  const imageData = await getOrRasterize(color);
+  const cached = await getOrRasterize(color);
   // The awaited rasterization may race a concurrent call (e.g. a rapid
   // theme toggle) that already registered this image — recheck before
   // adding, since `addImage` throws on a duplicate id.
   if (map.hasImage(imageId)) return;
+  // `getOrRasterize` caches by color, and both themes currently share the
+  // same `AIRPORT_FILL_COLOR` — so this cached `ImageData` is the same
+  // object reused across every theme/id that shares that color. `addImage`
+  // transfers its pixel buffer internally, which detaches the source
+  // typed array; reusing that same instance for a second `addImage` call
+  // hands it a zero-length buffer (`RangeError: mismatched image size`).
+  // Cloning the pixel data per call gives each registered image its own
+  // buffer.
+  const imageData = new ImageData(
+    new Uint8ClampedArray(cached.data),
+    cached.width,
+    cached.height,
+  );
   map.addImage(imageId, imageData, { pixelRatio: AIRPORT_ICON_PIXEL_RATIO });
 }
