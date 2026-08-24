@@ -112,3 +112,48 @@ export const AIRSPACE_BOUNDARIES_REFRESH_INTERVAL_MS = 60 * 60_000;
 export const NOAA_INFRARED_TILE_URL: string | undefined = undefined;
 export const NOAA_INFRARED_MINZOOM = 2;
 export const NOAA_INFRARED_MAXZOOM = 10;
+
+// User's own ADS-B feeder (readsb/dump1090-fa/tar1090-compatible
+// aircraft.json). Optional — the aircraft layer no-ops when unset, same
+// pattern as NEXT_PUBLIC_OPENAIP_API_KEY. Unlike every other feed in this
+// file, this is fetched from the user's own device (often LAN-local), not a
+// public third-party service.
+export function getFeederUrl(): string | undefined {
+  return process.env.NEXT_PUBLIC_FEEDER_URL;
+}
+
+// The feeder's own decoder typically refreshes aircraft.json roughly every
+// 1s; this is a LAN-local/user-owned endpoint (not a rate-limited public
+// API like the other feeds in this file), so — unlike their 5-60 minute
+// intervals — this polls fast enough for smooth-looking live motion.
+export const AIRCRAFT_FEED_REFRESH_INTERVAL_MS = 1_000;
+
+// How long a per-aircraft track trail (built client-side from successive
+// polls, see aircraft.ts) is retained before its oldest points are pruned.
+export const AIRCRAFT_TRACK_RETENTION_MS = 10 * 60_000;
+
+// ADS-B emitter category (as reported in aircraft.json's `category` field,
+// values "A0"-"D7" per DO-260B) -> vendored fallback silhouette under
+// public/aircraft-silhouettes/, used by aircraftIcons.ts when no
+// type-specific shape matches the aircraft's `t` field. Resolved from
+// pw-silhouettes' generics/<name>.json "aliasOf" mappings (see
+// scripts/vendor-aircraft-icons.mjs for the source of each entry) — not
+// every category has a pw-silhouettes generic (e.g. B5, C3-C7 are
+// unmapped), those fall through to the plain-marker fallback instead.
+export const AIRCRAFT_CATEGORY_FALLBACK_ICON: Record<string, string> = {
+  A1: "/aircraft-silhouettes/A1.svg", // light
+  A2: "/aircraft-silhouettes/A2.svg", // medium 1 (7,000-34,000 kg)
+  A3: "/aircraft-silhouettes/A3.svg", // medium 2 (34,000-136,000 kg)
+  A4: "/aircraft-silhouettes/A4.svg", // high vortex large
+  A5: "/aircraft-silhouettes/A5.svg", // heavy
+  A6: "/aircraft-silhouettes/A6.svg", // high performance
+  A7: "/aircraft-silhouettes/A7.svg", // rotorcraft
+  B1: "/aircraft-silhouettes/B1.svg", // glider/sailplane
+  B2: "/aircraft-silhouettes/B2.svg", // lighter-than-air
+  B3: "/aircraft-silhouettes/B3.svg", // parachutist/skydiver
+  B4: "/aircraft-silhouettes/B4.svg", // ultralight/hang-glider/paraglider
+  B6: "/aircraft-silhouettes/B6.svg", // unmanned aerial vehicle
+  B7: "/aircraft-silhouettes/B7.svg", // space/transatmospheric vehicle
+  C1: "/aircraft-silhouettes/C1.svg", // surface emergency vehicle
+  C2: "/aircraft-silhouettes/C2.svg", // surface service vehicle
+};

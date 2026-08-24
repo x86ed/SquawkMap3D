@@ -1,6 +1,6 @@
 {
   "name": "squawkmap3d",
-  "version": "0.7.13",
+  "version": "0.8.5",
   "description": "an adsb map",
   "keywords": [
     "ADSB",
@@ -23,15 +23,19 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "npx serve@latest out",
     "lint": "eslint .",
     "test": "node --import tsx --test",
     "coverage": "nyc --reporter=text --reporter=lcov --reporter=html npm test",
     "test:coverage": "npm run coverage",
     "docs": "jsdoc -c jsdoc.json",
-    "postinstall": "node scripts/copy-flag-icons.mjs"
+    "postinstall": "node scripts/copy-flag-icons.mjs && patch-package",
+    "deploy:feeder": "bash scripts/deploy-to-feeder.sh"
   },
   "dependencies": {
+    "@deck.gl/core": "^9.3.10",
+    "@deck.gl/layers": "^9.3.10",
+    "@deck.gl/mapbox": "^9.3.10",
     "@turf/turf": "^7.4.0",
     "flag-icons": "^7.5.0",
     "maplibre-gl": "^6.5.0",
@@ -47,6 +51,7 @@
     "eslint-config-next": "^16.3.2",
     "jsdoc": "^4.0.5",
     "nyc": "^18.0.0",
+    "patch-package": "^8.0.1",
     "tsx": "^4.23.12",
     "typescript": "^5.9.0"
   }
