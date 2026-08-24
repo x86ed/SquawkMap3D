@@ -50,7 +50,7 @@ import {
 import {
   addUserLocationLayers,
   getUserLocationBounds,
-  startDishRotation,
+  setUserLocationVisibility,
 } from "./userLocation";
 import {
   addTerminatorLayers,
@@ -105,8 +105,8 @@ export default function MapView() {
   const dwdRadolanVisibleRef = useRef(true);
   const aircraftVisibleRef = useRef(true);
   const userLocationRef = useRef<GeoCoords | null>(null);
+  const userLocationVisibleRef = useRef(true);
   const styleReadyRef = useRef(false);
-  const dishRotationStopRef = useRef<(() => void) | null>(null);
   const deckOverlayRef = useRef<MapboxOverlay | null>(null);
   const aircraftIconAtlasRef = useRef<IconAtlas | null>(null);
 
@@ -125,23 +125,12 @@ export default function MapView() {
   const [noaaRadarVisible, setNoaaRadarVisible] = useState(true);
   const [dwdRadolanVisible, setDwdRadolanVisible] = useState(true);
   const [aircraftVisible, setAircraftVisible] = useState(true);
+  const [userLocationVisible, setUserLocationVisible] = useState(true);
   const [error, setError] = useState<string | null>(() =>
     getMapTilerKey()
       ? null
       : "Map unavailable: NEXT_PUBLIC_MAPTILER_KEY is not set. Add a MapTiler API key to .env.local to load the map.",
   );
-
-  // Stops any in-flight rotation loop before starting a new one — a leaked
-  // `requestAnimationFrame` loop from a previous location/style reload would
-  // otherwise keep calling `setData` forever.
-  const restartDishRotation = (map: MapLibreMap, coords: GeoCoords) => {
-    dishRotationStopRef.current?.();
-    dishRotationStopRef.current = startDishRotation(
-      map,
-      coords,
-      () => styleReadyRef.current,
-    );
-  };
 
   const refreshAircraft = async () => {
     if (!deckOverlayRef.current) return;
@@ -172,11 +161,11 @@ export default function MapView() {
     // whether the initial style parse completed, so it can still read false
     // well after the map is otherwise ready to accept new sources.
     // `userLocationRef.current` is already set above, so if the style isn't
-    // ready yet, `setupStyleDependentState` will add the dish/rings itself
+    // ready yet, `setupStyleDependentState` will add the marker/rings itself
     // once "load"/"style.load" fires — no separate retry needed here.
     if (coords && mapRef.current && styleReadyRef.current) {
       addUserLocationLayers(mapRef.current, coords);
-      restartDishRotation(mapRef.current, coords);
+      setUserLocationVisibility(mapRef.current, userLocationVisibleRef.current);
     }
   };
 
@@ -272,9 +261,7 @@ export default function MapView() {
       if (airspaceBoundariesVisibleRef.current) void refreshAirspaceBoundaries(map);
       setPilotModeVisibility(map, pilotModeRef.current);
       addUserLocationLayers(map, userLocationRef.current);
-      if (userLocationRef.current) {
-        restartDishRotation(map, userLocationRef.current);
-      }
+      setUserLocationVisibility(map, userLocationVisibleRef.current);
     };
 
     map.on("load", setupStyleDependentState);
@@ -374,18 +361,15 @@ export default function MapView() {
       clearInterval(suaIntervalId);
       clearInterval(airspaceBoundariesIntervalId);
       clearInterval(aircraftIntervalId);
-      dishRotationStopRef.current?.();
-      dishRotationStopRef.current = null;
       map.remove();
       mapRef.current = null;
     };
-    // Mount-once effect: `handleLocationResolved`/`restartDishRotation` are
-    // plain closures re-created every render, so listing them here would
-    // tear the map down and rebuild it on every state change (theme toggle,
-    // etc). They're only ever called from map event handlers/promises after
-    // this effect has already run, and only read refs — never stale state —
-    // so it's safe to omit them.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Mount-once effect: `handleLocationResolved` is a plain closure
+    // re-created every render, so listing it here would tear the map down
+    // and rebuild it on every state change (theme toggle, etc). It's only
+    // ever called from map event handlers/promises after this effect has
+    // already run, and only reads refs — never stale state — so it's safe
+    // to omit it.
   }, []);
 
   const handleThemeToggle = () => {
@@ -521,6 +505,15 @@ export default function MapView() {
       clearTracks();
     }
     void refreshAircraft();
+  };
+
+  const handleUserLocationToggle = () => {
+    const next = !userLocationVisible;
+    userLocationVisibleRef.current = next;
+    setUserLocationVisible(next);
+    if (mapRef.current) {
+      setUserLocationVisibility(mapRef.current, next);
+    }
   };
 
   const handleJumpToLocation = () => {
@@ -673,6 +666,14 @@ export default function MapView() {
           onClick={handleJumpToLocation}
         >
           My location
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          data-active={userLocationVisible}
+          onClick={handleUserLocationToggle}
+        >
+          {userLocationVisible ? "Hide my location" : "Show my location"}
         </button>
       </div>
     </div>
