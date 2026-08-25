@@ -510,6 +510,12 @@ export default function MapView() {
       }
     }, AIRSPACE_BOUNDARIES_REFRESH_INTERVAL_MS);
 
+    const rangeOutlineIntervalId = setInterval(() => {
+      if (mapRef.current && rangeOutlineVisibleRef.current) {
+        void refreshRangeOutlineData();
+      }
+    }, RANGE_OUTLINE_REFRESH_INTERVAL_MS);
+
     // Much faster than every other layer's refresh interval (5-60 minutes
     // above) — this polls the user's own feeder, not a rate-limited public
     // API, so it can run fast enough for smooth-looking live motion. See
@@ -518,13 +524,20 @@ export default function MapView() {
       void refreshAircraft();
     }, AIRCRAFT_FEED_REFRESH_INTERVAL_MS);
 
+    const rangeOutlineAircraftIntervalId = setInterval(() => {
+      void refreshRangeOutlineAircraft();
+    }, AIRCRAFT_FEED_REFRESH_INTERVAL_MS);
+
     return () => {
       clearInterval(terminatorIntervalId);
       clearInterval(rainViewerIntervalId);
       clearInterval(tfrIntervalId);
       clearInterval(suaIntervalId);
       clearInterval(airspaceBoundariesIntervalId);
+      clearInterval(rangeOutlineIntervalId);
       clearInterval(aircraftIntervalId);
+      clearInterval(rangeOutlineAircraftIntervalId);
+      stopRangeOutlineSweep();
       map.remove();
       mapRef.current = null;
     };
@@ -628,6 +641,22 @@ export default function MapView() {
     if (mapRef.current) {
       setAirspaceBoundariesVisibility(mapRef.current, next);
       if (next) void refreshAirspaceBoundaries(mapRef.current);
+    }
+  };
+
+  const handleRangeOutlineToggle = () => {
+    const next = !rangeOutlineVisible;
+    rangeOutlineVisibleRef.current = next;
+    setRangeOutlineVisible(next);
+    if (mapRef.current) {
+      setRangeOutlineVisibility(mapRef.current, next);
+      if (next) void refreshRangeOutlineData();
+    }
+    if (next) {
+      void refreshRangeOutlineAircraft();
+      startRangeOutlineSweep();
+    } else {
+      stopRangeOutlineSweep();
     }
   };
 
@@ -783,6 +812,16 @@ export default function MapView() {
           {airspaceBoundariesVisible
             ? "Hide airspace boundaries"
             : "Show airspace boundaries"}
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          data-active={rangeOutlineVisible}
+          onClick={handleRangeOutlineToggle}
+        >
+          {rangeOutlineVisible
+            ? "Hide actual range outline"
+            : "Show actual range outline"}
         </button>
         <button
           type="button"
