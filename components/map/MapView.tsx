@@ -227,6 +227,13 @@ export default function MapView() {
   // immediately rather than waiting for the next poll (design.md Decision
   // 13's "Camera centers on the aircraft immediately upon selection").
   const handleAircraftClick = (hex: string | null, picked?: Aircraft) => {
+    // react-hooks/purity flags this `Date.now()` conservatively: its static
+    // reachability analysis can't prove `handleAircraftClick` is only ever
+    // invoked from user interaction (the aircraft IconLayer's onClick, the
+    // map's click/Escape listeners, and the overlay's close button — never
+    // during render). Same documented-exception pattern as the
+    // exhaustive-deps disable below in this file's mount effect.
+    // eslint-disable-next-line react-hooks/purity
     lastAircraftClickAtRef.current = Date.now();
     const next = hex && hex === selectedAircraftHexRef.current ? null : hex;
     selectedAircraftHexRef.current = next;
