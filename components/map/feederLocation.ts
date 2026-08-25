@@ -2,14 +2,18 @@ import { getFeederUrl } from "./constants";
 import type { GeoCoords } from "./geolocation";
 
 /**
- * Derives the feeder's receiver.json URL from its configured aircraft.json
- * URL — tar1090/readsb serve both from the same `/data/` directory, so no
- * separate env var is needed.
+ * Points at this app's own nginx sidecar, which proxies to the feeder's
+ * receiver.json server-side (see scripts/squawkmap3d.nginx.conf). Unlike
+ * aircraft.json, the ultrafeeder image's nginx config only patches CORS
+ * onto aircraft.json's location block (see docker-tar1090's
+ * 07-nginx-configure), so a direct cross-origin browser fetch against
+ * receiver.json is blocked. Proxying server-side sidesteps that gap
+ * without touching the ultrafeeder container.
  */
 function getReceiverUrl(): string | undefined {
   const feederUrl = getFeederUrl();
   if (!feederUrl) return undefined;
-  return feederUrl.replace(/aircraft\.json(?=(\?|$))/, "receiver.json");
+  return "/data/receiver.json";
 }
 
 /**

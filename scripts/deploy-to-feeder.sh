@@ -84,7 +84,7 @@ remote "cd '$REMOTE_DIR' && docker build -t '$IMAGE_TAG' ."
 
 log "Starting container $CONTAINER_NAME on port $FEEDER_PORT"
 remote "docker rm -f '$CONTAINER_NAME' >/dev/null 2>&1 || true"
-remote "docker run -d --name '$CONTAINER_NAME' --restart unless-stopped -p '$FEEDER_PORT:80' '$IMAGE_TAG'" >/dev/null
+remote "docker run -d --name '$CONTAINER_NAME' --restart unless-stopped -p '$FEEDER_PORT:80' --add-host=host.docker.internal:host-gateway '$IMAGE_TAG'" >/dev/null
 
 # --- 5. Health check --------------------------------------------------
 
