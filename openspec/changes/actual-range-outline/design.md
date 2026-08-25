@@ -69,9 +69,10 @@ The sweep overlay's own module polls the same `fetchAircraft()` (`aircraft.ts`) 
 
 ## Migration Plan
 
-Purely additive — new files (`rangeOutline.ts`, `radarSweep.ts`), new layer/toggle, one new nginx proxy block, no new npm dependencies, no changes to any existing layer's behavior or the `aircraft-tracks-layer`/`feeder-deployment` capabilities' documented behavior. Rollback is deleting the new files/toggle/nginx block; nothing else depends on this layer existing.
+Purely additive — new files (`rangeOutline.ts`, `radarSweep.ts`), new layer/toggle, one new nginx proxy block, a second `MapboxOverlay` instance (no new npm dependencies — reuses the already-installed `@deck.gl/mapbox`/`@deck.gl/layers`), no changes to any existing layer's behavior or the `aircraft-tracks-layer`/`feeder-deployment` capabilities' documented behavior. Rollback is deleting the new files/toggle/overlay/nginx block; nothing else depends on this layer existing.
 
 ## Open Questions
 
-- Exact trailing-wedge width/fade-alpha/leading-edge styling constants are left to implementation to tune visually against a real or simulated `outline.json` + live feeder aircraft, same as `AIRCRAFT_TRACK_RETENTION_MS` was left to implementation in `aircraft-tracks-layer`'s design — not fixed precisely here beyond the `RANGE_OUTLINE_SWEEP_PERIOD_MS` default.
-- Should the aircraft-dot flash-on-sweep-pass be skipped entirely if the sweep beam itself is invisible in that direction (i.e. outside the polygon at that bearing, per Decision 4 step 3's clip)? Left to implementation — a reasonable default is "flash regardless of clip," matching Decision 6's "dots aren't gated by being inside the polygon."
+- Exact trailing-wedge angular width/opacity gradient/leading-edge styling constants are left to implementation to tune visually against a real or simulated `outline.json` + live feeder aircraft, same as `AIRCRAFT_TRACK_RETENTION_MS` was left to implementation in `aircraft-tracks-layer`'s design — not fixed precisely here beyond the `RANGE_OUTLINE_SWEEP_PERIOD_MS` default.
+- Should the aircraft-dot flash-on-sweep-pass be skipped entirely if that aircraft is currently outside the ray-cast wedge bound (per Decision 4b)? Left to implementation — a reasonable default is "flash regardless," matching Decision 6's "dots aren't gated by being inside the polygon."
+- Exact stacking order between this layer's overlay and the existing aircraft overlay (Decision 4's flagged risk) is left to be resolved visually during implementation, not prescribed here.
