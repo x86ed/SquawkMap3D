@@ -90,8 +90,8 @@ The overlay SHALL use a responsive layout that arranges `RecordPanelHero`, `Plan
 - **WHEN** the selected aircraft is missing a given telemetry value (e.g. no squawk reported)
 - **THEN** `TelemetryMarquee` omits or placeholders that value rather than rendering a fabricated number
 
-### Requirement: FlightInfoPane shows a telemetry sparkline and an explicit route-data state
-`FlightInfoPane` SHALL display a dual sparkline of the selected aircraft's recent altitude and ground-speed history (each independently normalized to its own observed min/max within the retained session-local track history), built from real, already-collected telemetry — never synthetic/placeholder data points. Since this app has no flight-route (origin/destination) or ETA/departed/landed data source, `FlightInfoPane` SHALL render an explicit "no route data available" state for the route-progress/timeline portion of the mockup's design, rather than displaying fabricated route or time values.
+### Requirement: FlightInfoPane shows a telemetry sparkline and route/timeline data when available
+`FlightInfoPane` SHALL display a dual sparkline of the selected aircraft's recent altitude and ground-speed history (each independently normalized to its own observed min/max within the retained session-local track history), built from real, already-collected telemetry — never synthetic/placeholder data points. `FlightInfoPane` SHALL source flight-route (origin/destination) and timeline data by looking up the selected aircraft's callsign against the feeder's own tar1090 route database (proxied server-side, per the `aircraft-info-overlay` capability's route-lookup dependency — see design.md Decision 12), rendering the real route/timeline when a route is found, and an explicit "no route data available" state — never fabricated route or time values — when no route is found for that callsign or the lookup fails for any reason.
 
 #### Scenario: Sparkline renders from real track history
 - **WHEN** the selected aircraft has at least two retained track points in its session-local history
@@ -101,6 +101,10 @@ The overlay SHALL use a responsive layout that arranges `RecordPanelHero`, `Plan
 - **WHEN** the selected aircraft has fewer than two retained track points (e.g. just selected)
 - **THEN** `FlightInfoPane` renders an explicit "not enough data yet" state for the sparkline rather than a flat/fabricated line
 
-#### Scenario: Route/timeline shows an explicit no-data state
-- **WHEN** the overlay is open for any aircraft
-- **THEN** `FlightInfoPane`'s route-progress and timeline elements render an explicit "no route data available" state, since this app does not source flight-route or ETA/departed/landed data (see design.md's Open Questions for the deferred follow-up)
+#### Scenario: Route/timeline shows real data when the feeder's route lookup finds a match
+- **WHEN** the overlay is open for an aircraft whose callsign the feeder's tar1090 route lookup resolves to a known route
+- **THEN** `FlightInfoPane`'s route-progress and timeline elements render that route's real origin/destination (and, if the lookup response includes one, a real departure timestamp; otherwise a "first seen this session" value worded honestly as session-local, not a fabricated departure time)
+
+#### Scenario: Route/timeline shows an explicit no-data state when no route is found
+- **WHEN** the overlay is open for an aircraft whose callsign the feeder's tar1090 route lookup does not resolve to a route (e.g. general aviation with no filed route), or the route lookup fails or is unavailable for any reason
+- **THEN** `FlightInfoPane`'s route-progress and timeline elements render an explicit "no route data available" state, rather than an error or fabricated values — this is an expected, legitimate per-aircraft outcome, not exclusively an error condition
