@@ -49,6 +49,20 @@ a {
 .airport-popup {
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
+  /* MapLibre's own `.maplibregl-ctrl-top-left`/`-top-right`/etc. corner
+   * containers (maplibre-gl.css) are `position: absolute; z-index: 2` —
+   * every `map.addControl()`'d control, including deck.gl's `MapboxOverlay`
+   * (MapView.tsx's aircraft + radar-sweep overlays, added via addControl
+   * with no explicit position so they default into `.maplibregl-ctrl-
+   * top-right`, sized to cover the whole map, not just that corner), lives
+   * inside one of those and inherits its z-index:2 stacking. `.maplibregl-
+   * popup` itself has `position: absolute` but no z-index (i.e. `auto`),
+   * so without this override it paints in a lower stacking layer than any
+   * addControl()'d control — including the sweep overlay's canvas — even
+   * though the popup element is added to the DOM after them. Any explicit
+   * z-index above 2 clears every corner-control layer; 3 is enough.
+   */
+  z-index: 3;
 }
 
 .airport-popup .maplibregl-popup-content {
