@@ -90,6 +90,7 @@ const CUSTOM_LAYER_IDS = [
   SUA_LINE_LAYER_ID,
   AIRSPACE_BOUNDARIES_LINE_LAYER_ID,
   RANGE_OUTLINE_FILL_LAYER_ID,
+  RANGE_OUTLINE_LINE_LAYER_ID,
   NEXRAD_LAYER_ID,
   NOAA_INFRARED_LAYER_ID,
   NOAA_RADAR_LAYER_ID,
@@ -132,6 +133,17 @@ const AIRSPACE_BOUNDARIES_LINE_COLOR = "#2fd0ff";
 // treatment (a thin stroked outline), this app deliberately fills the
 // polygon solid, per this change's explicit acceptance criterion.
 export const RANGE_OUTLINE_FILL_COLOR = "#00596b";
+
+// Dashed perimeter stroke traced along the outline polygon's ring boundary,
+// additive to the solid fill above (not a tar1090-style replacement for
+// it). Bright white so it reads clearly against the fill's own dark teal,
+// distinct from every other line layer's color (military magenta, TFR red,
+// SUA amber, airspace boundaries' cyan).
+const RANGE_OUTLINE_LINE_COLOR = "#ffffff";
+const RANGE_OUTLINE_LINE_WIDTH = 2;
+// [dash length, gap length], in line-width multiples — a short dash/gap
+// pair reads as a dotted/dashed perimeter rather than a solid stroke.
+const RANGE_OUTLINE_LINE_DASHARRAY: [number, number] = [2, 2];
 
 // Zoom -> icon-size stops for the airports symbol layer, and the single
 // source of truth for `getAirportIconDisplayHeight` below (which popup
@@ -411,15 +423,31 @@ export function addCustomLayers(
       data: { type: "FeatureCollection", features: [] },
     });
   }
+  const rangeOutlineVisibility = (visibility.rangeOutline ?? true) ? "visible" : "none";
   if (!map.getLayer(RANGE_OUTLINE_FILL_LAYER_ID)) {
     map.addLayer({
       id: RANGE_OUTLINE_FILL_LAYER_ID,
       type: "fill",
       source: RANGE_OUTLINE_SOURCE_ID,
-      layout: {
-        visibility: (visibility.rangeOutline ?? true) ? "visible" : "none",
-      },
+      layout: { visibility: rangeOutlineVisibility },
       paint: { "fill-color": RANGE_OUTLINE_FILL_COLOR, "fill-opacity": 0.3 },
+    });
+  }
+  // Dashed perimeter stroke, additive to the fill above — same source, no
+  // separate line-string source needed: a GeoJSON polygon source's `line`
+  // layer traces the ring boundary directly. Shares the fill's own
+  // `rangeOutline` visibility key (one toggle controls both).
+  if (!map.getLayer(RANGE_OUTLINE_LINE_LAYER_ID)) {
+    map.addLayer({
+      id: RANGE_OUTLINE_LINE_LAYER_ID,
+      type: "line",
+      source: RANGE_OUTLINE_SOURCE_ID,
+      layout: { visibility: rangeOutlineVisibility },
+      paint: {
+        "line-color": RANGE_OUTLINE_LINE_COLOR,
+        "line-width": RANGE_OUTLINE_LINE_WIDTH,
+        "line-dasharray": RANGE_OUTLINE_LINE_DASHARRAY,
+      },
     });
   }
 
@@ -699,17 +727,18 @@ export async function refreshAirspaceBoundaries(map: MapLibreMap): Promise<void>
   source?.setData(data);
 }
 
-/** Shows/hides the actual-range-outline fill layer. Governs only the
- * MapLibre fill layer — the sweep overlay's own visibility (the animated
- * beam + aircraft dots) is handled separately in `MapView.tsx`, since it
- * isn't a style-owned layer (see design.md Decision 4). */
+/** Shows/hides the actual-range-outline fill layer and its dashed perimeter
+ * stroke together, as one toggle. Governs only the MapLibre style layers —
+ * the sweep overlay's own visibility (the animated beam + aircraft dots) is
+ * handled separately in `MapView.tsx`, since it isn't a style-owned layer
+ * (see design.md Decision 4). */
 export function setRangeOutlineVisibility(map: MapLibreMap, visible: boolean): void {
+  const visibility = visible ? "visible" : "none";
   if (map.getLayer(RANGE_OUTLINE_FILL_LAYER_ID)) {
-    map.setLayoutProperty(
-      RANGE_OUTLINE_FILL_LAYER_ID,
-      "visibility",
-      visible ? "visible" : "none",
-    );
+    map.setLayoutProperty(RANGE_OUTLINE_FILL_LAYER_ID, "visibility", visibility);
+  }
+  if (map.getLayer(RANGE_OUTLINE_LINE_LAYER_ID)) {
+    map.setLayoutProperty(RANGE_OUTLINE_LINE_LAYER_ID, "visibility", visibility);
   }
 }
 
