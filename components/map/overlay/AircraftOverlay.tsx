@@ -26,12 +26,6 @@ export function AircraftOverlay({
 
   return (
     <>
-      <div
-        className={styles.scrim}
-        data-open={open}
-        onClick={onClose}
-        aria-hidden="true"
-      />
       <div className={styles.drawer} data-open={open} role="dialog" aria-label="Aircraft details">
         {info && (
           <>
