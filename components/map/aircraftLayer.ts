@@ -2,7 +2,7 @@ import type { Layer } from "@deck.gl/core";
 import { IconLayer, PathLayer, ScatterplotLayer } from "@deck.gl/layers";
 import type { Aircraft, TrackPoint } from "./aircraft";
 import { altitudeToColor, resolveIconKey, type IconAtlas } from "./aircraftIcons";
-import { computeRarityTier, RARITY_TIER_COLORS } from "./aircraftRarity";
+import { computeRarityTier, RARITY_TIER_STYLES } from "./aircraftRarity";
 import { AIRCRAFT_SELECTION_GLOW_ALPHA, AIRCRAFT_SELECTION_GLOW_RADIUS_PIXELS } from "./constants";
 
 export const AIRCRAFT_ICON_LAYER_ID = "aircraft-icons";
@@ -89,7 +89,7 @@ export function buildAircraftLayers(params: {
     data: selectedAircraft ? [selectedAircraft] : [],
     getPosition: (d) => [d.lon, d.lat, (d.altitude ?? 0) * FEET_TO_METERS],
     getFillColor: (d) => {
-      const [r, g, b] = hexColorToRgb(RARITY_TIER_COLORS[computeRarityTier(d)]);
+      const [r, g, b] = hexColorToRgb(RARITY_TIER_STYLES[computeRarityTier(d)].color);
       return [r, g, b, AIRCRAFT_SELECTION_GLOW_ALPHA];
     },
     getRadius: AIRCRAFT_SELECTION_GLOW_RADIUS_PIXELS,

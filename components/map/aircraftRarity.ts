@@ -2,37 +2,63 @@ import type { Aircraft } from "./aircraft";
 import aircraftRareness from "./data/aircraftRareness.json";
 
 /**
- * Five-tier rarity classification for an aircraft, computed from a vendored
- * snapshot of a real per-aircraft-type "rareness" dataset (see design.md
- * Decision 5) — this is the `taildragger` sibling game project's own
- * game-balance scoring, not adsb.win's undisclosed algorithm and not a
- * bespoke/invented heuristic. Sourced from a different real dataset than
- * this feeder's actual sighting frequency; see
+ * Nine-tier rarity classification for an aircraft. The tier *names* and
+ * their `{ color, highlight, glow }` CSS values are adsb.win's own real,
+ * verified-exact 9-tier taxonomy (independently confirmed against
+ * `https://adsb.win/assets/tailwind-255296c3.css`), not invented or
+ * approximated — see design.md Decision 5. Only the *bucketing mechanics*
+ * (which numeric value lands in which tier) are this project's own, sourced
+ * from a vendored snapshot of a real per-aircraft-type "rareness" dataset
+ * (the `taildragger` sibling game project's own game-balance scoring, not
+ * adsb.win's undisclosed algorithm). Sourced from a different real dataset
+ * than this feeder's actual sighting frequency; see
  * openspec/changes/aircraft-info-overlay/design.md's Risks for the residual
  * caveat.
  */
-export type RarityTier = "common" | "uncommon" | "rare" | "epic" | "legendary";
+export type RarityTier =
+  | "unidentified"
+  | "standard"
+  | "prime"
+  | "remarkable"
+  | "exceptional"
+  | "epic"
+  | "legendary"
+  | "mythic"
+  | "apex";
 
-export const RARITY_TIER_COLORS: Record<RarityTier, string> = {
-  common: "#64748b",
-  uncommon: "#22c55e",
-  rare: "#06b6d4",
-  epic: "#8b5cf6",
-  legendary: "#eab308",
+/**
+ * adsb.win's own real, verified-exact per-tier `{ color, highlight, glow }`
+ * CSS custom-property values (design.md Decision 5's table). `unidentified`
+ * mirrors adsb.win's base `.aircraft-rarity` rule defaults — it shares
+ * `color`/`highlight` with `standard` but has a distinct `glow`; it is
+ * intentionally NOT the same object as `standard`.
+ */
+export const RARITY_TIER_STYLES: Record<
+  RarityTier,
+  { color: string; highlight: string; glow: string }
+> = {
+  unidentified: { color: "#64748b", highlight: "#cbd5e1", glow: "#64748b33" },
+  standard: { color: "#64748b", highlight: "#cbd5e1", glow: "#94a3b83d" },
+  prime: { color: "#0891b2", highlight: "#67e8f9", glow: "#06b6d46b" },
+  remarkable: { color: "#2563eb", highlight: "#93c5fd", glow: "#3b82f675" },
+  exceptional: { color: "#7c3aed", highlight: "#c4b5fd", glow: "#8b5cf680" },
+  epic: { color: "#db2777", highlight: "#f9a8d4", glow: "#ec489985" },
+  legendary: { color: "#d97706", highlight: "#fde68a", glow: "#f59e0b8f" },
+  mythic: { color: "#db2777", highlight: "#f0abfc", glow: "#d946ef9e" },
+  apex: { color: "#bae6fd", highlight: "#fff", glow: "#cffafed1" },
 };
 
 /**
- * Four fixed quantile cutpoints (20th/40th/60th/80th percentile of the 1679
- * scored rows in the vendored snapshot), computed once and pinned as
- * constants — not recomputed at runtime. See design.md Decision 5's table.
+ * Seven fixed octile cutpoints (12.5th/25th/37.5th/50th/62.5th/75th/87.5th
+ * percentile of `rareness / 100` across the 1679 scored rows in the vendored
+ * snapshot), computed once and pinned as constants — not recomputed at
+ * runtime. See design.md Decision 5's table. `unidentified` is not on this
+ * scale at all (see `computeRarityTier`); these seven cutpoints only bucket
+ * the other eight named tiers (`standard` through `apex`).
  */
-export const RARITY_TIER_THRESHOLDS = [6.91, 9.19, 11.18, 13.15] as const;
-
-/** Fixed rarity value for an aircraft with no type designator, or one with
- * no matching row in the vendored snapshot. Sits above both the scored
- * dataset's mean (10.07) and median (10.26) — deliberately treated as more
- * rare than a typical known type, not a "safe middle" default. */
-const UNMATCHED_TYPE_RARITY_VALUE = 15;
+export const RARITY_TIER_OCTILE_THRESHOLDS = [
+  5.84, 7.55, 8.98, 10.26, 11.45, 12.66, 14.0,
+] as const;
 
 let rarenessByTypeDesignator: Map<string, number> | null = null;
 
@@ -50,23 +76,35 @@ function getRarenessByTypeDesignator(): Map<string, number> {
 
 /**
  * `rareness / 100` for the vendored snapshot row matching `aircraft`'s type
- * designator, or the fixed default (`15`) when unset/unmatched. See
+ * designator, or `undefined` when `aircraft.typeDesignator` is unset or has
+ * no matching row. There is no fixed numeric fallback: an unmatched aircraft
+ * isn't a rare *value* on the scale at all — it has no meaningful bucket to
+ * place it in (see `computeRarityTier`'s `unidentified` handling). See
  * design.md Decision 5.
  */
-export function computeRarityValue(aircraft: Aircraft): number {
-  if (!aircraft.typeDesignator) return UNMATCHED_TYPE_RARITY_VALUE;
+export function computeRarityValue(aircraft: Aircraft): number | undefined {
+  if (!aircraft.typeDesignator) return undefined;
   const rareness = getRarenessByTypeDesignator().get(aircraft.typeDesignator);
-  if (rareness === undefined) return UNMATCHED_TYPE_RARITY_VALUE;
+  if (rareness === undefined) return undefined;
   return rareness / 100;
 }
 
-/** Buckets `computeRarityValue(aircraft)` against `RARITY_TIER_THRESHOLDS`. */
+/**
+ * Returns `"unidentified"` directly (not via bucketing) whenever
+ * `computeRarityValue` is `undefined` — mirrors adsb.win's own behavior of
+ * showing no rarity classification at all for a type it doesn't recognize.
+ * Otherwise buckets the defined value against `RARITY_TIER_OCTILE_THRESHOLDS`.
+ */
 export function computeRarityTier(aircraft: Aircraft): RarityTier {
   const value = computeRarityValue(aircraft);
-  const [t1, t2, t3, t4] = RARITY_TIER_THRESHOLDS;
-  if (value < t1) return "common";
-  if (value < t2) return "uncommon";
-  if (value < t3) return "rare";
-  if (value < t4) return "epic";
-  return "legendary";
+  if (value === undefined) return "unidentified";
+  const [t1, t2, t3, t4, t5, t6, t7] = RARITY_TIER_OCTILE_THRESHOLDS;
+  if (value < t1) return "standard";
+  if (value < t2) return "prime";
+  if (value < t3) return "remarkable";
+  if (value < t4) return "exceptional";
+  if (value < t5) return "epic";
+  if (value < t6) return "legendary";
+  if (value < t7) return "mythic";
+  return "apex";
 }

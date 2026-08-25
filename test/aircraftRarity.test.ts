@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import {
   computeRarityTier,
   computeRarityValue,
-  RARITY_TIER_COLORS,
-  RARITY_TIER_THRESHOLDS,
+  RARITY_TIER_STYLES,
+  RARITY_TIER_OCTILE_THRESHOLDS,
   type RarityTier,
 } from "../components/map/aircraftRarity";
 import type { Aircraft } from "../components/map/aircraft";
@@ -20,29 +20,35 @@ test("known matching type designator resolves rarityValue = rareness / 100", () 
   assert.equal(value, row.rareness / 100);
 });
 
-test("unset type designator resolves the fixed default (15)", () => {
-  assert.equal(computeRarityValue(makeAircraft(undefined)), 15);
+test("no type designator resolves computeRarityValue to undefined and tier to unidentified", () => {
+  const aircraft = makeAircraft(undefined);
+  assert.equal(computeRarityValue(aircraft), undefined);
+  assert.equal(computeRarityTier(aircraft), "unidentified");
 });
 
-test("unmatched type designator resolves the fixed default (15)", () => {
-  assert.equal(computeRarityValue(makeAircraft("ZZZZ-NOT-A-REAL-TYPE")), 15);
+test("unmatched type designator resolves computeRarityValue to undefined and tier to unidentified", () => {
+  const aircraft = makeAircraft("ZZZZ-NOT-A-REAL-TYPE");
+  assert.equal(computeRarityValue(aircraft), undefined);
+  assert.equal(computeRarityTier(aircraft), "unidentified");
 });
 
-test("default rarity value (15, unmatched type) buckets to legendary", () => {
-  assert.equal(computeRarityTier(makeAircraft()), "legendary");
-});
-
-const [t1, t2, t3, t4] = RARITY_TIER_THRESHOLDS;
+const [t1, t2, t3, t4, t5, t6, t7] = RARITY_TIER_OCTILE_THRESHOLDS;
 
 const tierCases: Array<[value: number, tier: RarityTier]> = [
-  [t1 - 0.01, "common"],
-  [t1, "uncommon"],
-  [t2 - 0.01, "uncommon"],
-  [t2, "rare"],
-  [t3 - 0.01, "rare"],
-  [t3, "epic"],
-  [t4 - 0.01, "epic"],
-  [t4, "legendary"],
+  [t1 - 0.01, "standard"],
+  [t1, "prime"],
+  [t2 - 0.01, "prime"],
+  [t2, "remarkable"],
+  [t3 - 0.01, "remarkable"],
+  [t3, "exceptional"],
+  [t4 - 0.01, "exceptional"],
+  [t4, "epic"],
+  [t5 - 0.01, "epic"],
+  [t5, "legendary"],
+  [t6 - 0.01, "legendary"],
+  [t6, "mythic"],
+  [t7 - 0.01, "mythic"],
+  [t7, "apex"],
 ];
 
 // computeRarityTier only ever sees values via computeRarityValue, which is
@@ -69,10 +75,32 @@ for (let i = 0; i < tierCaseAircraft.length; i++) {
   });
 }
 
-test("every RarityTier has a defined, non-empty accent color", () => {
-  const tiers: RarityTier[] = ["common", "uncommon", "rare", "epic", "legendary"];
+test("every RarityTier has a defined, non-empty accent style", () => {
+  const tiers: RarityTier[] = [
+    "unidentified",
+    "standard",
+    "prime",
+    "remarkable",
+    "exceptional",
+    "epic",
+    "legendary",
+    "mythic",
+    "apex",
+  ];
   for (const tier of tiers) {
-    const color = RARITY_TIER_COLORS[tier];
-    assert.ok(color && color.length > 0, `expected a color for ${tier}`);
+    const style = RARITY_TIER_STYLES[tier];
+    assert.ok(style.color && style.color.length > 0, `expected a color for ${tier}`);
+    assert.ok(style.highlight && style.highlight.length > 0, `expected a highlight for ${tier}`);
+    assert.ok(style.glow && style.glow.length > 0, `expected a glow for ${tier}`);
   }
+});
+
+test("unidentified and standard share color/highlight but have distinct glow values", () => {
+  const unidentified = RARITY_TIER_STYLES.unidentified;
+  const standard = RARITY_TIER_STYLES.standard;
+  assert.equal(unidentified.color, standard.color);
+  assert.equal(unidentified.highlight, standard.highlight);
+  assert.equal(unidentified.glow, "#64748b33");
+  assert.equal(standard.glow, "#94a3b83d");
+  assert.notEqual(unidentified.glow, standard.glow);
 });
