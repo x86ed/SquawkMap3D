@@ -17,15 +17,23 @@ import {
 } from "./mapStyles";
 import { getInitialTheme, storeTheme } from "./theme";
 import { applySky, applyTerrain } from "./terrain";
-import { fetchAircraft, updateTracks, getAllTracks, clearTracks } from "./aircraft";
+import {
+  fetchAircraft,
+  updateTracks,
+  getAllTracks,
+  clearTracks,
+  type Aircraft,
+} from "./aircraft";
 import { buildAircraftIconAtlas, type IconAtlas } from "./aircraftIcons";
 import { buildAircraftLayers } from "./aircraftLayer";
 import {
   addCustomLayers,
   AIRPORTS_LAYER_ID,
   getAirportIconDisplayHeight,
+  moveRangeOutlineBelowAirports,
   refreshAirspaceBoundaries,
   refreshRainViewer,
+  refreshRangeOutline,
   refreshSpecialUseAirspace,
   refreshTfrs,
   setAirportsVisibility,
@@ -38,9 +46,16 @@ import {
   setOpenAipVisibility,
   setPilotModeVisibility,
   setRainViewerVisibility,
+  setRangeOutlineVisibility,
   setSpecialUseAirspaceVisibility,
   setTfrVisibility,
 } from "./layers";
+import {
+  buildRangeOutlineSweepLayers,
+  clearRangeOutlineFlashTimestamps,
+  computeSweepAngleDeg,
+  updateFlashTimestamps,
+} from "./radarSweep";
 import {
   airportImageSlotId,
   buildAirportPopupHtml,
@@ -68,10 +83,13 @@ import {
   INITIAL_PITCH,
   MAX_PITCH,
   RAINVIEWER_REFRESH_INTERVAL_MS,
+  RANGE_OUTLINE_REFRESH_INTERVAL_MS,
+  RANGE_OUTLINE_SWEEP_PERIOD_MS,
   SUA_REFRESH_INTERVAL_MS,
   TERMINATOR_REFRESH_INTERVAL_MS,
   TFR_REFRESH_INTERVAL_MS,
 } from "./constants";
+import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
 
 // maplibre-gl resolves its worker script relative to `import.meta.url` of
 // its own bundled module. Under Next.js/Turbopack, that module is served
@@ -116,6 +134,7 @@ export default function MapView() {
   const tfrVisibleRef = useRef(true);
   const suaVisibleRef = useRef(true);
   const airspaceBoundariesVisibleRef = useRef(true);
+  const rangeOutlineVisibleRef = useRef(true);
   const nexradVisibleRef = useRef(true);
   const noaaInfraredVisibleRef = useRef(true);
   const noaaRadarVisibleRef = useRef(true);
@@ -127,6 +146,27 @@ export default function MapView() {
   const deckOverlayRef = useRef<MapboxOverlay | null>(null);
   const aircraftIconAtlasRef = useRef<IconAtlas | null>(null);
 
+  // Second, dedicated overlay (design.md Decision 4) — kept separate from
+  // `deckOverlayRef` above so this layer's ~60fps rAF loop never couples to
+  // the aircraft overlay's ~1Hz poll-driven `setProps` calls.
+  const rangeOutlineOverlayRef = useRef<MapboxOverlay | null>(null);
+  const rangeOutlineDataRef = useRef<FeatureCollection<Polygon | MultiPolygon>>({
+    type: "FeatureCollection",
+    features: [],
+  });
+  // The feeder's own surveyed antenna position (design.md Decision 5) — not
+  // `userLocationRef`, which can fall back to browser geolocation when no
+  // feeder is configured; the sweep must anchor on the same site readsb
+  // itself centers the outline on, or not render at all.
+  const rangeOutlineSiteRef = useRef<GeoCoords | null>(null);
+  // Own poll of fetchAircraft(), independent of the aircraft-icons layer's
+  // poll (see design.md Decision 6 / tasks.md 5.1) — this layer must show
+  // aircraft dots even when that other layer is toggled off.
+  const rangeOutlineAircraftRef = useRef<Aircraft[]>([]);
+  const rangeOutlineSweepRafRef = useRef<number | null>(null);
+  const rangeOutlineSweepStartRef = useRef(0);
+  const rangeOutlineSweepAngleRef = useRef(0);
+
   const [theme, setTheme] = useState<MapTheme>(() => getInitialTheme());
   const [pilotMode, setPilotMode] = useState(false);
   const [militaryVisible, setMilitaryVisible] = useState(true);
@@ -137,6 +177,7 @@ export default function MapView() {
   const [tfrVisible, setTfrVisible] = useState(true);
   const [suaVisible, setSuaVisible] = useState(true);
   const [airspaceBoundariesVisible, setAirspaceBoundariesVisible] = useState(true);
+  const [rangeOutlineVisible, setRangeOutlineVisible] = useState(true);
   const [nexradVisible, setNexradVisible] = useState(true);
   const [noaaInfraredVisible, setNoaaInfraredVisible] = useState(true);
   const [noaaRadarVisible, setNoaaRadarVisible] = useState(true);
@@ -165,6 +206,78 @@ export default function MapView() {
     deckOverlayRef.current.setProps({ layers });
   };
 
+  // Own poll of fetchAircraft(), separate from `refreshAircraft` above —
+  // this layer must render aircraft dots independent of whether the
+  // aircraft-icons layer is toggled on (design.md Decision 6).
+  const refreshRangeOutlineAircraft = async () => {
+    if (!rangeOutlineVisibleRef.current) return;
+    rangeOutlineAircraftRef.current = await fetchAircraft();
+  };
+
+  // Refetches outline.json, updates the MapLibre fill layer's source, and
+  // caches the parsed FeatureCollection for the sweep overlay's own
+  // ray-cast geometry (`refreshRangeOutline` returns it precisely so this
+  // doesn't need a second fetch).
+  const refreshRangeOutlineData = async () => {
+    if (!mapRef.current) return;
+    rangeOutlineDataRef.current = await refreshRangeOutline(mapRef.current);
+  };
+
+  const rangeOutlineSweepFrame = (nowMs: number) => {
+    const overlay = rangeOutlineOverlayRef.current;
+    if (!overlay) return;
+
+    const elapsedMs = nowMs - rangeOutlineSweepStartRef.current;
+    const previousAngleDeg = rangeOutlineSweepAngleRef.current;
+    const currentAngleDeg = computeSweepAngleDeg(elapsedMs, RANGE_OUTLINE_SWEEP_PERIOD_MS);
+    rangeOutlineSweepAngleRef.current = currentAngleDeg;
+
+    const site = rangeOutlineSiteRef.current;
+    // `nowMs` (the rAF timestamp, same clock as `performance.now()` used to
+    // seed `rangeOutlineSweepStartRef`) rather than `Date.now()` — only
+    // relative deltas matter for flash-duration bookkeeping, and this keeps
+    // every timestamp in this loop on one consistent, monotonic clock.
+    if (site) {
+      updateFlashTimestamps({
+        aircraft: rangeOutlineAircraftRef.current,
+        site,
+        previousAngleDeg,
+        currentAngleDeg,
+        now: nowMs,
+      });
+    }
+
+    const layers = buildRangeOutlineSweepLayers({
+      outline: rangeOutlineDataRef.current,
+      site,
+      sweepAngleDeg: currentAngleDeg,
+      aircraft: rangeOutlineAircraftRef.current,
+      now: nowMs,
+    });
+    overlay.setProps({ layers });
+
+    rangeOutlineSweepRafRef.current = requestAnimationFrame(rangeOutlineSweepFrame);
+  };
+
+  const startRangeOutlineSweep = () => {
+    if (rangeOutlineSweepRafRef.current !== null) return; // already running
+    rangeOutlineSweepStartRef.current = performance.now();
+    rangeOutlineSweepAngleRef.current = 0;
+    rangeOutlineSweepRafRef.current = requestAnimationFrame(rangeOutlineSweepFrame);
+  };
+
+  const stopRangeOutlineSweep = () => {
+    if (rangeOutlineSweepRafRef.current !== null) {
+      cancelAnimationFrame(rangeOutlineSweepRafRef.current);
+      rangeOutlineSweepRafRef.current = null;
+    }
+    // Clears the wedge/dots immediately rather than leaving the last frame
+    // painted, and resets flash state so re-enabling starts fresh (mirrors
+    // aircraft.ts's clearTracks-on-disable).
+    rangeOutlineOverlayRef.current?.setProps({ layers: [] });
+    clearRangeOutlineFlashTimestamps();
+  };
+
   const handleLocationResolved = (coords: GeoCoords | null) => {
     userLocationRef.current = coords;
     // `resolveUserLocation()` can resolve before the map's "load"/"style.load"
@@ -183,6 +296,12 @@ export default function MapView() {
     if (coords && mapRef.current && styleReadyRef.current) {
       addUserLocationLayers(mapRef.current, coords, AIRPORTS_LAYER_ID);
       setUserLocationVisibility(mapRef.current, userLocationVisibleRef.current);
+      // Location can resolve asynchronously, after the range-outline layers
+      // already exist — re-assert their position below airports/above the
+      // range-circle rings this call just (re)added. See
+      // `moveRangeOutlineBelowAirports`'s doc comment for why this can't
+      // just be a one-time `before` at creation.
+      moveRangeOutlineBelowAirports(mapRef.current);
     }
   };
 
@@ -242,6 +361,15 @@ export default function MapView() {
     deckOverlayRef.current = deckOverlay;
     map.addControl(deckOverlay);
 
+    // Second, dedicated overlay for the actual-range-outline's radar sweep
+    // (design.md Decision 4) — mounted once here alongside the aircraft
+    // overlay above, not re-added on `style.load` (not part of the MapLibre
+    // style). Added *after* the aircraft overlay so aircraft icons paint on
+    // top of the sweep wedge rather than underneath it (tasks.md 6.6).
+    const rangeOutlineOverlay = new MapboxOverlay({ interleaved: false, layers: [] });
+    rangeOutlineOverlayRef.current = rangeOutlineOverlay;
+    map.addControl(rangeOutlineOverlay);
+
     // Built once (rasterizing every vendored SVG into a single canvas atlas
     // — see aircraftIcons.ts) rather than per-poll; the first refresh is
     // kicked off once it's ready so aircraft render with icons from the
@@ -250,6 +378,16 @@ export default function MapView() {
       aircraftIconAtlasRef.current = atlas;
       void refreshAircraft();
     });
+
+    // The sweep's own site anchor (design.md Decision 5) — resolved once,
+    // independent of `resolveUserLocation()` below, which can fall back to
+    // browser geolocation when no feeder is configured; the sweep must use
+    // the feeder's own surveyed position or not render at all.
+    getFeederLocation().then((coords) => {
+      rangeOutlineSiteRef.current = coords;
+    });
+    void refreshRangeOutlineAircraft();
+    if (rangeOutlineVisibleRef.current) startRangeOutlineSweep();
 
     const setupStyleDependentState = () => {
       styleReadyRef.current = true;
@@ -268,6 +406,7 @@ export default function MapView() {
         tfr: tfrVisibleRef.current,
         specialUseAirspace: suaVisibleRef.current,
         airspaceBoundaries: airspaceBoundariesVisibleRef.current,
+        rangeOutline: rangeOutlineVisibleRef.current,
         nexrad: nexradVisibleRef.current,
         noaaInfrared: noaaInfraredVisibleRef.current,
         noaaRadar: noaaRadarVisibleRef.current,
@@ -276,9 +415,15 @@ export default function MapView() {
       void refreshTfrs(map);
       void refreshSpecialUseAirspace(map);
       if (airspaceBoundariesVisibleRef.current) void refreshAirspaceBoundaries(map);
+      void refreshRangeOutlineData();
       setPilotModeVisibility(map, pilotModeRef.current);
       addUserLocationLayers(map, userLocationRef.current, AIRPORTS_LAYER_ID);
       setUserLocationVisibility(map, userLocationVisibleRef.current);
+      // Re-assert stacking order every style reload too — a fresh style
+      // swap re-adds every custom layer from scratch, same ordering
+      // concerns as the initial add (see
+      // `moveRangeOutlineBelowAirports`'s doc comment).
+      moveRangeOutlineBelowAirports(map);
     };
 
     map.on("load", setupStyleDependentState);
@@ -380,6 +525,12 @@ export default function MapView() {
       }
     }, AIRSPACE_BOUNDARIES_REFRESH_INTERVAL_MS);
 
+    const rangeOutlineIntervalId = setInterval(() => {
+      if (mapRef.current && rangeOutlineVisibleRef.current) {
+        void refreshRangeOutlineData();
+      }
+    }, RANGE_OUTLINE_REFRESH_INTERVAL_MS);
+
     // Much faster than every other layer's refresh interval (5-60 minutes
     // above) — this polls the user's own feeder, not a rate-limited public
     // API, so it can run fast enough for smooth-looking live motion. See
@@ -388,22 +539,31 @@ export default function MapView() {
       void refreshAircraft();
     }, AIRCRAFT_FEED_REFRESH_INTERVAL_MS);
 
+    const rangeOutlineAircraftIntervalId = setInterval(() => {
+      void refreshRangeOutlineAircraft();
+    }, AIRCRAFT_FEED_REFRESH_INTERVAL_MS);
+
     return () => {
       clearInterval(terminatorIntervalId);
       clearInterval(rainViewerIntervalId);
       clearInterval(tfrIntervalId);
       clearInterval(suaIntervalId);
       clearInterval(airspaceBoundariesIntervalId);
+      clearInterval(rangeOutlineIntervalId);
       clearInterval(aircraftIntervalId);
+      clearInterval(rangeOutlineAircraftIntervalId);
+      stopRangeOutlineSweep();
       map.remove();
       mapRef.current = null;
     };
-    // Mount-once effect: `handleLocationResolved` is a plain closure
-    // re-created every render, so listing it here would tear the map down
-    // and rebuild it on every state change (theme toggle, etc). It's only
-    // ever called from map event handlers/promises after this effect has
-    // already run, and only reads refs — never stale state — so it's safe
-    // to omit it.
+    // Mount-once effect: `handleLocationResolved`/`startRangeOutlineSweep`
+    // (called directly above to kick off the sweep's rAF loop if visible by
+    // default) are plain closures re-created every render, so listing them
+    // here would tear the map down and rebuild it on every state change
+    // (theme toggle, etc). Both only read refs — never stale state — so
+    // it's safe to omit them; `startRangeOutlineSweep` itself is re-created
+    // per render but its body is otherwise identical every time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleThemeToggle = () => {
@@ -498,6 +658,22 @@ export default function MapView() {
     if (mapRef.current) {
       setAirspaceBoundariesVisibility(mapRef.current, next);
       if (next) void refreshAirspaceBoundaries(mapRef.current);
+    }
+  };
+
+  const handleRangeOutlineToggle = () => {
+    const next = !rangeOutlineVisible;
+    rangeOutlineVisibleRef.current = next;
+    setRangeOutlineVisible(next);
+    if (mapRef.current) {
+      setRangeOutlineVisibility(mapRef.current, next);
+      if (next) void refreshRangeOutlineData();
+    }
+    if (next) {
+      void refreshRangeOutlineAircraft();
+      startRangeOutlineSweep();
+    } else {
+      stopRangeOutlineSweep();
     }
   };
 
@@ -653,6 +829,16 @@ export default function MapView() {
           {airspaceBoundariesVisible
             ? "Hide airspace boundaries"
             : "Show airspace boundaries"}
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          data-active={rangeOutlineVisible}
+          onClick={handleRangeOutlineToggle}
+        >
+          {rangeOutlineVisible
+            ? "Hide actual range outline"
+            : "Show actual range outline"}
         </button>
         <button
           type="button"

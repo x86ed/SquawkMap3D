@@ -1,3 +1,4 @@
+import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { MapTheme } from "./mapStyles";
 import {
@@ -31,6 +32,7 @@ import { fetchCurrentRainViewerTileUrl } from "./rainviewer";
 import { fetchTfrs } from "./tfr";
 import { fetchSpecialUseAirspace } from "./specialUseAirspace";
 import { fetchAirspaceBoundaries } from "./airspaceBoundaries";
+import { fetchRangeOutline } from "./rangeOutline";
 
 export const AIRPORTS_SOURCE_ID = "airports";
 export const AIRPORTS_LAYER_ID = "airports-circle";
@@ -59,6 +61,10 @@ export const SUA_LINE_LAYER_ID = "special-use-airspace-line";
 export const AIRSPACE_BOUNDARIES_SOURCE_ID = "airspace-boundaries";
 export const AIRSPACE_BOUNDARIES_LINE_LAYER_ID = "airspace-boundaries-line";
 
+export const RANGE_OUTLINE_SOURCE_ID = "range-outline";
+export const RANGE_OUTLINE_FILL_LAYER_ID = "range-outline-fill";
+export const RANGE_OUTLINE_LINE_LAYER_ID = "range-outline-line";
+
 export const NEXRAD_SOURCE_ID = "nexrad";
 export const NEXRAD_LAYER_ID = "nexrad-raster";
 
@@ -83,6 +89,8 @@ const CUSTOM_LAYER_IDS = [
   SUA_FILL_LAYER_ID,
   SUA_LINE_LAYER_ID,
   AIRSPACE_BOUNDARIES_LINE_LAYER_ID,
+  RANGE_OUTLINE_FILL_LAYER_ID,
+  RANGE_OUTLINE_LINE_LAYER_ID,
   NEXRAD_LAYER_ID,
   NOAA_INFRARED_LAYER_ID,
   NOAA_RADAR_LAYER_ID,
@@ -118,6 +126,26 @@ const SUA_LINE_COLOR = "#c96f00";
 // TFR's red, SUA's amber), so FIR/UIR boundaries stay legible when layered
 // with those filled-polygon layers.
 const AIRSPACE_BOUNDARIES_LINE_COLOR = "#2fd0ff";
+
+// tar1090's own `actual_range_outline_color` default (`html/defaults.js`) —
+// reused here for stylistic parity with the reference project, and visually
+// distinct from every other filled layer above. Unlike tar1090's own default
+// treatment (a thin stroked outline), this app deliberately fills the
+// polygon solid, per this change's explicit acceptance criterion.
+export const RANGE_OUTLINE_FILL_COLOR = "#00596b";
+
+// Dashed perimeter stroke traced along the outline polygon's ring boundary,
+// additive to the solid fill above (not a tar1090-style replacement for
+// it). Bright green — matches the radar-sweep overlay's own wedge/aircraft
+// accent color (radarSweep.ts) for one consistent "radar" accent, and reads
+// clearly against the fill's own dark teal, distinct from every other line
+// layer's color (military magenta, TFR red, SUA amber, airspace
+// boundaries' cyan).
+const RANGE_OUTLINE_LINE_COLOR = "#00ff3b";
+const RANGE_OUTLINE_LINE_WIDTH = 2;
+// [dash length, gap length], in line-width multiples — a short dash/gap
+// pair reads as a dotted/dashed perimeter rather than a solid stroke.
+const RANGE_OUTLINE_LINE_DASHARRAY: [number, number] = [2, 2];
 
 // Zoom -> icon-size stops for the airports symbol layer, and the single
 // source of truth for `getAirportIconDisplayHeight` below (which popup
@@ -166,6 +194,7 @@ export interface CustomLayerVisibility {
   tfr?: boolean;
   specialUseAirspace?: boolean;
   airspaceBoundaries?: boolean;
+  rangeOutline?: boolean;
   nexrad?: boolean;
   noaaInfrared?: boolean;
   noaaRadar?: boolean;
@@ -388,6 +417,54 @@ export function addCustomLayers(
       },
       paint: { "line-color": AIRSPACE_BOUNDARIES_LINE_COLOR, "line-width": 1 },
     });
+  }
+
+  if (!map.getSource(RANGE_OUTLINE_SOURCE_ID)) {
+    map.addSource(RANGE_OUTLINE_SOURCE_ID, {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
+  }
+  const rangeOutlineVisibility = (visibility.rangeOutline ?? true) ? "visible" : "none";
+  // `before: AIRPORTS_LAYER_ID` (airports is already added above in this
+  // same function) keeps the range-outline layers below airports at
+  // creation time. That alone isn't sufficient to also keep them above the
+  // user-location range-circle rings (`userLocation.ts`'s
+  // `USER_RINGS_LINE_LAYER_ID`), since those are added later, in a separate
+  // call, and can also race against an async location resolution — see
+  // `moveRangeOutlineBelowAirports` below, which `MapView.tsx` re-asserts
+  // after every place that (re)adds the range-circle rings.
+  if (!map.getLayer(RANGE_OUTLINE_FILL_LAYER_ID)) {
+    map.addLayer(
+      {
+        id: RANGE_OUTLINE_FILL_LAYER_ID,
+        type: "fill",
+        source: RANGE_OUTLINE_SOURCE_ID,
+        layout: { visibility: rangeOutlineVisibility },
+        paint: { "fill-color": RANGE_OUTLINE_FILL_COLOR, "fill-opacity": 0.3 },
+      },
+      AIRPORTS_LAYER_ID,
+    );
+  }
+  // Dashed perimeter stroke, additive to the fill above — same source, no
+  // separate line-string source needed: a GeoJSON polygon source's `line`
+  // layer traces the ring boundary directly. Shares the fill's own
+  // `rangeOutline` visibility key (one toggle controls both).
+  if (!map.getLayer(RANGE_OUTLINE_LINE_LAYER_ID)) {
+    map.addLayer(
+      {
+        id: RANGE_OUTLINE_LINE_LAYER_ID,
+        type: "line",
+        source: RANGE_OUTLINE_SOURCE_ID,
+        layout: { visibility: rangeOutlineVisibility },
+        paint: {
+          "line-color": RANGE_OUTLINE_LINE_COLOR,
+          "line-width": RANGE_OUTLINE_LINE_WIDTH,
+          "line-dasharray": RANGE_OUTLINE_LINE_DASHARRAY,
+        },
+      },
+      AIRPORTS_LAYER_ID,
+    );
   }
 
   if (!map.getSource(NEXRAD_SOURCE_ID)) {
@@ -664,6 +741,67 @@ export async function refreshAirspaceBoundaries(map: MapLibreMap): Promise<void>
     | GeoJSONSource
     | undefined;
   source?.setData(data);
+}
+
+/** Shows/hides the actual-range-outline fill layer and its dashed perimeter
+ * stroke together, as one toggle. Governs only the MapLibre style layers —
+ * the sweep overlay's own visibility (the animated beam + aircraft dots) is
+ * handled separately in `MapView.tsx`, since it isn't a style-owned layer
+ * (see design.md Decision 4). */
+export function setRangeOutlineVisibility(map: MapLibreMap, visible: boolean): void {
+  const visibility = visible ? "visible" : "none";
+  if (map.getLayer(RANGE_OUTLINE_FILL_LAYER_ID)) {
+    map.setLayoutProperty(RANGE_OUTLINE_FILL_LAYER_ID, "visibility", visibility);
+  }
+  if (map.getLayer(RANGE_OUTLINE_LINE_LAYER_ID)) {
+    map.setLayoutProperty(RANGE_OUTLINE_LINE_LAYER_ID, "visibility", visibility);
+  }
+}
+
+/**
+ * Re-asserts the actual-range-outline fill/line layers' stacking position
+ * directly below the airports layer (and, as a result, above the
+ * user-location range-circle rings — `userLocation.ts`'s
+ * `USER_RINGS_LINE_LAYER_ID`/`USER_RINGS_LABEL_LAYER_ID`). The initial
+ * `before: AIRPORTS_LAYER_ID` placement in `addCustomLayers` alone isn't
+ * reliable for this: the range-circle rings are added later, in a separate
+ * call (`addUserLocationLayers`), and MapLibre's `addLayer(layer, before)`
+ * places each newly-added layer immediately below `before`, displacing
+ * whatever was already there — so a ring layer added after the
+ * range-outline layers would end up sandwiched between them and airports,
+ * putting the rings above the outline instead of below it. The rings can
+ * also be added a second time asynchronously, once the feeder/browser
+ * location resolves (`MapView.tsx`'s `handleLocationResolved`), after the
+ * range-outline layers already exist — same race. Calling this
+ * (idempotent, safe to call repeatedly) right after every place that adds
+ * or re-adds the range-circle rings fixes the final order regardless of
+ * which was actually inserted first.
+ */
+export function moveRangeOutlineBelowAirports(map: MapLibreMap): void {
+  if (!map.getLayer(AIRPORTS_LAYER_ID)) return;
+  // Order matters: moving the fill first, then the line, leaves the line
+  // directly below airports and the fill one further down — line on top of
+  // fill, both below airports.
+  if (map.getLayer(RANGE_OUTLINE_FILL_LAYER_ID)) {
+    map.moveLayer(RANGE_OUTLINE_FILL_LAYER_ID, AIRPORTS_LAYER_ID);
+  }
+  if (map.getLayer(RANGE_OUTLINE_LINE_LAYER_ID)) {
+    map.moveLayer(RANGE_OUTLINE_LINE_LAYER_ID, AIRPORTS_LAYER_ID);
+  }
+}
+
+/** Refetches the feeder's actual-range-outline polygon and updates the fill
+ * layer's source in place. No-ops (on the source-update side) if the source
+ * doesn't exist yet. Returns the fetched data so callers (`MapView.tsx`)
+ * can reuse it for the sweep overlay's ray-cast geometry without a second
+ * fetch. */
+export async function refreshRangeOutline(
+  map: MapLibreMap,
+): Promise<FeatureCollection<Polygon | MultiPolygon>> {
+  const data = await fetchRangeOutline();
+  const source = map.getSource(RANGE_OUTLINE_SOURCE_ID) as GeoJSONSource | undefined;
+  source?.setData(data);
+  return data;
 }
 
 /** Shows/hides the NEXRAD layer. */
