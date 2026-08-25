@@ -38,8 +38,10 @@ export function buildAircraftLayers(params: {
   aircraft: Aircraft[];
   tracks: ReadonlyMap<string, TrackPoint[]>;
   iconAtlas: IconAtlas | null;
+  selectedHex: string | null;
+  onAircraftClick: (hex: string | null) => void;
 }): Layer[] {
-  const { aircraft, tracks, iconAtlas } = params;
+  const { aircraft, tracks, iconAtlas, selectedHex, onAircraftClick } = params;
   if (!iconAtlas) return [];
 
   const positioned = aircraft.filter(
@@ -63,6 +65,35 @@ export function buildAircraftLayers(params: {
     getColor: (d) => altitudeToColor(d.altitude ?? 0),
     getSize: 28,
     sizeUnits: "pixels",
+    // Selection picking (design.md Decision 2): the click handler itself
+    // toggles off when re-clicking the already-selected hex, else selects
+    // the clicked one; a miss (empty map area) reports `null` here, but the
+    // real "clicked elsewhere" deselect path is MapLibre's own unscoped
+    // `map.on("click", ...)` in MapView.tsx (Decision 3) since this only
+    // fires on an actual pick hit.
+    pickable: true,
+    onClick: (info) => onAircraftClick(info.object ? info.object.hex : null),
+  });
+
+  const selectedAircraft = selectedHex
+    ? positioned.find((a) => a.hex === selectedHex)
+    : undefined;
+
+  // Glow highlight (design.md Decision 4): a second, larger, semi-transparent
+  // ScatterplotLayer circle rendered underneath the icon at the same
+  // position, colored by the selected aircraft's computed rarity tier. Only
+  // ever zero or one element — no highlight when nothing is selected or the
+  // selected aircraft has dropped out of the current positioned set.
+  const glowLayer = new ScatterplotLayer<Aircraft & { lat: number; lon: number }>({
+    id: AIRCRAFT_SELECTION_GLOW_LAYER_ID,
+    data: selectedAircraft ? [selectedAircraft] : [],
+    getPosition: (d) => [d.lon, d.lat, (d.altitude ?? 0) * FEET_TO_METERS],
+    getFillColor: (d) => {
+      const [r, g, b] = hexColorToRgb(RARITY_TIER_COLORS[computeRarityTier(d)]);
+      return [r, g, b, AIRCRAFT_SELECTION_GLOW_ALPHA];
+    },
+    getRadius: AIRCRAFT_SELECTION_GLOW_RADIUS_PIXELS,
+    radiusUnits: "pixels",
     pickable: false,
   });
 
@@ -91,6 +122,13 @@ export function buildAircraftLayers(params: {
     pickable: false,
   });
 
-  // Trail beneath, icons on top.
-  return [trackLayer, iconLayer];
+  // Glow beneath the trail/icons (design.md Decision 4), trail beneath
+  // icons, icons on top.
+  return [glowLayer, trackLayer, iconLayer];
+}
+
+/** Parses a `#rrggbb` hex color string into an `[r, g, b]` 0-255 triple. */
+function hexColorToRgb(hex: string): [number, number, number] {
+  const value = parseInt(hex.slice(1), 16);
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
 }
