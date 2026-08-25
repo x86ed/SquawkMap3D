@@ -143,7 +143,13 @@ export function updateTracks(aircraft: Aircraft[]): void {
       continue;
     }
     const points = trackBuffers.get(a.hex) ?? [];
-    points.push({ lat: a.lat, lon: a.lon, altitude: a.altitude, timestamp: now });
+    points.push({
+      lat: a.lat,
+      lon: a.lon,
+      altitude: a.altitude,
+      timestamp: now,
+      groundSpeed: a.groundSpeed,
+    });
     const pruned = points.filter((p) => p.timestamp >= cutoff);
     trackBuffers.set(a.hex, pruned);
   }
