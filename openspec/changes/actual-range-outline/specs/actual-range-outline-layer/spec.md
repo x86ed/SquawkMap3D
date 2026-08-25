@@ -56,6 +56,10 @@ While the actual range outline layer is enabled, the map SHALL display a continu
 - **WHEN** the user pans or zooms the map while the actual range outline layer is enabled
 - **THEN** the sweep beam's on-screen position and the polygon it's confined to stay correctly aligned with the map's current view, without visible desync or requiring a manual refresh
 
+#### Scenario: Sweep and aircraft dots remain correctly positioned under this app's default 3D pitch and terrain
+- **WHEN** the actual range outline layer is enabled while the map is at a pitched camera angle over real terrain (this app's default view — not a flat top-down view) and the user changes pitch or bearing
+- **THEN** the sweep beam, the filled polygon, and any rendered aircraft dots all remain correctly positioned relative to the map's real 3D geometry (not rendered as a flat, screen-space decal that ignores the camera's pitch/rotation)
+
 ### Requirement: Tracked aircraft shown as hex-labeled dots on the sweep
 While the actual range outline layer is enabled, each currently-tracked aircraft with a known position SHALL be rendered as a dot at its current lat/lon on the sweep overlay, labeled with its ICAO 24-bit hex address, independent of whether the separate aircraft-icons layer is enabled.
 
