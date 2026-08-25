@@ -87,12 +87,20 @@ export function getUserLocationBounds(
  * The rings source holds both LineString (ring outlines) and Point (labels)
  * features in one FeatureCollection; the two layers filter by geometry type
  * rather than splitting into two sources, per design.md decision 4.
+ *
+ * `beforeLayerId`, when given and present in the style, inserts all three
+ * layers directly below it (MapLibre draws layers in insertion order, later
+ * = on top) — used to keep the airports layer drawing above the user
+ * location marker/rings rather than getting buried under it.
  */
 export function addUserLocationLayers(
   map: MapLibreMap,
   coords: GeoCoords | null,
+  beforeLayerId?: string,
 ): void {
   if (!coords) return;
+
+  const before = beforeLayerId && map.getLayer(beforeLayerId) ? beforeLayerId : undefined;
 
   registerUserLocationIconResolver(map, RING_LINE_COLOR);
 
@@ -117,48 +125,57 @@ export function addUserLocationLayers(
   }
 
   if (!map.getLayer(USER_LOCATION_ICON_LAYER_ID)) {
-    map.addLayer({
-      id: USER_LOCATION_ICON_LAYER_ID,
-      type: "symbol",
-      source: USER_LOCATION_SOURCE_ID,
-      layout: {
-        "icon-image": USER_LOCATION_ICON_ID,
-        "icon-allow-overlap": true,
-        "icon-anchor": "center",
+    map.addLayer(
+      {
+        id: USER_LOCATION_ICON_LAYER_ID,
+        type: "symbol",
+        source: USER_LOCATION_SOURCE_ID,
+        layout: {
+          "icon-image": USER_LOCATION_ICON_ID,
+          "icon-allow-overlap": true,
+          "icon-anchor": "center",
+        },
       },
-    });
+      before,
+    );
   }
 
   if (!map.getLayer(USER_RINGS_LINE_LAYER_ID)) {
-    map.addLayer({
-      id: USER_RINGS_LINE_LAYER_ID,
-      type: "line",
-      source: USER_RINGS_SOURCE_ID,
-      filter: ["==", ["geometry-type"], "LineString"],
-      paint: {
-        "line-color": RING_LINE_COLOR,
-        "line-width": RING_LINE_WIDTH,
+    map.addLayer(
+      {
+        id: USER_RINGS_LINE_LAYER_ID,
+        type: "line",
+        source: USER_RINGS_SOURCE_ID,
+        filter: ["==", ["geometry-type"], "LineString"],
+        paint: {
+          "line-color": RING_LINE_COLOR,
+          "line-width": RING_LINE_WIDTH,
+        },
       },
-    });
+      before,
+    );
   }
 
   if (!map.getLayer(USER_RINGS_LABEL_LAYER_ID)) {
-    map.addLayer({
-      id: USER_RINGS_LABEL_LAYER_ID,
-      type: "symbol",
-      source: USER_RINGS_SOURCE_ID,
-      filter: ["==", ["geometry-type"], "Point"],
-      layout: {
-        "text-field": ["get", "label"],
-        "text-size": 12,
-        "text-anchor": "bottom",
+    map.addLayer(
+      {
+        id: USER_RINGS_LABEL_LAYER_ID,
+        type: "symbol",
+        source: USER_RINGS_SOURCE_ID,
+        filter: ["==", ["geometry-type"], "Point"],
+        layout: {
+          "text-field": ["get", "label"],
+          "text-size": 12,
+          "text-anchor": "bottom",
+        },
+        paint: {
+          "text-color": RING_LINE_COLOR,
+          "text-halo-color": "#ffffff",
+          "text-halo-width": 1.5,
+        },
       },
-      paint: {
-        "text-color": RING_LINE_COLOR,
-        "text-halo-color": "#ffffff",
-        "text-halo-width": 1.5,
-      },
-    });
+      before,
+    );
   }
 }
 

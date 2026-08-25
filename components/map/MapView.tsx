@@ -181,7 +181,7 @@ export default function MapView() {
     // ready yet, `setupStyleDependentState` will add the marker/rings itself
     // once "load"/"style.load" fires — no separate retry needed here.
     if (coords && mapRef.current && styleReadyRef.current) {
-      addUserLocationLayers(mapRef.current, coords);
+      addUserLocationLayers(mapRef.current, coords, AIRPORTS_LAYER_ID);
       setUserLocationVisibility(mapRef.current, userLocationVisibleRef.current);
     }
   };
@@ -277,7 +277,7 @@ export default function MapView() {
       void refreshSpecialUseAirspace(map);
       if (airspaceBoundariesVisibleRef.current) void refreshAirspaceBoundaries(map);
       setPilotModeVisibility(map, pilotModeRef.current);
-      addUserLocationLayers(map, userLocationRef.current);
+      addUserLocationLayers(map, userLocationRef.current, AIRPORTS_LAYER_ID);
       setUserLocationVisibility(map, userLocationVisibleRef.current);
     };
 
