@@ -1,0 +1,102 @@
+.panel {
+  position: relative;
+  height: 100%;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(63, 63, 70, 0.42);
+  /* Deliberately square corners — distinct from PlaneCard's rounded sticker
+   * look. */
+  border-radius: 0;
+}
+
+.tab {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 1px solid rgba(63, 63, 70, 0.42);
+  border-bottom: 1px solid rgba(63, 63, 70, 0.42);
+}
+
+.body {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+/* Landscape (measured width >= height, the default): icon block beside the
+ * identity block. Portrait: stacked. Driven entirely by the `data-orientation`
+ * attribute this component sets from its own ResizeObserver measurement. */
+.panel[data-orientation="portrait"] .body {
+  flex-direction: column;
+}
+
+.iconBlock {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(63, 63, 70, 0.42);
+}
+
+.identity {
+  flex: 1;
+  min-width: 0;
+}
+
+.kicker {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.heading {
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  color: #f1f5f9;
+  margin: 2px 0 4px;
+}
+
+.subline {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #94a3b8;
+  margin-bottom: 12px;
+}
+
+.specGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+}
+
+.specLabel {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.specValue {
+  font-size: 14px;
+  font-weight: 800;
+  color: #f1f5f9;
+  margin-top: 2px;
+}

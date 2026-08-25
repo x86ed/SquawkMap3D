@@ -1,0 +1,60 @@
+.card {
+  --tier-color: #64748b;
+  position: relative;
+  height: 100%;
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(63, 63, 70, 0.42);
+  /* Hard offset shadow, tinted by the tier's own accent color. */
+  box-shadow: 6px 6px 0 0 var(--tier-color);
+  overflow: hidden;
+}
+
+.cornerTag {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #0a0a0a;
+  background: var(--tier-color);
+  border-bottom-left-radius: 10px;
+}
+
+.planeIcon {
+  font-size: 28px;
+  color: var(--tier-color);
+  transform: rotate(45deg);
+  display: inline-block;
+  margin-bottom: 8px;
+}
+
+.registration {
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  color: #f1f5f9;
+  margin-bottom: 10px;
+}
+
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.manufacturerModel {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.operator {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
