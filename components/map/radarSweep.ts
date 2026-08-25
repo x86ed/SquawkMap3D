@@ -273,7 +273,6 @@ export function buildRangeOutlineSweepLayers(params: {
     getPolygon: (d) => d.polygon,
     getFillColor: (d) => d.color,
     extruded: false,
-    stroked: false,
     pickable: false,
   });
 
