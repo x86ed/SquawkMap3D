@@ -1,6 +1,6 @@
 import * as turf from "@turf/turf";
 import type { Aircraft, TrackPoint } from "../aircraft";
-import { computeRarityTier, RARITY_TIER_COLORS, type RarityTier } from "../aircraftRarity";
+import { computeRarityTier, type RarityTier } from "../aircraftRarity";
 import type { FlightRoute } from "../flightRoute";
 import type { GeoCoords } from "../geolocation";
 
@@ -25,7 +25,6 @@ export interface SelectedAircraftInfo {
   operator?: string;
   year?: string;
   rarityTier: RarityTier;
-  rarityColor: string;
   altitude?: number;
   groundSpeed?: number;
   track?: number;
@@ -46,6 +45,21 @@ export interface SelectedAircraftInfo {
    * session" honest fallback when a route has no real departure timestamp
    * (design.md Decision 12). `undefined` with no retained track points. */
   firstSeenThisSessionAt?: number;
+  /**
+   * Fleet-wide per-aircraft-type stats shown on adsb.win's real cards
+   * (unique registrations spotted, flights captured, observed flight time,
+   * highest altitude observed, XP, percent-progress to the next tier).
+   * Always `undefined` as of this change — no data source for these exists
+   * in this codebase or the feeder stack (design.md Decision 14). This is
+   * forward-plumbing only, not a new data pipeline; do not estimate or
+   * derive these from track-buffer or any other in-scope data.
+   */
+  uniqueRegistrationsCount?: number;
+  flightsCapturedCount?: number;
+  observedFlightTimeSeconds?: number;
+  highestAltitudeObserved?: number;
+  xp?: number;
+  xpProgressToNextTier?: number;
 }
 
 export function buildSelectedAircraftInfo(
@@ -73,7 +87,6 @@ export function buildSelectedAircraftInfo(
     operator: aircraft.operator,
     year: aircraft.year,
     rarityTier,
-    rarityColor: RARITY_TIER_COLORS[rarityTier],
     altitude: aircraft.altitude,
     groundSpeed: aircraft.groundSpeed,
     track: aircraft.track,
@@ -87,5 +100,13 @@ export function buildSelectedAircraftInfo(
       .map((p) => ({ timestamp: p.timestamp, value: p.groundSpeed as number })),
     route,
     firstSeenThisSessionAt: track[0]?.timestamp,
+    // design.md Decision 14: no fleet-wide stat data source exists yet —
+    // these are always undefined, never estimated/derived.
+    uniqueRegistrationsCount: undefined,
+    flightsCapturedCount: undefined,
+    observedFlightTimeSeconds: undefined,
+    highestAltitudeObserved: undefined,
+    xp: undefined,
+    xpProgressToNextTier: undefined,
   };
 }
