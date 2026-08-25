@@ -59,6 +59,7 @@ import {
   setTerminatorVisibility,
 } from "./terminator";
 import { getCurrentLocation, type GeoCoords } from "./geolocation";
+import { getFeederLocation } from "./feederLocation";
 import {
   AIRCRAFT_FEED_REFRESH_INTERVAL_MS,
   AIRSPACE_BOUNDARIES_REFRESH_INTERVAL_MS,
@@ -86,6 +87,21 @@ import {
 // `public/` (kept in sync with the pinned maplibre-gl version) sidesteps
 // the bad relative-URL resolution entirely.
 setWorkerUrl("/maplibre-gl-worker.mjs");
+
+/**
+ * Resolves the position to anchor the user-location marker/rings at,
+ * preferring the feeder's own surveyed antenna position (the actual
+ * transmitter location) over the browser's geolocation — a feeder is
+ * stationary, so its receiver.json position is both more accurate and
+ * doesn't depend on the browser granting a geolocation permission prompt.
+ * Falls back to `getCurrentLocation()` when no feeder is configured or its
+ * receiver.json is unreachable.
+ */
+async function resolveUserLocation(): Promise<GeoCoords | null> {
+  const feederLocation = await getFeederLocation();
+  if (feederLocation) return feederLocation;
+  return getCurrentLocation();
+}
 
 export default function MapView() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -151,9 +167,9 @@ export default function MapView() {
 
   const handleLocationResolved = (coords: GeoCoords | null) => {
     userLocationRef.current = coords;
-    // `getCurrentLocation()` can resolve before the map's "load"/"style.load"
+    // `resolveUserLocation()` can resolve before the map's "load"/"style.load"
     // handler (`setupStyleDependentState`) has run for the first time (e.g. a
-    // fast/cached geolocation result racing initial style load), and
+    // fast feeder/geolocation result racing initial style load), and
     // `addSource`/`addLayer` throw if called before the style is ready.
     // `styleReadyRef` mirrors exactly what that handler has already
     // established as safe (it's the same event `addCustomLayers` relies on);
@@ -328,7 +344,7 @@ export default function MapView() {
         }
       });
     });
-    getCurrentLocation().then((coords) => {
+    resolveUserLocation().then((coords) => {
       handleLocationResolved(coords);
       if (!coords || !mapRef.current) return;
       mapRef.current.fitBounds(getUserLocationBounds(coords), {
@@ -535,7 +551,7 @@ export default function MapView() {
   };
 
   const handleJumpToLocation = () => {
-    getCurrentLocation().then((coords) => {
+    resolveUserLocation().then((coords) => {
       handleLocationResolved(coords);
       if (!coords || !mapRef.current) return;
       mapRef.current.fitBounds(getUserLocationBounds(coords), {
