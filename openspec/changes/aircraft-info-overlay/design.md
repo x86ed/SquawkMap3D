@@ -47,7 +47,7 @@ Since no rarity system exists to reuse, this introduces the minimum viable, full
 | Signal (checked in order, first match wins) | Tier |
 |---|---|
 | `squawk` is `"7500"`, `"7600"`, or `"7700"` (hijack/comm-failure/emergency) | `legendary` |
-| `category` is `"A6"` (rotorcraft... — actually lighter-than-air/glider/UAV per DO-260B: `A6` glider, `A7` rotorcraft, `B2` UAV, `B6`/`B7` space/ultralight) | `epic` |
+| `category` is one of `"A6"` (high performance), `"B1"` (glider/sailplane), `"B2"` (lighter-than-air), `"B3"` (parachutist/skydiver), `"B4"` (ultralight/hang-glider/paraglider), `"B6"` (UAV), or `"B7"` (space/transatmospheric) — the DO-260B categories `AIRCRAFT_CATEGORY_FALLBACK_ICON` (`constants.ts`) already documents as genuinely uncommon traffic, excluding ordinary rotorcraft (`A7`) and surface vehicles (`C1`/`C2`), which are common enough not to warrant an elevated tier | `epic` |
 | `typeDesignator` is set but has **no** vendored icon shape (`resolveIconKey(aircraft).source !== "type"` while `typeDesignator` is non-empty — i.e. a known-but-unshaped type, a weak "uncommon type" signal) | `rare` |
 | `typeDesignator` is set and **has** a vendored shape (`resolveIconKey(aircraft).source === "type"`) | `uncommon` |
 | everything else (no usable type/category signal at all) | `common` |
