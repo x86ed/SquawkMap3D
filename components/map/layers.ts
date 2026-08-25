@@ -1,3 +1,4 @@
+import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { MapTheme } from "./mapStyles";
 import {
@@ -31,6 +32,7 @@ import { fetchCurrentRainViewerTileUrl } from "./rainviewer";
 import { fetchTfrs } from "./tfr";
 import { fetchSpecialUseAirspace } from "./specialUseAirspace";
 import { fetchAirspaceBoundaries } from "./airspaceBoundaries";
+import { fetchRangeOutline } from "./rangeOutline";
 
 export const AIRPORTS_SOURCE_ID = "airports";
 export const AIRPORTS_LAYER_ID = "airports-circle";
@@ -59,6 +61,9 @@ export const SUA_LINE_LAYER_ID = "special-use-airspace-line";
 export const AIRSPACE_BOUNDARIES_SOURCE_ID = "airspace-boundaries";
 export const AIRSPACE_BOUNDARIES_LINE_LAYER_ID = "airspace-boundaries-line";
 
+export const RANGE_OUTLINE_SOURCE_ID = "range-outline";
+export const RANGE_OUTLINE_FILL_LAYER_ID = "range-outline-fill";
+
 export const NEXRAD_SOURCE_ID = "nexrad";
 export const NEXRAD_LAYER_ID = "nexrad-raster";
 
@@ -83,6 +88,7 @@ const CUSTOM_LAYER_IDS = [
   SUA_FILL_LAYER_ID,
   SUA_LINE_LAYER_ID,
   AIRSPACE_BOUNDARIES_LINE_LAYER_ID,
+  RANGE_OUTLINE_FILL_LAYER_ID,
   NEXRAD_LAYER_ID,
   NOAA_INFRARED_LAYER_ID,
   NOAA_RADAR_LAYER_ID,
@@ -118,6 +124,13 @@ const SUA_LINE_COLOR = "#c96f00";
 // TFR's red, SUA's amber), so FIR/UIR boundaries stay legible when layered
 // with those filled-polygon layers.
 const AIRSPACE_BOUNDARIES_LINE_COLOR = "#2fd0ff";
+
+// tar1090's own `actual_range_outline_color` default (`html/defaults.js`) —
+// reused here for stylistic parity with the reference project, and visually
+// distinct from every other filled layer above. Unlike tar1090's own default
+// treatment (a thin stroked outline), this app deliberately fills the
+// polygon solid, per this change's explicit acceptance criterion.
+export const RANGE_OUTLINE_FILL_COLOR = "#00596b";
 
 // Zoom -> icon-size stops for the airports symbol layer, and the single
 // source of truth for `getAirportIconDisplayHeight` below (which popup
@@ -166,6 +179,7 @@ export interface CustomLayerVisibility {
   tfr?: boolean;
   specialUseAirspace?: boolean;
   airspaceBoundaries?: boolean;
+  rangeOutline?: boolean;
   nexrad?: boolean;
   noaaInfrared?: boolean;
   noaaRadar?: boolean;
