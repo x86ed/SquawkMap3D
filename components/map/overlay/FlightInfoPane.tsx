@@ -3,38 +3,50 @@ import type { FlightRoute } from "../flightRoute";
 import type { SparklinePoint } from "./selectedAircraftInfo";
 
 const SPARKLINE_WIDTH = 240;
-const SPARKLINE_HEIGHT = 40;
+const SPARKLINE_HEIGHT = 60;
 
-/** Builds an SVG polyline `points` string from `series`, normalized to the
- * series' own observed min/max (never a shared/global scale — each
- * sparkline is independently normalized per the aircraft-info-overlay
- * spec). A flat series (min === max) renders as a horizontal mid-line
- * rather than dividing by zero. */
-function sparklinePoints(series: SparklinePoint[]): string {
-  const values = series.map((p) => p.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min;
+/** Builds an SVG polyline `points` string from `series`, scaled against a
+ * fixed `[min, max]` domain (not the series' own observed range) so the
+ * altitude and ground-speed lines are readable against their labeled axes
+ * below rather than each auto-stretching to fill the plot. */
+function sparklinePoints(series: SparklinePoint[], [domainMin, domainMax]: [number, number]): string {
+  const range = domainMax - domainMin;
 
   return series
     .map((point, index) => {
       const x = (index / (series.length - 1)) * SPARKLINE_WIDTH;
-      const y = range === 0 ? SPARKLINE_HEIGHT / 2 : SPARKLINE_HEIGHT - ((point.value - min) / range) * SPARKLINE_HEIGHT;
+      const clamped = Math.min(domainMax, Math.max(domainMin, point.value));
+      const y = SPARKLINE_HEIGHT - ((clamped - domainMin) / range) * SPARKLINE_HEIGHT;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
 }
 
-const SPARKLINE_SERIES: { key: "altitude" | "groundSpeed"; label: string; color: string }[] = [
-  { key: "altitude", label: "Altitude", color: "#06b6d4" },
-  { key: "groundSpeed", label: "Ground speed", color: "#22c55e" },
+const SPARKLINE_SERIES: {
+  key: "altitude" | "groundSpeed";
+  label: string;
+  color: string;
+  domain: [number, number];
+  unit: string;
+  tickCount: number;
+}[] = [
+  { key: "altitude", label: "Altitude", color: "#06b6d4", domain: [0, 100000], unit: "ft", tickCount: 5 },
+  { key: "groundSpeed", label: "Ground speed", color: "#22c55e", domain: [0, 1000], unit: "kt", tickCount: 5 },
 ];
 
-/** Both series drawn into one shared SVG canvas so altitude and ground
- * speed overlap on the same plot rather than stacking as separate charts —
- * each still independently normalized to its own min/max, since the two
- * are on unrelated scales (feet vs. knots) and only their shapes, not a
- * shared axis, are meaningful together. */
+/** Evenly spaced tick values from the domain max down to its min (top to
+ * bottom, matching the plot's y-axis direction) — e.g. [100000, 75000,
+ * 50000, 25000, 0] for a 5-tick, 0–100000 domain. */
+function axisTicks([domainMin, domainMax]: [number, number], tickCount: number): number[] {
+  const step = (domainMax - domainMin) / (tickCount - 1);
+  return Array.from({ length: tickCount }, (_, i) => domainMax - i * step);
+}
+
+/** Both series drawn into one shared SVG canvas, overlapping rather than
+ * stacking as separate charts, each plotted against its own fixed,
+ * labeled y-axis (altitude 0–100,000 ft, ground speed 0–1000 kt) — a
+ * shared canvas but never a shared scale, since the two are on unrelated
+ * units. Each axis's tick labels are color-coded to match its line. */
 function OverlaySparkline({ altitudeSeries, groundSpeedSeries }: { altitudeSeries: SparklinePoint[]; groundSpeedSeries: SparklinePoint[] }) {
   const seriesByKey = { altitude: altitudeSeries, groundSpeed: groundSpeedSeries };
   const hasAnyData = SPARKLINE_SERIES.some(({ key }) => seriesByKey[key].length >= 2);
@@ -50,17 +62,31 @@ function OverlaySparkline({ altitudeSeries, groundSpeedSeries }: { altitudeSerie
         ))}
       </div>
       {hasAnyData ? (
-        <svg
-          viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
-          className={styles.sparklineSvg}
-          preserveAspectRatio="none"
-        >
-          {SPARKLINE_SERIES.map(({ key, color }) => {
-            const series = seriesByKey[key];
-            if (series.length < 2) return null;
-            return <polyline key={key} points={sparklinePoints(series)} fill="none" stroke={color} strokeWidth={2} />;
-          })}
-        </svg>
+        <div className={styles.sparklineRow}>
+          <div className={styles.axisColumn} style={{ color: SPARKLINE_SERIES[0].color }}>
+            {axisTicks(SPARKLINE_SERIES[0].domain, SPARKLINE_SERIES[0].tickCount).map((tick) => (
+              <span key={tick}>{tick >= 1000 ? `${tick / 1000}k` : tick}</span>
+            ))}
+          </div>
+          <svg
+            viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
+            className={styles.sparklineSvg}
+            preserveAspectRatio="none"
+          >
+            {SPARKLINE_SERIES.map(({ key, color, domain }) => {
+              const series = seriesByKey[key];
+              if (series.length < 2) return null;
+              return <polyline key={key} points={sparklinePoints(series, domain)} fill="none" stroke={color} strokeWidth={2} />;
+            })}
+          </svg>
+          <div className={styles.axisColumn} style={{ color: SPARKLINE_SERIES[1].color }}>
+            {axisTicks(SPARKLINE_SERIES[1].domain, SPARKLINE_SERIES[1].tickCount).map((tick) => (
+              <span key={tick}>
+                {tick} {SPARKLINE_SERIES[1].unit}
+              </span>
+            ))}
+          </div>
+        </div>
       ) : (
         <div className={styles.noDataState}>Not enough data yet</div>
       )}

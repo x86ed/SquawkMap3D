@@ -38,9 +38,34 @@
   flex-shrink: 0;
 }
 
+.sparklineRow {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.axisColumn {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.axisColumn:first-child {
+  text-align: right;
+}
+
+.axisColumn:last-child {
+  text-align: left;
+}
+
 .sparklineSvg {
-  width: 100%;
-  height: 40px;
+  flex: 1;
+  min-width: 0;
+  height: 60px;
 }
 
 .noDataState {
