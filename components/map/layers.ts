@@ -63,6 +63,7 @@ export const AIRSPACE_BOUNDARIES_LINE_LAYER_ID = "airspace-boundaries-line";
 
 export const RANGE_OUTLINE_SOURCE_ID = "range-outline";
 export const RANGE_OUTLINE_FILL_LAYER_ID = "range-outline-fill";
+export const RANGE_OUTLINE_LINE_LAYER_ID = "range-outline-line";
 
 export const NEXRAD_SOURCE_ID = "nexrad";
 export const NEXRAD_LAYER_ID = "nexrad-raster";
