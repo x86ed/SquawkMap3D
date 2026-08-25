@@ -34,7 +34,7 @@ export interface FlightRoute {
   destination?: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function getFlightRoute(callsign: string): Promise<FlightRoute | null> {
+  void callsign; // kept in the signature per design.md Decision 12's contract — unused until the open item above is resolved
   return null;
 }

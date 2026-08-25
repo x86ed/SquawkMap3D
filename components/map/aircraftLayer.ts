@@ -1,10 +1,13 @@
 import type { Layer } from "@deck.gl/core";
-import { IconLayer, PathLayer } from "@deck.gl/layers";
+import { IconLayer, PathLayer, ScatterplotLayer } from "@deck.gl/layers";
 import type { Aircraft, TrackPoint } from "./aircraft";
 import { altitudeToColor, resolveIconKey, type IconAtlas } from "./aircraftIcons";
+import { computeRarityTier, RARITY_TIER_COLORS } from "./aircraftRarity";
+import { AIRCRAFT_SELECTION_GLOW_ALPHA, AIRCRAFT_SELECTION_GLOW_RADIUS_PIXELS } from "./constants";
 
 export const AIRCRAFT_ICON_LAYER_ID = "aircraft-icons";
 export const AIRCRAFT_TRACK_LAYER_ID = "aircraft-tracks";
+export const AIRCRAFT_SELECTION_GLOW_LAYER_ID = "aircraft-selection-glow";
 
 // Exported so other real-altitude-positioned deck.gl layers (radarSweep.ts's
 // aircraft dots) reuse the exact same conversion rather than a copy that
