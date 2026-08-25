@@ -758,6 +758,38 @@ export function setRangeOutlineVisibility(map: MapLibreMap, visible: boolean): v
   }
 }
 
+/**
+ * Re-asserts the actual-range-outline fill/line layers' stacking position
+ * directly below the airports layer (and, as a result, above the
+ * user-location range-circle rings — `userLocation.ts`'s
+ * `USER_RINGS_LINE_LAYER_ID`/`USER_RINGS_LABEL_LAYER_ID`). The initial
+ * `before: AIRPORTS_LAYER_ID` placement in `addCustomLayers` alone isn't
+ * reliable for this: the range-circle rings are added later, in a separate
+ * call (`addUserLocationLayers`), and MapLibre's `addLayer(layer, before)`
+ * places each newly-added layer immediately below `before`, displacing
+ * whatever was already there — so a ring layer added after the
+ * range-outline layers would end up sandwiched between them and airports,
+ * putting the rings above the outline instead of below it. The rings can
+ * also be added a second time asynchronously, once the feeder/browser
+ * location resolves (`MapView.tsx`'s `handleLocationResolved`), after the
+ * range-outline layers already exist — same race. Calling this
+ * (idempotent, safe to call repeatedly) right after every place that adds
+ * or re-adds the range-circle rings fixes the final order regardless of
+ * which was actually inserted first.
+ */
+export function moveRangeOutlineBelowAirports(map: MapLibreMap): void {
+  if (!map.getLayer(AIRPORTS_LAYER_ID)) return;
+  // Order matters: moving the fill first, then the line, leaves the line
+  // directly below airports and the fill one further down — line on top of
+  // fill, both below airports.
+  if (map.getLayer(RANGE_OUTLINE_FILL_LAYER_ID)) {
+    map.moveLayer(RANGE_OUTLINE_FILL_LAYER_ID, AIRPORTS_LAYER_ID);
+  }
+  if (map.getLayer(RANGE_OUTLINE_LINE_LAYER_ID)) {
+    map.moveLayer(RANGE_OUTLINE_LINE_LAYER_ID, AIRPORTS_LAYER_ID);
+  }
+}
+
 /** Refetches the feeder's actual-range-outline polygon and updates the fill
  * layer's source in place. No-ops (on the source-update side) if the source
  * doesn't exist yet. Returns the fetched data so callers (`MapView.tsx`)

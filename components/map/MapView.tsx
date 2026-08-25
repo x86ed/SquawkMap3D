@@ -32,6 +32,7 @@ import {
   getAirportIconDisplayHeight,
   refreshAirspaceBoundaries,
   refreshRainViewer,
+  moveRangeOutlineBelowAirports,
   refreshRangeOutline,
   refreshSpecialUseAirspace,
   refreshTfrs,
@@ -295,6 +296,12 @@ export default function MapView() {
     if (coords && mapRef.current && styleReadyRef.current) {
       addUserLocationLayers(mapRef.current, coords, AIRPORTS_LAYER_ID);
       setUserLocationVisibility(mapRef.current, userLocationVisibleRef.current);
+      // Location can resolve asynchronously, after the range-outline layers
+      // already exist — re-assert their position below airports/above the
+      // range-circle rings this call just (re)added. See
+      // `moveRangeOutlineBelowAirports`'s doc comment for why this can't
+      // just be a one-time `before` at creation.
+      moveRangeOutlineBelowAirports(mapRef.current);
     }
   };
 
@@ -412,6 +419,11 @@ export default function MapView() {
       setPilotModeVisibility(map, pilotModeRef.current);
       addUserLocationLayers(map, userLocationRef.current, AIRPORTS_LAYER_ID);
       setUserLocationVisibility(map, userLocationVisibleRef.current);
+      // Re-assert stacking order every style reload too — a fresh style
+      // swap re-adds every custom layer from scratch, same ordering
+      // concerns as the initial add (see
+      // `moveRangeOutlineBelowAirports`'s doc comment).
+      moveRangeOutlineBelowAirports(map);
     };
 
     map.on("load", setupStyleDependentState);
