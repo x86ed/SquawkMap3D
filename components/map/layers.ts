@@ -136,10 +136,12 @@ export const RANGE_OUTLINE_FILL_COLOR = "#00596b";
 
 // Dashed perimeter stroke traced along the outline polygon's ring boundary,
 // additive to the solid fill above (not a tar1090-style replacement for
-// it). Bright white so it reads clearly against the fill's own dark teal,
-// distinct from every other line layer's color (military magenta, TFR red,
-// SUA amber, airspace boundaries' cyan).
-const RANGE_OUTLINE_LINE_COLOR = "#ffffff";
+// it). Bright green — matches the radar-sweep overlay's own wedge/aircraft
+// accent color (radarSweep.ts) for one consistent "radar" accent, and reads
+// clearly against the fill's own dark teal, distinct from every other line
+// layer's color (military magenta, TFR red, SUA amber, airspace
+// boundaries' cyan).
+const RANGE_OUTLINE_LINE_COLOR = "#00ff3b";
 const RANGE_OUTLINE_LINE_WIDTH = 2;
 // [dash length, gap length], in line-width multiples — a short dash/gap
 // pair reads as a dotted/dashed perimeter rather than a solid stroke.

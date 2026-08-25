@@ -316,7 +316,8 @@ export function buildRangeOutlineSweepLayers(params: {
     data: positioned,
     getPosition: (d) => [d.lon, d.lat, (d.altitude ?? 0) * FEET_TO_METERS],
     getText: (d) => d.hex,
-    getColor: AIRCRAFT_LABEL_COLOR,
+    getColor: (d) =>
+      isFlashing(d.hex, now) ? AIRCRAFT_LABEL_FLASH_COLOR : AIRCRAFT_LABEL_COLOR,
     getSize: 11,
     getPixelOffset: [0, -12],
     pickable: false,
