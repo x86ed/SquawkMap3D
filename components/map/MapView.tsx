@@ -218,6 +218,45 @@ export default function MapView() {
       : "Map unavailable: NEXT_PUBLIC_MAPTILER_KEY is not set. Add a MapTiler API key to .env.local to load the map.",
   );
 
+  // Toggles/selects the clicked aircraft (design.md Decisions 1-3): the
+  // already-selected hex clicked again deselects; any other hex replaces
+  // the current selection. `picked`, when available (the deck.gl pick's
+  // `info.object`, looked up by the `refreshAircraft` call site below since
+  // `buildAircraftLayers`'s own `onAircraftClick` only forwards a hex — see
+  // aircraftLayer.ts), lets a fresh selection recenter the camera
+  // immediately rather than waiting for the next poll (design.md Decision
+  // 13's "Camera centers on the aircraft immediately upon selection").
+  const handleAircraftClick = (hex: string | null, picked?: Aircraft) => {
+    lastAircraftClickAtRef.current = Date.now();
+    const next = hex && hex === selectedAircraftHexRef.current ? null : hex;
+    selectedAircraftHexRef.current = next;
+    setSelectedAircraftHex(next);
+
+    if (next === null) {
+      setSelectedAircraftInfo(null);
+      routeCacheRef.current.clear();
+      return;
+    }
+
+    if (
+      followSelectedAircraftRef.current &&
+      picked?.lat !== undefined &&
+      picked?.lon !== undefined &&
+      mapRef.current
+    ) {
+      mapRef.current.easeTo({
+        center: [picked.lon, picked.lat],
+        duration: FOLLOW_SELECTED_AIRCRAFT_EASE_MS,
+      });
+    }
+
+    // Rebuild layers/overlay immediately rather than waiting up to ~1s for
+    // the next scheduled poll — same "don't wait for the next tick"
+    // reasoning as the camera recenter above, for the highlight/overlay's
+    // own snappiness.
+    void refreshAircraft();
+  };
+
   const refreshAircraft = async () => {
     if (!deckOverlayRef.current) return;
     if (!aircraftVisibleRef.current) {
@@ -226,12 +265,63 @@ export default function MapView() {
     }
     const aircraft = await fetchAircraft();
     updateTracks(aircraft);
+
+    // Deselect-on-drop-out (aircraft-tracks-layer spec's "Selected aircraft
+    // drops out of the feed" scenario).
+    if (
+      selectedAircraftHexRef.current &&
+      !aircraft.some((a) => a.hex === selectedAircraftHexRef.current)
+    ) {
+      selectedAircraftHexRef.current = null;
+      setSelectedAircraftHex(null);
+      setSelectedAircraftInfo(null);
+      routeCacheRef.current.clear();
+    }
+
     const layers = buildAircraftLayers({
       aircraft,
       tracks: getAllTracks(),
       iconAtlas: aircraftIconAtlasRef.current,
+      selectedHex: selectedAircraftHexRef.current,
+      onAircraftClick: (hex) =>
+        handleAircraftClick(hex, hex ? aircraft.find((a) => a.hex === hex) : undefined),
     });
     deckOverlayRef.current.setProps({ layers });
+
+    const selected = selectedAircraftHexRef.current
+      ? aircraft.find((a) => a.hex === selectedAircraftHexRef.current)
+      : undefined;
+    if (!selected) return;
+
+    // Follow: recenter on every subsequent poll while locked (design.md
+    // Decision 13's "Map recenters on every refresh while following") — in
+    // addition to handleAircraftClick's own immediate recenter on selection.
+    if (
+      followSelectedAircraftRef.current &&
+      mapRef.current &&
+      selected.lat !== undefined &&
+      selected.lon !== undefined
+    ) {
+      mapRef.current.easeTo({
+        center: [selected.lon, selected.lat],
+        duration: FOLLOW_SELECTED_AIRCRAFT_EASE_MS,
+      });
+    }
+
+    let route: FlightRoute | null = null;
+    if (selected.callsign) {
+      const cacheKey = `${selected.hex}:${selected.callsign}`;
+      if (routeCacheRef.current.has(cacheKey)) {
+        route = routeCacheRef.current.get(cacheKey) ?? null;
+      } else {
+        route = await getFlightRoute(selected.callsign);
+        routeCacheRef.current.set(cacheKey, route);
+      }
+    }
+
+    setSelectedAircraftInfo(
+      buildSelectedAircraftInfo(selected, getTrack(selected.hex), userLocationRef.current, route),
+    );
   };
 
   // Own poll of fetchAircraft(), separate from `refreshAircraft` above —
