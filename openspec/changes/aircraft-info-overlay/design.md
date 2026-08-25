@@ -40,31 +40,88 @@ deck.gl v9 layers accept their own `onClick` prop (`{ object, ... } | null` per 
 ### 4. Glow highlight: a second deck.gl layer, not a CSS/DOM effect
 The aircraft icon is a deck.gl `IconLayer` texel, not a DOM element — no CSS `filter: drop-shadow` target exists. A glow is instead a second, larger, semi-transparent circle rendered *underneath* the icon at the same position, using `ScatterplotLayer` — precedent: `radarSweep.ts` already builds `ScatterplotLayer` dots for the same aircraft data. `buildAircraftLayers()` gains a `selectedHex: string | null` param; when set and matching a currently-positioned aircraft, a one-element `ScatterplotLayer` is added (radius in pixels, `getFillColor` from `RARITY_TIER_COLORS[computeRarityTier(aircraft)]` at reduced alpha, stacked below the existing `trackLayer`/`iconLayer` in the returned array so it renders first/underneath). No animation/pulsing in this change (Non-Goal-adjacent — kept simple; a `requestAnimationFrame` pulse can follow later without changing this shape).
 
-### 5. Rarity value and tier: computed from a vendored `taildragger` rareness snapshot, bucketed by data-derived quantile cutpoints
+### 5. Rarity value and tier: computed from a vendored `taildragger` rareness snapshot, bucketed by data-derived octile cutpoints, styled with adsb.win's real, verified 9-tier taxonomy
 
-**This decision replaces this document's original placeholder heuristic (an ordered squawk/category/icon-shape signal table) entirely.** That table is gone — rarity is no longer computed from ADS-B category or squawk. It is now sourced from a real per-aircraft-type "rareness" field from `taildragger`, a sibling game project (`/Users/adamsiegel/Workspace/git/taildragger/aircraft-data.json` on the machine this design was authored on — **not part of this repo and not a runtime dependency**; see the data-delivery subsection below).
+**This decision replaces this document's original placeholder heuristic (an ordered squawk/category/icon-shape signal table) entirely, and its own first revision (an invented 5-tier taxonomy with hand-approximated colors), which this amendment corrects.** Rarity is no longer computed from ADS-B category or squawk, and it no longer uses a 5-tier taxonomy this project made up. It is sourced from a real per-aircraft-type "rareness" field from `taildragger`, a sibling game project (`/Users/adamsiegel/Workspace/git/taildragger/aircraft-data.json` on the machine this design was authored on — **not part of this repo and not a runtime dependency**; see the data-delivery subsection below) for *which numeric bucket an aircraft type falls into*, combined with adsb.win's own real, **verified-exact** tier names and CSS (fetched directly from `https://adsb.win/assets/tailwind-255296c3.css` and independently re-fetched/re-diffed byte-for-byte during this amendment — not approximated, not guessed) for *what those buckets are called and how they're styled*.
 
 **Rarity value:**
 - `taildragger`'s dataset is `{ updatedAt, count, rows: [...] }`; each row has an `id` field confirmed to be a standard ICAO type designator (e.g. `"B738"`, `"A320"`, `"A339"`), matching this codebase's own `Aircraft.typeDesignator` (readsb's `t` field, Decision 6). Of `taildragger`'s 2707 rows, 1679 have a defined `rareness` field (the rest are catalog entries the game itself hasn't scored yet) — only those 1679 are usable.
-- `rarityValue(aircraft) = row.rareness / 100`, where `row` is the vendored-snapshot row whose `id` matches `aircraft.typeDesignator`.
-- If `typeDesignator` is unset, or set but has no matching row in the vendored snapshot (untracked/unrecognized type), `rarityValue = 15` (fixed default).
-- Verified distribution of `rareness / 100` across the 1679 scored rows: min `0.28`, max `20.49`, mean `10.07`, median `10.26`. The fixed default of `15` sits above both the mean and median — an unrecognized type is deliberately treated as **more rare than a typical known type**, not as a "safe middle" or common default.
+- `computeRarityValue(aircraft): number | undefined` returns `row.rareness / 100`, where `row` is the vendored-snapshot row whose `id` matches `aircraft.typeDesignator`, or `undefined` when `typeDesignator` is unset or has no matching row. **This is a behavior change from this document's prior revision**, which returned a fixed fallback value (`15`) for an unmatched aircraft and treated it as "assume it's above-median rare." That framing was wrong: an unmatched aircraft isn't a rare *value* on the scale at all — adsb.win itself has no rarity classification for it (see the `unidentified` tier below), so there is no meaningful numeric value to report. Callers that need a display value MUST check `computeRarityTier(aircraft) === "unidentified"` (or that `computeRarityValue` returned `undefined`) rather than treating an `undefined`/absent value as "unusually rare."
+- Verified distribution of `rareness / 100` across the 1679 scored rows: min `0.28`, max `20.49`, mean `10.07`, median `10.26`.
 
-**Tier bucketing (quantile-derived, not invented):** the same 1679-value distribution was sorted and cut at its 20th/40th/60th/80th percentiles (equal-population quintiles) to produce five tiers of roughly equal dataset share:
+**The `unidentified` tier is not on the numeric scale.** On adsb.win, `unidentified` is what an aircraft gets when adsb.win has no rarity classification for its type at all — confirmed by inspecting two owned adsb.win cards with "UNKNOWN MANUFACTURER": their wrapper element carried no `aircraft-rarity--*` modifier class at all (just the bare `.aircraft-rarity` base rule), and their tier-badge span rendered with empty text. `computeRarityTier` mirrors this exactly: it SHALL return `"unidentified"` directly whenever `computeRarityValue` is `undefined` (no `typeDesignator`, or no matching vendored-snapshot row) — `unidentified` is never reached by bucketing a numeric value against a threshold.
+
+**Tier bucketing for the other 8 named tiers (octile-derived, not invented):** the same 1679-value distribution was sorted and cut at its 12.5th/25th/37.5th/50th/62.5th/75th/87.5th percentiles (equal-population octiles — 7 cutpoints for 8 buckets, same linear-interpolation methodology as this document's prior 4-cutpoint/5-bucket revision, just recomputed for 8 buckets instead of 5) to produce eight tiers of roughly equal dataset share, in adsb.win's own confirmed low→high order:
 
 | Tier | `rarityValue` range | Approx. share of the 1679-row dataset |
 |---|---|---|
-| `common` | `< 6.91` | ~20% (lowest quintile) |
-| `uncommon` | `6.91 ≤ v < 9.19` | ~20% |
-| `rare` | `9.19 ≤ v < 11.18` | ~20% |
-| `epic` | `11.18 ≤ v < 13.15` | ~20% |
-| `legendary` | `≥ 13.15` | ~20% (highest quintile) |
+| `standard` | `< 5.84` | ~12.5% (lowest octile) |
+| `prime` | `5.84 ≤ v < 7.55` | ~12.5% |
+| `remarkable` | `7.55 ≤ v < 8.98` | ~12.5% |
+| `exceptional` | `8.98 ≤ v < 10.26` | ~12.5% |
+| `epic` | `10.26 ≤ v < 11.45` | ~12.5% |
+| `legendary` | `11.45 ≤ v < 12.66` | ~12.5% |
+| `mythic` | `12.66 ≤ v < 14.00` | ~12.5% |
+| `apex` | `≥ 14.00` | ~12.5% (highest octile) |
 
-Note the fixed unmatched-type default (`15`) falls at `≥ 13.15`, i.e. into the `legendary` bucket — the rarest tier. This is a direct, transparent consequence of the quantile cutpoints above (not hand-picked to force this outcome), and is called out explicitly as a residual risk below rather than adjusted after the fact.
+These seven cutpoints (`5.84`, `7.55`, `8.98`, `10.26`, `11.45`, `12.66`, `14.00`) are pinned as constants (`RARITY_TIER_OCTILE_THRESHOLDS` in `aircraftRarity.ts`, replacing the prior revision's 4-cutpoint `RARITY_TIER_THRESHOLDS`), computed once from the vendored snapshot and hardcoded — **not recomputed at runtime**. Note `epic` and `legendary` are reused as tier *names* here (adsb.win happens to name its 5th/6th tiers the same as two of this document's originally-invented 5 tiers) but now sit at different positions (5th/6th of 8, not 4th/5th of 5) with different cutpoints and different colors — this is coincidental name overlap with adsb.win's real taxonomy, not a holdover from the prior revision's invented one.
 
-These four cutpoints (`6.91`, `9.19`, `11.18`, `13.15`) are pinned as constants (e.g. `RARITY_TIER_THRESHOLDS` in `aircraftRarity.ts`), computed once from the vendored snapshot and hardcoded — **not recomputed at runtime**. They can be retuned later (e.g. after a future snapshot refresh meaningfully shifts the distribution) without changing `computeRarityTier`'s signature or any consumer's props shape — the same stability guarantee this document already gave when the heuristic was invented rather than data-derived.
+**Tier → style (verified-exact, not approximated):** each of the 8 named tiers maps to adsb.win's own `{ color, highlight, glow }` CSS custom-property triple, exactly as extracted from the live stylesheet (`.aircraft-rarity--<tier>`'s `--rarity-color`/`--rarity-highlight`/`--rarity-glow`); `unidentified` uses the base `.aircraft-rarity` rule's own defaults, which are close to but *not identical to* `standard`'s override — notably a different glow (`unidentified` glow `#64748b33` vs. `standard` glow `#94a3b83d`), preserved exactly rather than treated as redundant:
 
-Tier → color is unchanged from the original design: `common` = slate `#64748b`, `uncommon` = green `#22c55e`, `rare` = cyan `#06b6d4`, `epic` = violet `#8b5cf6`, `legendary` = yellow `#eab308` (matching the acceptance criteria's named palette).
+| Tier | `color` | `highlight` | `glow` |
+|---|---|---|---|
+| `unidentified` (base rule defaults) | `#64748b` | `#cbd5e1` | `#64748b33` |
+| `standard` | `#64748b` | `#cbd5e1` | `#94a3b83d` |
+| `prime` | `#0891b2` | `#67e8f9` | `#06b6d46b` |
+| `remarkable` | `#2563eb` | `#93c5fd` | `#3b82f675` |
+| `exceptional` | `#7c3aed` | `#c4b5fd` | `#8b5cf680` |
+| `epic` | `#db2777` | `#f9a8d4` | `#ec489985` |
+| `legendary` | `#d97706` | `#fde68a` | `#f59e0b8f` |
+| `mythic` | `#db2777` | `#f0abfc` | `#d946ef9e` |
+| `apex` | `#bae6fd` | `#fff` | `#cffafed1` |
+
+`RARITY_TIER_STYLES: Record<RarityTier, { color: string; highlight: string; glow: string }>` replaces the prior revision's single-string `RARITY_TIER_COLORS`. Any consumer that only wants one accent color (the map glow-highlight layer, `components/map/aircraftLayer.ts`) uses `RARITY_TIER_STYLES[tier].color`.
+
+**Card frame CSS (the two-layer gradient-border-frame technique, `PlaneCard` only — not needed by the map glow layer):**
+```css
+/* Base rule (all tiers except mythic/apex use this formula verbatim,
+   substituting each tier's own --rarity-color/--rarity-highlight/--rarity-glow) */
+.aircraftRarityFrame {
+  --rarity-color: #64748b;   /* per-tier, see table above */
+  --rarity-highlight: #cbd5e1;
+  --rarity-glow: #64748b33;
+  /* Base formula (no color-mix() support): */
+  background: linear-gradient(135deg, var(--rarity-highlight), var(--rarity-color) 35%, var(--rarity-color));
+  border-radius: 1.65rem; /* 26.4px */
+  padding: 2px 2px 22px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 14px 32px #02061747, 0 0 22px var(--rarity-glow);
+  transition: transform .16s ease-out, box-shadow .2s;
+}
+/* @supports (color: color-mix(in lab, red, red)) upgrade: */
+@supports (color: color-mix(in lab, red, red)) {
+  .aircraftRarityFrame {
+    background: linear-gradient(135deg, var(--rarity-highlight), color-mix(in srgb, var(--rarity-color) 30%, #070b14) 35%, var(--rarity-color));
+  }
+}
+.aircraftRarityFrame:hover {
+  box-shadow: 0 22px 44px #02061761, 0 0 34px var(--rarity-glow);
+}
+.aircraftTierCard { /* the inner card sitting on top of the frame */
+  border-radius: 1.5rem; /* 24px */
+}
+/* mythic and apex override `background` directly instead of using the
+   shared linear-gradient formula above */
+.aircraftRarityFrame[data-tier="mythic"] {
+  background: conic-gradient(from 210deg, #22d3ee, #8b5cf6, #ec4899, #f59e0b, #22d3ee);
+}
+.aircraftRarityFrame[data-tier="apex"] {
+  box-shadow: 0 14px 32px #02061747, 0 0 14px #ffffffb8, 0 0 34px var(--rarity-glow);
+  background: linear-gradient(120deg, #fff, #ecfeff 18%, #bae6fd 46%, #e0e7ff 72%, #fff);
+}
+```
+This is a gradient-border-frame technique: the outer element's own `background` *is* the border color; the inner card sits on top, covering all but a ~2px ring plus 22px at the bottom where floating tier/rarity badges sit (`padding: 2px 2px 22px` on the outer, matched by the inner card filling the remaining space). `PlaneCard.module.css` implements this with a `data-tier` attribute selector (matching the existing `[data-tier="..."]` pattern already used in that file) rather than adsb.win's `--rarity-*` custom-property-per-class approach, since this app sets the three custom properties inline from `RARITY_TIER_STYLES` (Decision 10's existing `--tier-color`-via-inline-style precedent, extended to three properties).
 
 **Data delivery (build-time vendored snapshot, not a runtime dependency on the other repo):**
 - `taildragger`'s `aircraft-data.json` is 3.2MB and lives in a sibling repo at a local-dev-machine path (`/Users/adamsiegel/Workspace/git/taildragger/aircraft-data.json`) — that path does not exist on a deployed feeder and **must never be fetched or read at runtime** by this app.
