@@ -5,7 +5,9 @@ import { AIRCRAFT_TRACK_RETENTION_MS, getFeederUrl } from "./constants";
  * Field names/shape confirmed against readsb's own JSON field reference
  * (hex, flight, lat/lon, alt_baro [number, or the string "ground"],
  * alt_geom, gs, track, baro_rate, squawk, category "A0"-"D7", `t` — the
- * ICAO type designator, only populated when the feeder loads a
+ * ICAO type designator, `r` — registration, `desc` — manufacturer/model
+ * description string, `ownOp` — operator name, `year`, `seen` — seconds
+ * since the last message, only populated when the feeder loads a
  * tar1090-db aircraft.csv.gz). Every field there is documented as
  * optional/omittable when the feeder has no current value, hence the
  * `| undefined`s below.
@@ -27,6 +29,20 @@ export interface Aircraft {
   category?: string;
   /** ICAO type designator (e.g. "A320"), used for icon resolution. */
   typeDesignator?: string;
+  /** Tail number/registration (readsb's `r`). Only populated when the
+   * feeder loads a tar1090-db aircraft.csv.gz — same optional treatment as
+   * `typeDesignator`. */
+  registration?: string;
+  /** Manufacturer/model description string (readsb's `desc`). */
+  manufacturerModel?: string;
+  /** Operator name (readsb's `ownOp`). */
+  operator?: string;
+  /** Year of manufacture (readsb's `year`), kept as a string to match the
+   * raw field verbatim rather than assuming a parseable 4-digit number. */
+  year?: string;
+  /** Seconds since the last message received from this aircraft (readsb's
+   * `seen`). */
+  secondsSinceLastMessage?: number;
 }
 
 export interface TrackPoint {
@@ -34,6 +50,7 @@ export interface TrackPoint {
   lon: number;
   altitude: number;
   timestamp: number;
+  groundSpeed?: number;
 }
 
 interface RawAircraftJson {
@@ -49,6 +66,11 @@ interface RawAircraftJson {
     squawk?: string;
     category?: string;
     t?: string;
+    r?: string;
+    desc?: string;
+    ownOp?: string;
+    year?: string;
+    seen?: number;
   }>;
 }
 
@@ -66,6 +88,11 @@ function normalize(raw: NonNullable<RawAircraftJson["aircraft"]>[number]): Aircr
     squawk: raw.squawk,
     category: raw.category,
     typeDesignator: raw.t,
+    registration: raw.r?.trim() || undefined,
+    manufacturerModel: raw.desc?.trim() || undefined,
+    operator: raw.ownOp?.trim() || undefined,
+    year: raw.year?.trim() || undefined,
+    secondsSinceLastMessage: raw.seen,
   };
 }
 
