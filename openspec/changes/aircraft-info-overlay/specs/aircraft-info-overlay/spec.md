@@ -42,15 +42,30 @@ The overlay SHALL use a responsive layout that arranges `RecordPanelHero`, `Plan
 - **THEN** the four components reflow to a single stacked column in the order: `RecordPanelHero`, `PlaneCard`, `FlightInfoPane`, `TelemetryMarquee`
 
 ### Requirement: PlaneCard shows aircraft identity and rarity tier
-`PlaneCard` SHALL display the selected aircraft's registration, manufacturer/model, and operator when known, and SHALL display its computed rarity tier as a labeled corner tag, with the card's accent color driven by that tier's color (per the `aircraft-rarity` capability). Fields with no known value SHALL render an explicit placeholder rather than blank space or the literal string "undefined"/"null".
+`PlaneCard` SHALL display the selected aircraft's registration, manufacturer/model, and operator when known, and SHALL display its computed rarity tier — one of the nine real tier values defined by the `aircraft-rarity` capability (`unidentified`, `standard`, `prime`, `remarkable`, `exceptional`, `epic`, `legendary`, `mythic`, `apex`) — as a labeled tag, with the card's frame/accent styling driven by that tier's `{ color, highlight, glow }` style (per the `aircraft-rarity` capability), including the `mythic`/`apex` gradient frame overrides. Fields with no known value SHALL render an explicit placeholder rather than blank space or the literal string "undefined"/"null".
 
 #### Scenario: Full identity data known
 - **WHEN** the selected aircraft has a known registration, manufacturer/model description, and operator
-- **THEN** `PlaneCard` displays all three, alongside a corner tag showing the aircraft's rarity tier name in that tier's accent color
+- **THEN** `PlaneCard` displays all three, alongside a tag showing the aircraft's rarity tier name (one of the nine real tier values) styled with that tier's accent style
 
 #### Scenario: Identity data unknown
 - **WHEN** the selected aircraft is missing its registration, manufacturer/model, and/or operator (e.g. the feeder has no tar1090-db loaded)
 - **THEN** `PlaneCard` renders an explicit "unknown" placeholder for each missing field, with no literal "undefined"/"null" text and no blank/missing row
+
+#### Scenario: Aircraft with no rarity classification renders the unidentified tier honestly
+- **WHEN** the selected aircraft's computed rarity tier is `unidentified` (no type designator, or no matching entry in the vendored rareness dataset)
+- **THEN** `PlaneCard` displays the `unidentified` tier's own tag/style rather than substituting the `standard` tier's style or omitting the tag entirely
+
+### Requirement: PlaneCard shows optional fleet-wide stats when available, never fabricated
+`PlaneCard` SHALL accept optional per-aircraft-type fleet stat fields — unique registrations count, flights captured count, observed flight time, highest altitude observed, XP, and percent-progress to the next tier. When all are `undefined` (the case for every aircraft as of this change, since no data source for these exists), `PlaneCard` SHALL render an explicit "not tracked yet" empty state for the stat region rather than blank space, zeros, or fabricated values. When these fields are present (populated by some future change), `PlaneCard` SHALL render them in a stat grid plus an XP progress bar filled to the given progress value.
+
+#### Scenario: Stat fields absent renders an honest empty state
+- **WHEN** the selected aircraft's fleet stat fields are all `undefined`
+- **THEN** `PlaneCard` renders an explicit "not tracked yet" (or equivalently honest) empty state for the stat region, with no fabricated numbers and no collapsed/blank gap
+
+#### Scenario: Stat fields present render the real stat grid and progress bar
+- **WHEN** the selected aircraft's fleet stat fields are all defined
+- **THEN** `PlaneCard` renders the registrations/flights/observed-time/highest-altitude values and an XP progress bar reflecting the given progress-to-next-tier value, using only the provided real values — never a value not present in the given data
 
 ### Requirement: RecordPanelHero shows identity and specs with aspect-driven reflow
 `RecordPanelHero` SHALL display the selected aircraft's registration (as its primary heading), callsign, ICAO hex, and a spec grid of manufacturer, model, operator, and age (when known). Its internal layout SHALL reflow between a portrait and landscape arrangement based on its own measured container aspect ratio, not the browser viewport's aspect ratio.
