@@ -17,7 +17,13 @@ import {
 } from "./mapStyles";
 import { getInitialTheme, storeTheme } from "./theme";
 import { applySky, applyTerrain } from "./terrain";
-import { fetchAircraft, updateTracks, getAllTracks, clearTracks } from "./aircraft";
+import {
+  fetchAircraft,
+  updateTracks,
+  getAllTracks,
+  clearTracks,
+  type Aircraft,
+} from "./aircraft";
 import { buildAircraftIconAtlas, type IconAtlas } from "./aircraftIcons";
 import { buildAircraftLayers } from "./aircraftLayer";
 import {
@@ -26,6 +32,7 @@ import {
   getAirportIconDisplayHeight,
   refreshAirspaceBoundaries,
   refreshRainViewer,
+  refreshRangeOutline,
   refreshSpecialUseAirspace,
   refreshTfrs,
   setAirportsVisibility,
@@ -38,9 +45,16 @@ import {
   setOpenAipVisibility,
   setPilotModeVisibility,
   setRainViewerVisibility,
+  setRangeOutlineVisibility,
   setSpecialUseAirspaceVisibility,
   setTfrVisibility,
 } from "./layers";
+import {
+  buildRangeOutlineSweepLayers,
+  clearRangeOutlineFlashTimestamps,
+  computeSweepAngleDeg,
+  updateFlashTimestamps,
+} from "./radarSweep";
 import {
   airportImageSlotId,
   buildAirportPopupHtml,
@@ -68,10 +82,13 @@ import {
   INITIAL_PITCH,
   MAX_PITCH,
   RAINVIEWER_REFRESH_INTERVAL_MS,
+  RANGE_OUTLINE_REFRESH_INTERVAL_MS,
+  RANGE_OUTLINE_SWEEP_PERIOD_MS,
   SUA_REFRESH_INTERVAL_MS,
   TERMINATOR_REFRESH_INTERVAL_MS,
   TFR_REFRESH_INTERVAL_MS,
 } from "./constants";
+import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
 
 // maplibre-gl resolves its worker script relative to `import.meta.url` of
 // its own bundled module. Under Next.js/Turbopack, that module is served
@@ -116,6 +133,7 @@ export default function MapView() {
   const tfrVisibleRef = useRef(true);
   const suaVisibleRef = useRef(true);
   const airspaceBoundariesVisibleRef = useRef(true);
+  const rangeOutlineVisibleRef = useRef(true);
   const nexradVisibleRef = useRef(true);
   const noaaInfraredVisibleRef = useRef(true);
   const noaaRadarVisibleRef = useRef(true);
@@ -127,6 +145,27 @@ export default function MapView() {
   const deckOverlayRef = useRef<MapboxOverlay | null>(null);
   const aircraftIconAtlasRef = useRef<IconAtlas | null>(null);
 
+  // Second, dedicated overlay (design.md Decision 4) — kept separate from
+  // `deckOverlayRef` above so this layer's ~60fps rAF loop never couples to
+  // the aircraft overlay's ~1Hz poll-driven `setProps` calls.
+  const rangeOutlineOverlayRef = useRef<MapboxOverlay | null>(null);
+  const rangeOutlineDataRef = useRef<FeatureCollection<Polygon | MultiPolygon>>({
+    type: "FeatureCollection",
+    features: [],
+  });
+  // The feeder's own surveyed antenna position (design.md Decision 5) — not
+  // `userLocationRef`, which can fall back to browser geolocation when no
+  // feeder is configured; the sweep must anchor on the same site readsb
+  // itself centers the outline on, or not render at all.
+  const rangeOutlineSiteRef = useRef<GeoCoords | null>(null);
+  // Own poll of fetchAircraft(), independent of the aircraft-icons layer's
+  // poll (see design.md Decision 6 / tasks.md 5.1) — this layer must show
+  // aircraft dots even when that other layer is toggled off.
+  const rangeOutlineAircraftRef = useRef<Aircraft[]>([]);
+  const rangeOutlineSweepRafRef = useRef<number | null>(null);
+  const rangeOutlineSweepStartRef = useRef(0);
+  const rangeOutlineSweepAngleRef = useRef(0);
+
   const [theme, setTheme] = useState<MapTheme>(() => getInitialTheme());
   const [pilotMode, setPilotMode] = useState(false);
   const [militaryVisible, setMilitaryVisible] = useState(true);
@@ -137,6 +176,7 @@ export default function MapView() {
   const [tfrVisible, setTfrVisible] = useState(true);
   const [suaVisible, setSuaVisible] = useState(true);
   const [airspaceBoundariesVisible, setAirspaceBoundariesVisible] = useState(true);
+  const [rangeOutlineVisible, setRangeOutlineVisible] = useState(true);
   const [nexradVisible, setNexradVisible] = useState(true);
   const [noaaInfraredVisible, setNoaaInfraredVisible] = useState(true);
   const [noaaRadarVisible, setNoaaRadarVisible] = useState(true);
