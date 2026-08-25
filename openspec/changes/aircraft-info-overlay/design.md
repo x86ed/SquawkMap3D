@@ -112,17 +112,30 @@ These seven cutpoints (`5.84`, `7.55`, `8.98`, `10.26`, `11.45`, `12.66`, `14.00
 .aircraftTierCard { /* the inner card sitting on top of the frame */
   border-radius: 1.5rem; /* 24px */
 }
-/* mythic and apex override `background` directly instead of using the
-   shared linear-gradient formula above */
+/* Per-tier custom-property overrides — literal values matching
+   RARITY_TIER_STYLES in aircraftRarity.ts exactly (see the table above).
+   unidentified is intentionally absent: it uses the base rule's own
+   defaults verbatim, exactly like adsb.win's own CSS. */
+.aircraftRarityFrame[data-tier="standard"]    { --rarity-color:#64748b; --rarity-highlight:#cbd5e1; --rarity-glow:#94a3b83d; }
+.aircraftRarityFrame[data-tier="prime"]       { --rarity-color:#0891b2; --rarity-highlight:#67e8f9; --rarity-glow:#06b6d46b; }
+.aircraftRarityFrame[data-tier="remarkable"]  { --rarity-color:#2563eb; --rarity-highlight:#93c5fd; --rarity-glow:#3b82f675; }
+.aircraftRarityFrame[data-tier="exceptional"] { --rarity-color:#7c3aed; --rarity-highlight:#c4b5fd; --rarity-glow:#8b5cf680; }
+.aircraftRarityFrame[data-tier="epic"]        { --rarity-color:#db2777; --rarity-highlight:#f9a8d4; --rarity-glow:#ec489985; }
+.aircraftRarityFrame[data-tier="legendary"]   { --rarity-color:#d97706; --rarity-highlight:#fde68a; --rarity-glow:#f59e0b8f; }
+/* mythic and apex additionally override `background` (and apex overrides
+   `box-shadow`) directly instead of using the shared linear-gradient
+   formula above */
 .aircraftRarityFrame[data-tier="mythic"] {
+  --rarity-color:#db2777; --rarity-highlight:#f0abfc; --rarity-glow:#d946ef9e;
   background: conic-gradient(from 210deg, #22d3ee, #8b5cf6, #ec4899, #f59e0b, #22d3ee);
 }
 .aircraftRarityFrame[data-tier="apex"] {
+  --rarity-color:#bae6fd; --rarity-highlight:#fff; --rarity-glow:#cffafed1;
   box-shadow: 0 14px 32px #02061747, 0 0 14px #ffffffb8, 0 0 34px var(--rarity-glow);
   background: linear-gradient(120deg, #fff, #ecfeff 18%, #bae6fd 46%, #e0e7ff 72%, #fff);
 }
 ```
-This is a gradient-border-frame technique: the outer element's own `background` *is* the border color; the inner card sits on top, covering all but a ~2px ring plus 22px at the bottom where floating tier/rarity badges sit (`padding: 2px 2px 22px` on the outer, matched by the inner card filling the remaining space). `PlaneCard.module.css` implements this with a `data-tier` attribute selector (matching the existing `[data-tier="..."]` pattern already used in that file) rather than adsb.win's `--rarity-*` custom-property-per-class approach, since this app sets the three custom properties inline from `RARITY_TIER_STYLES` (Decision 10's existing `--tier-color`-via-inline-style precedent, extended to three properties).
+This is a gradient-border-frame technique: the outer element's own `background` *is* the border color; the inner card sits on top, covering all but a ~2px ring plus 22px at the bottom where floating tier/rarity badges sit (`padding: 2px 2px 22px` on the outer, matched by the inner card filling the remaining space). `PlaneCard.module.css` implements each tier's `--rarity-color`/`--rarity-highlight`/`--rarity-glow` as its own `[data-tier="..."]` CSS rule with literal values (matching `RARITY_TIER_STYLES` in `aircraftRarity.ts` — kept in sync by convention, same as this file's prior 5-tier revision already hardcoded literal per-tier colors in CSS rather than reading them from JS at render time), mirroring adsb.win's own per-tier-class CSS structure exactly, just with an attribute selector instead of a BEM-style modifier class. `PlaneCard.tsx` itself only needs to set `data-tier={rarityTier}` on the frame element — it does not need to read `RARITY_TIER_STYLES` or write inline styles for the frame/border colors (Decision 10's `--tier-color`-via-inline-style framing from the prior revision is superseded by this simpler CSS-only approach, since the shared-vs-overridden `background` split (Decision 5) is easier to express as plain CSS rules than as JS-computed inline styles).
 
 **Data delivery (build-time vendored snapshot, not a runtime dependency on the other repo):**
 - `taildragger`'s `aircraft-data.json` is 3.2MB and lives in a sibling repo at a local-dev-machine path (`/Users/adamsiegel/Workspace/git/taildragger/aircraft-data.json`) — that path does not exist on a deployed feeder and **must never be fetched or read at runtime** by this app.
@@ -143,7 +156,7 @@ This is a gradient-border-frame technique: the outer element's own `background` 
 A single selector, `buildSelectedAircraftInfo(aircraft, track, site, rarityTier, route): SelectedAircraftInfo` (new, in `components/map/overlay/selectedAircraftInfo.ts`), assembles everything the four components need from an `Aircraft` + its track + the resolved site + its rarity tier + (per Decision 12) its resolved route/`null`, computed once per poll in `MapView.tsx` and passed down. `PlaneCard`, `RecordPanelHero`, `TelemetryMarquee`, `FlightInfoPane` each take a slice of this view-model as props and render independently — no component reaches back into `MapView` state or re-fetches anything itself, keeping each trivially testable in isolation (per the acceptance criteria's explicit "create separate components" requirement) and keeping `AircraftOverlay` a pure layout/open-close/keyboard shell around the four.
 
 ### 10. Styling: CSS Modules, matching the existing (only) convention in this codebase
-No Tailwind, styled-components, or other CSS-in-JS dependency exists in `package.json` — the one existing UI surface (`MapView.tsx`) uses a plain `.module.css` file. Every new overlay component gets a co-located `ComponentName.module.css` in the new `components/map/overlay/` directory, following that convention exactly rather than introducing the mockup's literal Tailwind-esque utility classes or CSS-custom-property token file. Rarity tier styling is exposed as CSS custom properties — mirroring adsb.win's own `--rarity-color`/`--rarity-highlight`/`--rarity-glow` triple (Decision 5) — set inline per the selected aircraft's computed tier from `RARITY_TIER_STYLES`, so `PlaneCard`'s frame/corner tag can reference `var(--rarity-color)` etc. without nine hardcoded tier-color branches duplicated across component CSS (the two tiers with a fully-overridden `background`, `mythic`/`apex`, still need their own `[data-tier="..."]` rule per Decision 5, since a gradient literal can't be expressed as a single custom property substitution).
+No Tailwind, styled-components, or other CSS-in-JS dependency exists in `package.json` — the one existing UI surface (`MapView.tsx`) uses a plain `.module.css` file. Every new overlay component gets a co-located `ComponentName.module.css` in the new `components/map/overlay/` directory, following that convention exactly rather than introducing the mockup's literal Tailwind-esque utility classes or CSS-custom-property token file. Rarity tier styling is exposed as CSS custom properties — mirroring adsb.win's own `--rarity-color`/`--rarity-highlight`/`--rarity-glow` triple — but set per-tier via `[data-tier="..."]` CSS rules with literal values (matching `RARITY_TIER_STYLES` in `aircraftRarity.ts`) rather than written inline from JS, so `PlaneCard`'s frame/corner tag can reference `var(--rarity-color)` etc. inside the shared formula while the `mythic`/`apex` tiers' fully-overridden `background`/`box-shadow` stay expressible as plain CSS (see Decision 5's exact CSS).
 
 ### 11. Font: reuse `--font-geist-mono`, don't add JetBrains Mono
 `app/layout.tsx` already loads `Geist_Mono` as `--font-geist-mono` (currently unused by any rendered UI). The mockup's literal spec calls for JetBrains Mono for `TelemetryMarquee`; this design substitutes the already-loaded geist mono family instead — visually equivalent (a monospace grotesque), zero new dependency, zero new font-loading cost. If product specifically wants JetBrains Mono's exact glyphs, that's a one-line follow-up (`next/font/google` already proven in this file for the other three families) — not worth blocking this change on.
