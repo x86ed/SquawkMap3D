@@ -55,7 +55,12 @@ export function AircraftOverlay({
                   manufacturerModel={info.manufacturerModel}
                   operator={info.operator}
                   rarityTier={info.rarityTier}
-                  rarityColor={info.rarityColor}
+                  uniqueRegistrationsCount={info.uniqueRegistrationsCount}
+                  flightsCapturedCount={info.flightsCapturedCount}
+                  observedFlightTimeSeconds={info.observedFlightTimeSeconds}
+                  highestAltitudeObserved={info.highestAltitudeObserved}
+                  xp={info.xp}
+                  xpProgressToNextTier={info.xpProgressToNextTier}
                 />
               </div>
               <div className={styles.flightInfo}>
