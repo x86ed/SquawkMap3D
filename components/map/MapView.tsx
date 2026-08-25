@@ -205,6 +205,75 @@ export default function MapView() {
     deckOverlayRef.current.setProps({ layers });
   };
 
+  // Own poll of fetchAircraft(), separate from `refreshAircraft` above —
+  // this layer must render aircraft dots independent of whether the
+  // aircraft-icons layer is toggled on (design.md Decision 6).
+  const refreshRangeOutlineAircraft = async () => {
+    if (!rangeOutlineVisibleRef.current) return;
+    rangeOutlineAircraftRef.current = await fetchAircraft();
+  };
+
+  // Refetches outline.json, updates the MapLibre fill layer's source, and
+  // caches the parsed FeatureCollection for the sweep overlay's own
+  // ray-cast geometry (`refreshRangeOutline` returns it precisely so this
+  // doesn't need a second fetch).
+  const refreshRangeOutlineData = async () => {
+    if (!mapRef.current) return;
+    rangeOutlineDataRef.current = await refreshRangeOutline(mapRef.current);
+  };
+
+  const rangeOutlineSweepFrame = (nowMs: number) => {
+    const overlay = rangeOutlineOverlayRef.current;
+    if (!overlay) return;
+
+    const elapsedMs = nowMs - rangeOutlineSweepStartRef.current;
+    const previousAngleDeg = rangeOutlineSweepAngleRef.current;
+    const currentAngleDeg = computeSweepAngleDeg(elapsedMs, RANGE_OUTLINE_SWEEP_PERIOD_MS);
+    rangeOutlineSweepAngleRef.current = currentAngleDeg;
+
+    const site = rangeOutlineSiteRef.current;
+    const now = Date.now();
+    if (site) {
+      updateFlashTimestamps({
+        aircraft: rangeOutlineAircraftRef.current,
+        site,
+        previousAngleDeg,
+        currentAngleDeg,
+        now,
+      });
+    }
+
+    const layers = buildRangeOutlineSweepLayers({
+      outline: rangeOutlineDataRef.current,
+      site,
+      sweepAngleDeg: currentAngleDeg,
+      aircraft: rangeOutlineAircraftRef.current,
+      now,
+    });
+    overlay.setProps({ layers });
+
+    rangeOutlineSweepRafRef.current = requestAnimationFrame(rangeOutlineSweepFrame);
+  };
+
+  const startRangeOutlineSweep = () => {
+    if (rangeOutlineSweepRafRef.current !== null) return; // already running
+    rangeOutlineSweepStartRef.current = performance.now();
+    rangeOutlineSweepAngleRef.current = 0;
+    rangeOutlineSweepRafRef.current = requestAnimationFrame(rangeOutlineSweepFrame);
+  };
+
+  const stopRangeOutlineSweep = () => {
+    if (rangeOutlineSweepRafRef.current !== null) {
+      cancelAnimationFrame(rangeOutlineSweepRafRef.current);
+      rangeOutlineSweepRafRef.current = null;
+    }
+    // Clears the wedge/dots immediately rather than leaving the last frame
+    // painted, and resets flash state so re-enabling starts fresh (mirrors
+    // aircraft.ts's clearTracks-on-disable).
+    rangeOutlineOverlayRef.current?.setProps({ layers: [] });
+    clearRangeOutlineFlashTimestamps();
+  };
+
   const handleLocationResolved = (coords: GeoCoords | null) => {
     userLocationRef.current = coords;
     // `resolveUserLocation()` can resolve before the map's "load"/"style.load"
