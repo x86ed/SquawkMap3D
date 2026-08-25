@@ -232,14 +232,17 @@ export default function MapView() {
     rangeOutlineSweepAngleRef.current = currentAngleDeg;
 
     const site = rangeOutlineSiteRef.current;
-    const now = Date.now();
+    // `nowMs` (the rAF timestamp, same clock as `performance.now()` used to
+    // seed `rangeOutlineSweepStartRef`) rather than `Date.now()` — only
+    // relative deltas matter for flash-duration bookkeeping, and this keeps
+    // every timestamp in this loop on one consistent, monotonic clock.
     if (site) {
       updateFlashTimestamps({
         aircraft: rangeOutlineAircraftRef.current,
         site,
         previousAngleDeg,
         currentAngleDeg,
-        now,
+        now: nowMs,
       });
     }
 
@@ -248,7 +251,7 @@ export default function MapView() {
       site,
       sweepAngleDeg: currentAngleDeg,
       aircraft: rangeOutlineAircraftRef.current,
-      now,
+      now: nowMs,
     });
     overlay.setProps({ layers });
 
