@@ -1,4 +1,5 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
+import { setMissingImageResolver } from "./missingImageResolver";
 
 export const USER_LOCATION_ICON_ID = "user-location-sat";
 const SAT_SVG_URL = "/sat.svg";
@@ -82,7 +83,7 @@ async function registerUserLocationIcon(map: MapLibreMap, color: string): Promis
  * repeatedly since rasterization itself is cached.
  */
 export function registerUserLocationIconResolver(map: MapLibreMap, color: string): void {
-  map.setMissingStyleImageResolver((id) => {
+  setMissingImageResolver(map, "user-location-icon", (id) => {
     if (id !== USER_LOCATION_ICON_ID) return undefined;
     return registerUserLocationIcon(map, color);
   });
