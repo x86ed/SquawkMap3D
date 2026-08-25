@@ -351,6 +351,15 @@ export default function MapView() {
     deckOverlayRef.current = deckOverlay;
     map.addControl(deckOverlay);
 
+    // Second, dedicated overlay for the actual-range-outline's radar sweep
+    // (design.md Decision 4) — mounted once here alongside the aircraft
+    // overlay above, not re-added on `style.load` (not part of the MapLibre
+    // style). Added *after* the aircraft overlay so aircraft icons paint on
+    // top of the sweep wedge rather than underneath it (tasks.md 6.6).
+    const rangeOutlineOverlay = new MapboxOverlay({ interleaved: false, layers: [] });
+    rangeOutlineOverlayRef.current = rangeOutlineOverlay;
+    map.addControl(rangeOutlineOverlay);
+
     // Built once (rasterizing every vendored SVG into a single canvas atlas
     // — see aircraftIcons.ts) rather than per-poll; the first refresh is
     // kicked off once it's ready so aircraft render with icons from the
@@ -359,6 +368,16 @@ export default function MapView() {
       aircraftIconAtlasRef.current = atlas;
       void refreshAircraft();
     });
+
+    // The sweep's own site anchor (design.md Decision 5) — resolved once,
+    // independent of `resolveUserLocation()` below, which can fall back to
+    // browser geolocation when no feeder is configured; the sweep must use
+    // the feeder's own surveyed position or not render at all.
+    getFeederLocation().then((coords) => {
+      rangeOutlineSiteRef.current = coords;
+    });
+    void refreshRangeOutlineAircraft();
+    if (rangeOutlineVisibleRef.current) startRangeOutlineSweep();
 
     const setupStyleDependentState = () => {
       styleReadyRef.current = true;
@@ -377,6 +396,7 @@ export default function MapView() {
         tfr: tfrVisibleRef.current,
         specialUseAirspace: suaVisibleRef.current,
         airspaceBoundaries: airspaceBoundariesVisibleRef.current,
+        rangeOutline: rangeOutlineVisibleRef.current,
         nexrad: nexradVisibleRef.current,
         noaaInfrared: noaaInfraredVisibleRef.current,
         noaaRadar: noaaRadarVisibleRef.current,
@@ -385,6 +405,7 @@ export default function MapView() {
       void refreshTfrs(map);
       void refreshSpecialUseAirspace(map);
       if (airspaceBoundariesVisibleRef.current) void refreshAirspaceBoundaries(map);
+      void refreshRangeOutlineData();
       setPilotModeVisibility(map, pilotModeRef.current);
       addUserLocationLayers(map, userLocationRef.current, AIRPORTS_LAYER_ID);
       setUserLocationVisibility(map, userLocationVisibleRef.current);
