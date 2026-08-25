@@ -6,7 +6,10 @@ import { altitudeToColor, resolveIconKey, type IconAtlas } from "./aircraftIcons
 export const AIRCRAFT_ICON_LAYER_ID = "aircraft-icons";
 export const AIRCRAFT_TRACK_LAYER_ID = "aircraft-tracks";
 
-const FEET_TO_METERS = 0.3048;
+// Exported so other real-altitude-positioned deck.gl layers (radarSweep.ts's
+// aircraft dots) reuse the exact same conversion rather than a copy that
+// could drift.
+export const FEET_TO_METERS = 0.3048;
 
 interface TrackSegment {
   path: [[number, number, number], [number, number, number]];

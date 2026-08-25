@@ -132,6 +132,17 @@ export const AIRCRAFT_FEED_REFRESH_INTERVAL_MS = 1_000;
 // polls, see aircraft.ts) is retained before its oldest points are pruned.
 export const AIRCRAFT_TRACK_RETENTION_MS = 10 * 60_000;
 
+// Matches tar1090's own `actualOutline.refresh` polling interval
+// (`html/script.js`, ~line 2936) for `data/outline.json`.
+export const RANGE_OUTLINE_REFRESH_INTERVAL_MS = 15_000;
+
+// Radar-sweep beam rotation speed for the actual-range-outline layer's
+// animated overlay (radarSweep.ts) — purely decorative (design.md Decision
+// 5): fast enough to read as "live," slow enough that aircraft
+// flash-highlights and hex labels stay legible as the beam passes. One full
+// revolution every 8 seconds.
+export const RANGE_OUTLINE_SWEEP_PERIOD_MS = 8_000;
+
 // ADS-B emitter category (as reported in aircraft.json's `category` field,
 // values "A0"-"D7" per DO-260B) -> vendored fallback silhouette under
 // public/aircraft-silhouettes/, used by aircraftIcons.ts when no
