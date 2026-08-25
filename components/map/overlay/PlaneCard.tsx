@@ -5,9 +5,14 @@ import type { RarityTier } from "../aircraftRarity";
 const UNKNOWN = "Unknown";
 
 /**
- * adsb.win-style identity sticker card: hard offset shadow, solid corner tag
- * showing the tier name in the tier's accent color, registration heading,
- * manufacturer/model + operator footer. Missing fields render an explicit
+ * Identity card styled after adsb.win's "hangar" aircraft-model cards
+ * (rounded card, corner blur glow, mono tier pill, divider, footer stat
+ * row) — anatomy and chrome matched directly against the live site's
+ * computed styles; colors are driven by this app's own single `rarityColor`
+ * per tier rather than adsb.win's distinct per-tier palette, since this
+ * card represents one tracked aircraft instance, not an aggregate
+ * collection-progress card, and reuses the same tier color already shown
+ * elsewhere (map glow, marquee). Missing fields render an explicit
  * "Unknown" placeholder — never blank space or a literal "undefined"/"null"
  * (aircraft-info-overlay spec's "Identity data unknown" scenario).
  */
@@ -25,19 +30,27 @@ export function PlaneCard({
   rarityColor: string;
 }) {
   return (
-    <div
+    <article
       className={styles.card}
+      data-tier={rarityTier}
       style={{ "--tier-color": rarityColor } as CSSProperties}
     >
-      <div className={styles.cornerTag}>{rarityTier}</div>
-      <div className={styles.planeIcon} aria-hidden="true">
-        ✈
+      <div className={styles.glowOrb} aria-hidden="true" />
+      <div className={styles.headerRow}>
+        <div className={styles.identity}>
+          <span className={styles.tierBadge}>{rarityTier}</span>
+          <div className={styles.registrationLabel}>{registration ?? UNKNOWN}</div>
+          <h3 className={styles.modelName}>{manufacturerModel ?? UNKNOWN}</h3>
+        </div>
+        <div className={styles.planeIcon} aria-hidden="true">
+          ✈
+        </div>
       </div>
-      <div className={styles.registration}>{registration ?? UNKNOWN}</div>
+      <div className={styles.divider} />
       <div className={styles.footer}>
-        <div className={styles.manufacturerModel}>{manufacturerModel ?? UNKNOWN}</div>
-        <div className={styles.operator}>{operator ?? UNKNOWN}</div>
+        <span className={styles.footerLabel}>Operator</span>
+        <span className={styles.operator}>{operator ?? UNKNOWN}</span>
       </div>
-    </div>
+    </article>
   );
 }
