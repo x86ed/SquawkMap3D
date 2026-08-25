@@ -17,10 +17,11 @@ function loadSvgImage(url: string): Promise<HTMLImageElement> {
 
 /**
  * Rasterizes `sat.svg` recolored to `color`, on a transparent background.
- * `sat.svg` is authored as non-overlapping solid shapes (no compound
- * subpaths), so unlike `airportIcon.ts`'s `atc.svg` there's no risk of
- * enclosed transparent holes surviving the recolor — no hole-solidifying
- * pass needed here.
+ * `sat.svg` is a compound path with an intentional enclosed opening (the
+ * dish's throat) — unlike `airportIcon.ts`'s `atc.svg`, that opening is
+ * meant to stay transparent, so no hole-solidifying pass is applied here;
+ * `source-in` naturally preserves the source alpha (and thus the opening)
+ * while swapping only the opaque pixels' color.
  */
 async function rasterizeUserLocationIcon(color: string): Promise<ImageData> {
   const img = await loadSvgImage(SAT_SVG_URL);
