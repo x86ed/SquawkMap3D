@@ -20,17 +20,37 @@ export const RANGE_OUTLINE_AIRCRAFT_LABEL_LAYER_ID = "range-outline-aircraft-lab
 const WEDGE_TRAIL_WIDTH_DEG = 40;
 const WEDGE_SLICE_COUNT = 14;
 const WEDGE_LEADING_EDGE_WIDTH_DEG = 3;
-// Bright cyan-teal beam — distinct from the fill layer's own dark teal
-// (RANGE_OUTLINE_FILL_COLOR) so the moving sweep reads clearly against it.
-const WEDGE_BASE_COLOR: [number, number, number] = [0, 229, 255];
+// Bright green — matches the dashed perimeter outline's own color
+// (RANGE_OUTLINE_LINE_COLOR in layers.ts) and the aircraft dots/labels
+// below, for one consistent "radar" accent color distinct from the fill
+// layer's own dark teal (RANGE_OUTLINE_FILL_COLOR, left unchanged).
+const WEDGE_BASE_COLOR: [number, number, number] = [0, 255, 59];
 const WEDGE_MAX_TRAIL_OPACITY = 90;
 const WEDGE_LEADING_EDGE_OPACITY = 210;
 
-const AIRCRAFT_DOT_COLOR: [number, number, number, number] = [255, 255, 255, 220];
-const AIRCRAFT_DOT_FLASH_COLOR: [number, number, number, number] = [255, 214, 0, 255];
+// Alpha (0-255) at idle vs. brightened during a sweep pass. Dots stay
+// faintly visible at idle (10%) and nearly opaque while swept (95%); labels
+// stay fully invisible at idle (0%) and only read while swept (80%) — see
+// `isFlashing`/`buildRangeOutlineSweepLayers` below for where these apply.
+const AIRCRAFT_DOT_BASE_ALPHA = Math.round(0.1 * 255);
+const AIRCRAFT_DOT_FLASH_ALPHA = Math.round(0.95 * 255);
+const AIRCRAFT_LABEL_BASE_ALPHA = 0;
+const AIRCRAFT_LABEL_FLASH_ALPHA = Math.round(0.8 * 255);
+
+const AIRCRAFT_DOT_COLOR: [number, number, number, number] = [
+  0, 255, 59, AIRCRAFT_DOT_BASE_ALPHA,
+];
+const AIRCRAFT_DOT_FLASH_COLOR: [number, number, number, number] = [
+  0, 255, 59, AIRCRAFT_DOT_FLASH_ALPHA,
+];
 const AIRCRAFT_DOT_RADIUS_PIXELS = 4;
 const AIRCRAFT_DOT_FLASH_RADIUS_PIXELS = 7;
-const AIRCRAFT_LABEL_COLOR: [number, number, number, number] = [255, 255, 255, 220];
+const AIRCRAFT_LABEL_COLOR: [number, number, number, number] = [
+  0, 255, 59, AIRCRAFT_LABEL_BASE_ALPHA,
+];
+const AIRCRAFT_LABEL_FLASH_COLOR: [number, number, number, number] = [
+  0, 255, 59, AIRCRAFT_LABEL_FLASH_ALPHA,
+];
 
 // How long a dot/label stays "brightened" after the sweep beam passes an
 // aircraft's bearing — ports radar-sweep_4.html's `paintEvents`/
