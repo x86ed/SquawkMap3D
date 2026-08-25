@@ -28,11 +28,11 @@ test("unmatched type designator resolves the fixed default (15)", () => {
   assert.equal(computeRarityValue(makeAircraft("ZZZZ-NOT-A-REAL-TYPE")), 15);
 });
 
-const [t1, t2, t3, t4] = RARITY_TIER_THRESHOLDS;
-
-test("value just below the first threshold buckets to common", () => {
-  assert.equal(computeRarityTier(makeAircraft()), "legendary"); // sanity: default (15) is legendary
+test("default rarity value (15, unmatched type) buckets to legendary", () => {
+  assert.equal(computeRarityTier(makeAircraft()), "legendary");
 });
+
+const [t1, t2, t3, t4] = RARITY_TIER_THRESHOLDS;
 
 const tierCases: Array<[value: number, tier: RarityTier]> = [
   [t1 - 0.01, "common"],
@@ -45,22 +45,26 @@ const tierCases: Array<[value: number, tier: RarityTier]> = [
   [t4, "legendary"],
 ];
 
-function makeAircraftWithSyntheticValue(value: number): Aircraft {
-  // computeRarityTier only ever sees values via computeRarityValue, which is
-  // driven by the vendored snapshot — so to exercise exact boundary values
-  // deterministically, this synthesizes a row not present in the real
-  // snapshot (rareness = value * 100) and matches it via typeDesignator.
-  const syntheticId = `__TEST_BOUNDARY_${value}__`;
-  (aircraftRareness as Array<{ id: string; rareness: number }>).push({
-    id: syntheticId,
-    rareness: value * 100,
-  });
-  return makeAircraft(syntheticId);
-}
+// computeRarityTier only ever sees values via computeRarityValue, which is
+// driven by the vendored snapshot — so to exercise exact boundary values
+// deterministically, synthetic rows (not present in the real snapshot,
+// `rareness = value * 100`) are appended to the imported array *before* any
+// test body runs (module top-level code executes before node:test invokes
+// any registered test, so this predates aircraftRarity.ts's lazily-built,
+// module-cached lookup Map).
+const rarenessRows = aircraftRareness as Array<{ id: string; rareness: number }>;
+const tierCaseAircraft: Array<[Aircraft, RarityTier]> = tierCases.map(
+  ([value, tier], index) => {
+    const id = `__TEST_BOUNDARY_${index}__`;
+    rarenessRows.push({ id, rareness: value * 100 });
+    return [makeAircraft(id), tier];
+  },
+);
 
-for (const [value, expectedTier] of tierCases) {
+for (let i = 0; i < tierCaseAircraft.length; i++) {
+  const [aircraft, expectedTier] = tierCaseAircraft[i];
+  const [value] = tierCases[i];
   test(`rarity value ${value} buckets to ${expectedTier}`, () => {
-    const aircraft = makeAircraftWithSyntheticValue(value);
     assert.equal(computeRarityTier(aircraft), expectedTier);
   });
 }
