@@ -404,6 +404,24 @@ export function addCustomLayers(
     });
   }
 
+  if (!map.getSource(RANGE_OUTLINE_SOURCE_ID)) {
+    map.addSource(RANGE_OUTLINE_SOURCE_ID, {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
+  }
+  if (!map.getLayer(RANGE_OUTLINE_FILL_LAYER_ID)) {
+    map.addLayer({
+      id: RANGE_OUTLINE_FILL_LAYER_ID,
+      type: "fill",
+      source: RANGE_OUTLINE_SOURCE_ID,
+      layout: {
+        visibility: (visibility.rangeOutline ?? true) ? "visible" : "none",
+      },
+      paint: { "fill-color": RANGE_OUTLINE_FILL_COLOR, "fill-opacity": 0.3 },
+    });
+  }
+
   if (!map.getSource(NEXRAD_SOURCE_ID)) {
     map.addSource(NEXRAD_SOURCE_ID, {
       type: "raster",
@@ -678,6 +696,34 @@ export async function refreshAirspaceBoundaries(map: MapLibreMap): Promise<void>
     | GeoJSONSource
     | undefined;
   source?.setData(data);
+}
+
+/** Shows/hides the actual-range-outline fill layer. Governs only the
+ * MapLibre fill layer — the sweep overlay's own visibility (the animated
+ * beam + aircraft dots) is handled separately in `MapView.tsx`, since it
+ * isn't a style-owned layer (see design.md Decision 4). */
+export function setRangeOutlineVisibility(map: MapLibreMap, visible: boolean): void {
+  if (map.getLayer(RANGE_OUTLINE_FILL_LAYER_ID)) {
+    map.setLayoutProperty(
+      RANGE_OUTLINE_FILL_LAYER_ID,
+      "visibility",
+      visible ? "visible" : "none",
+    );
+  }
+}
+
+/** Refetches the feeder's actual-range-outline polygon and updates the fill
+ * layer's source in place. No-ops (on the source-update side) if the source
+ * doesn't exist yet. Returns the fetched data so callers (`MapView.tsx`)
+ * can reuse it for the sweep overlay's ray-cast geometry without a second
+ * fetch. */
+export async function refreshRangeOutline(
+  map: MapLibreMap,
+): Promise<FeatureCollection<Polygon | MultiPolygon>> {
+  const data = await fetchRangeOutline();
+  const source = map.getSource(RANGE_OUTLINE_SOURCE_ID) as GeoJSONSource | undefined;
+  source?.setData(data);
+  return data;
 }
 
 /** Shows/hides the NEXRAD layer. */
