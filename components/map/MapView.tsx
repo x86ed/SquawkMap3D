@@ -242,10 +242,7 @@ export default function MapView() {
     if (next === null) {
       setSelectedAircraftInfo(null);
       routeCacheRef.current.clear();
-      return;
-    }
-
-    if (
+    } else if (
       followSelectedAircraftRef.current &&
       picked?.lat !== undefined &&
       picked?.lon !== undefined &&
@@ -257,10 +254,10 @@ export default function MapView() {
       });
     }
 
-    // Rebuild layers/overlay immediately rather than waiting up to ~1s for
-    // the next scheduled poll — same "don't wait for the next tick"
-    // reasoning as the camera recenter above, for the highlight/overlay's
-    // own snappiness.
+    // Rebuild layers immediately (clearing/showing the glow highlight)
+    // rather than waiting up to ~1s for the next scheduled poll, on both
+    // selection and deselection — same "don't wait for the next tick"
+    // reasoning as the camera recenter above.
     void refreshAircraft();
   };
 
