@@ -544,12 +544,14 @@ export default function MapView() {
       map.remove();
       mapRef.current = null;
     };
-    // Mount-once effect: `handleLocationResolved` is a plain closure
-    // re-created every render, so listing it here would tear the map down
-    // and rebuild it on every state change (theme toggle, etc). It's only
-    // ever called from map event handlers/promises after this effect has
-    // already run, and only reads refs — never stale state — so it's safe
-    // to omit it.
+    // Mount-once effect: `handleLocationResolved`/`startRangeOutlineSweep`
+    // (called directly above to kick off the sweep's rAF loop if visible by
+    // default) are plain closures re-created every render, so listing them
+    // here would tear the map down and rebuild it on every state change
+    // (theme toggle, etc). Both only read refs — never stale state — so
+    // it's safe to omit them; `startRangeOutlineSweep` itself is re-created
+    // per render but its body is otherwise identical every time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleThemeToggle = () => {
