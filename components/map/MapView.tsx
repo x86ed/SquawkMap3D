@@ -877,6 +877,16 @@ export default function MapView() {
     });
   };
 
+  // Toggle + click-to-lock are the same mechanism (design.md Decision 13) —
+  // this handler only flips the flag the click/poll recenter logic above
+  // already reads; it doesn't itself recenter (no surprise camera snap from
+  // toggling alone).
+  const handleFollowSelectedAircraftToggle = () => {
+    const next = !followSelectedAircraft;
+    followSelectedAircraftRef.current = next;
+    setFollowSelectedAircraft(next);
+  };
+
   if (error) {
     return (
       <div className={styles.error}>
@@ -1024,6 +1034,14 @@ export default function MapView() {
         <button
           type="button"
           className={styles.controlButton}
+          data-active={followSelectedAircraft}
+          onClick={handleFollowSelectedAircraftToggle}
+        >
+          Follow selected aircraft
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
           onClick={handleJumpToLocation}
         >
           My location
@@ -1037,6 +1055,7 @@ export default function MapView() {
           {userLocationVisible ? "Hide my location" : "Show my location"}
         </button>
       </div>
+      <AircraftOverlay info={selectedAircraftInfo} onClose={() => handleAircraftClick(null)} />
     </div>
   );
 }
