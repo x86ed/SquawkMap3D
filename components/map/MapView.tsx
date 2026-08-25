@@ -207,6 +207,11 @@ export default function MapView() {
   const [dwdRadolanVisible, setDwdRadolanVisible] = useState(true);
   const [aircraftVisible, setAircraftVisible] = useState(true);
   const [userLocationVisible, setUserLocationVisible] = useState(true);
+  const [selectedAircraftHex, setSelectedAircraftHex] = useState<string | null>(null);
+  const [selectedAircraftInfo, setSelectedAircraftInfo] = useState<SelectedAircraftInfo | null>(
+    null,
+  );
+  const [followSelectedAircraft, setFollowSelectedAircraft] = useState(true);
   const [error, setError] = useState<string | null>(() =>
     getMapTilerKey()
       ? null
