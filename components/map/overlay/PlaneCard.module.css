@@ -1,71 +1,63 @@
+/* Every value in this file was read directly off adsb.win's live computed
+   styles (getComputedStyle against https://adsb.win/'s "Build your hangar"
+   cards) — not approximated. See PlaneCard.tsx's file comment for the
+   five/six-tier mapping and the two adsb.win features intentionally not
+   reproduced (fleet stat counts, XP progress bar). */
+
 .card {
-  --tier-color: #64748b;
   position: relative;
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 18px;
+  padding: 24px;
   border-radius: 24px;
   overflow: hidden;
-  background: linear-gradient(145deg, #10171f, #080b10 62%, #111827);
+  background: linear-gradient(145deg, rgb(16, 23, 32), rgb(8, 11, 16) 62%, rgb(17, 24, 39));
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow:
-    0 10px 15px -3px rgba(2, 6, 23, 0.35),
-    0 4px 6px -4px rgba(2, 6, 23, 0.35);
-  transition:
-    border-color 200ms ease,
-    box-shadow 200ms ease;
+    oklab(0.283 0.0507343 -0.131556 / 0.1) 0px 10px 15px -3px,
+    oklab(0.283 0.0507343 -0.131556 / 0.1) 0px 4px 6px -4px;
 }
 
-/* Escalating border/glow intensity across the five rarity tiers, all
-   derived from the single `--tier-color` this aircraft's tier resolves to
-   (aircraft-rarity capability) — matches adsb.win's hangar cards getting
-   visibly bolder from Alloy through Quantum, without needing a distinct
-   hardcoded palette per tier. */
 .card[data-tier="common"] {
-  border-color: color-mix(in srgb, var(--tier-color) 25%, rgba(255, 255, 255, 0.1));
+  border-color: rgba(63, 63, 70, 0.42);
 }
 
 .card[data-tier="uncommon"] {
-  border-color: color-mix(in srgb, var(--tier-color) 40%, transparent);
-  box-shadow:
-    0 10px 15px -3px rgba(2, 6, 23, 0.35),
-    0 0 18px color-mix(in srgb, var(--tier-color) 14%, transparent);
+  border-color: rgba(255, 255, 255, 0.1);
 }
 
 .card[data-tier="rare"] {
-  border-color: color-mix(in srgb, var(--tier-color) 55%, transparent);
-  box-shadow:
-    0 12px 24px -6px rgba(2, 6, 23, 0.4),
-    0 0 22px color-mix(in srgb, var(--tier-color) 20%, transparent);
+  border-color: rgba(165, 180, 252, 0.55);
 }
 
 .card[data-tier="epic"] {
-  border-color: color-mix(in srgb, var(--tier-color) 70%, transparent);
+  border-color: rgba(251, 146, 60, 0.8);
   box-shadow:
-    0 14px 30px -6px rgba(2, 6, 23, 0.45),
-    0 0 26px color-mix(in srgb, var(--tier-color) 26%, transparent),
-    inset 0 0 30px color-mix(in srgb, var(--tier-color) 10%, transparent);
+    rgba(249, 115, 22, 0.2) 0px 0px 22px 0px,
+    rgba(190, 24, 93, 0.2) 0px 16px 42px 0px,
+    rgba(244, 63, 94, 0.1) 0px 0px 34px 0px inset;
 }
 
 .card[data-tier="legendary"] {
-  border-color: color-mix(in srgb, var(--tier-color) 85%, transparent);
+  border-color: rgba(34, 211, 238, 0.8);
   box-shadow:
-    0 16px 36px -6px rgba(2, 6, 23, 0.5),
-    0 0 34px color-mix(in srgb, var(--tier-color) 34%, transparent),
-    inset 0 0 40px color-mix(in srgb, var(--tier-color) 14%, transparent);
+    rgba(34, 211, 238, 0.25) 0px 0px 26px 0px,
+    rgba(109, 40, 217, 0.25) 0px 18px 50px 0px,
+    rgba(37, 99, 235, 0.12) 0px 0px 44px 0px inset;
 }
 
+/* adsb.win's own corner orb is a fixed cyan-300/30 on every tier, not
+   tier-colored — verified against all six of their live cards. */
 .glowOrb {
   position: absolute;
-  top: -40px;
-  right: -40px;
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
-  background: var(--tier-color);
-  opacity: 0.28;
-  filter: blur(40px);
+  top: -48px;
+  right: -48px;
+  width: 160px;
+  height: 160px;
+  border-radius: 9999px;
+  background: oklab(0.865 -0.113079 -0.0578108 / 0.3);
+  filter: blur(64px);
   pointer-events: none;
 }
 
@@ -80,71 +72,133 @@
 .identity {
   display: flex;
   flex-direction: column;
-  gap: 6px;
   min-width: 0;
 }
 
-.tierBadge {
+.typeBadge {
   align-self: flex-start;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--tier-color);
-  color: #0a0a0f;
-  font-size: 10px;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-family: SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
   font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  line-height: 16px;
+  color: rgb(7, 16, 29);
+}
+
+.card[data-tier="common"] .typeBadge {
+  background: rgb(203, 213, 225);
+}
+
+.card[data-tier="uncommon"] .typeBadge {
+  background: rgb(103, 232, 249);
+}
+
+.card[data-tier="rare"] .typeBadge {
+  background: rgb(147, 197, 253);
+}
+
+.card[data-tier="epic"] .typeBadge {
+  background: rgb(249, 168, 212);
+}
+
+.card[data-tier="legendary"] .typeBadge {
+  background: rgb(253, 230, 138);
 }
 
 .registrationLabel {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  margin-top: 16px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: 0.6px;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: oklch(0.554 0.046 257.417);
 }
 
 .modelName {
-  font-size: 19px;
+  margin-top: 4px;
+  font-size: 20px;
   font-weight: 900;
-  line-height: 1.15;
-  color: #f1f5f9;
+  line-height: 28px;
+  color: rgb(241, 245, 249);
   overflow-wrap: anywhere;
 }
 
 .planeIcon {
   flex-shrink: 0;
   font-size: 26px;
-  color: var(--tier-color);
+  color: rgb(226, 232, 240);
   transform: rotate(45deg);
   opacity: 0.9;
 }
 
-.divider {
-  height: 1px;
-  margin: 16px 0 14px;
-  background: rgba(255, 255, 255, 0.1);
+.statGrid {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid oklab(0.999994 0.0000455678 0.0000200868 / 0.1);
 }
 
-.footer {
-  position: relative;
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.footerLabel {
+.statLabel {
   font-size: 10px;
   font-weight: 900;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
-  color: #64748b;
+  color: oklch(0.554 0.046 257.417);
 }
 
-.operator {
-  font-size: 14px;
-  font-weight: 700;
-  color: #e2e8f0;
+.statValue {
+  margin-top: 4px;
+  font-size: 16px;
+  font-weight: 900;
+  color: rgb(241, 245, 249);
+}
+
+.badgeRow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+}
+
+.rarityBadge {
+  padding: 7px 12px;
+  border-radius: 9999px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1.08px;
+  text-transform: uppercase;
+}
+
+.rarityBadge::before {
+  content: "◆";
+  margin-right: 6.4px;
+}
+
+.card[data-tier="common"] .rarityBadge {
+  background: color(srgb 0.112 0.13898 0.187451);
+  color: rgb(203, 213, 225);
+}
+
+.card[data-tier="uncommon"] .rarityBadge {
+  background: color(srgb 0.0254118 0.166275 0.224157);
+  color: rgb(103, 232, 249);
+}
+
+.card[data-tier="rare"] .rarityBadge {
+  background: color(srgb 0.0527059 0.12298 0.277804);
+  color: rgb(147, 197, 253);
+}
+
+.card[data-tier="epic"] .rarityBadge {
+  background: color(srgb 0.224 0.0665098 0.168627);
+  color: rgb(249, 168, 212);
+}
+
+.card[data-tier="legendary"] .rarityBadge {
+  background: color(srgb 0.222118 0.141804 0.0622745);
+  color: rgb(253, 230, 138);
 }
