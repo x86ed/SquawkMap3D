@@ -21,11 +21,18 @@ import {
   fetchAircraft,
   updateTracks,
   getAllTracks,
+  getTrack,
   clearTracks,
   type Aircraft,
 } from "./aircraft";
 import { buildAircraftIconAtlas, type IconAtlas } from "./aircraftIcons";
 import { buildAircraftLayers } from "./aircraftLayer";
+import { getFlightRoute, type FlightRoute } from "./flightRoute";
+import {
+  buildSelectedAircraftInfo,
+  type SelectedAircraftInfo,
+} from "./overlay/selectedAircraftInfo";
+import { AircraftOverlay } from "./overlay/AircraftOverlay";
 import {
   addCustomLayers,
   AIRPORTS_LAYER_ID,
@@ -76,9 +83,11 @@ import {
 import { getCurrentLocation, type GeoCoords } from "./geolocation";
 import { getFeederLocation } from "./feederLocation";
 import {
+  AIRCRAFT_DESELECT_CLICK_GUARD_MS,
   AIRCRAFT_FEED_REFRESH_INTERVAL_MS,
   AIRSPACE_BOUNDARIES_REFRESH_INTERVAL_MS,
   DEFAULT_VIEW,
+  FOLLOW_SELECTED_AIRCRAFT_EASE_MS,
   INITIAL_BEARING,
   INITIAL_PITCH,
   MAX_PITCH,
@@ -145,6 +154,20 @@ export default function MapView() {
   const styleReadyRef = useRef(false);
   const deckOverlayRef = useRef<MapboxOverlay | null>(null);
   const aircraftIconAtlasRef = useRef<IconAtlas | null>(null);
+
+  // Selection state (design.md Decision 1) — state for render, ref for the
+  // mount-effect's stable closures, same pairing every other piece of this
+  // file's interaction state already uses.
+  const selectedAircraftHexRef = useRef<string | null>(null);
+  // Timestamp guard (design.md Decision 3) distinguishing a real
+  // "click elsewhere" from MapLibre's own unscoped click handler re-firing
+  // for the same pointer event the aircraft IconLayer's own onClick already
+  // handled.
+  const lastAircraftClickAtRef = useRef(0);
+  const followSelectedAircraftRef = useRef(true);
+  // callsign+hex-keyed, cleared on deselect — avoids re-fetching the same
+  // aircraft's route every ~1s poll while it stays selected (tasks.md 6.2).
+  const routeCacheRef = useRef<Map<string, FlightRoute | null>>(new Map());
 
   // Second, dedicated overlay (design.md Decision 4) — kept separate from
   // `deckOverlayRef` above so this layer's ~60fps rAF loop never couples to
