@@ -426,31 +426,45 @@ export function addCustomLayers(
     });
   }
   const rangeOutlineVisibility = (visibility.rangeOutline ?? true) ? "visible" : "none";
+  // `before: AIRPORTS_LAYER_ID` (airports is already added above in this
+  // same function) keeps the range-outline layers below airports at
+  // creation time. That alone isn't sufficient to also keep them above the
+  // user-location range-circle rings (`userLocation.ts`'s
+  // `USER_RINGS_LINE_LAYER_ID`), since those are added later, in a separate
+  // call, and can also race against an async location resolution — see
+  // `moveRangeOutlineBelowAirports` below, which `MapView.tsx` re-asserts
+  // after every place that (re)adds the range-circle rings.
   if (!map.getLayer(RANGE_OUTLINE_FILL_LAYER_ID)) {
-    map.addLayer({
-      id: RANGE_OUTLINE_FILL_LAYER_ID,
-      type: "fill",
-      source: RANGE_OUTLINE_SOURCE_ID,
-      layout: { visibility: rangeOutlineVisibility },
-      paint: { "fill-color": RANGE_OUTLINE_FILL_COLOR, "fill-opacity": 0.3 },
-    });
+    map.addLayer(
+      {
+        id: RANGE_OUTLINE_FILL_LAYER_ID,
+        type: "fill",
+        source: RANGE_OUTLINE_SOURCE_ID,
+        layout: { visibility: rangeOutlineVisibility },
+        paint: { "fill-color": RANGE_OUTLINE_FILL_COLOR, "fill-opacity": 0.3 },
+      },
+      AIRPORTS_LAYER_ID,
+    );
   }
   // Dashed perimeter stroke, additive to the fill above — same source, no
   // separate line-string source needed: a GeoJSON polygon source's `line`
   // layer traces the ring boundary directly. Shares the fill's own
   // `rangeOutline` visibility key (one toggle controls both).
   if (!map.getLayer(RANGE_OUTLINE_LINE_LAYER_ID)) {
-    map.addLayer({
-      id: RANGE_OUTLINE_LINE_LAYER_ID,
-      type: "line",
-      source: RANGE_OUTLINE_SOURCE_ID,
-      layout: { visibility: rangeOutlineVisibility },
-      paint: {
-        "line-color": RANGE_OUTLINE_LINE_COLOR,
-        "line-width": RANGE_OUTLINE_LINE_WIDTH,
-        "line-dasharray": RANGE_OUTLINE_LINE_DASHARRAY,
+    map.addLayer(
+      {
+        id: RANGE_OUTLINE_LINE_LAYER_ID,
+        type: "line",
+        source: RANGE_OUTLINE_SOURCE_ID,
+        layout: { visibility: rangeOutlineVisibility },
+        paint: {
+          "line-color": RANGE_OUTLINE_LINE_COLOR,
+          "line-width": RANGE_OUTLINE_LINE_WIDTH,
+          "line-dasharray": RANGE_OUTLINE_LINE_DASHARRAY,
+        },
       },
-    });
+      AIRPORTS_LAYER_ID,
+    );
   }
 
   if (!map.getSource(NEXRAD_SOURCE_ID)) {
