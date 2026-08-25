@@ -51,6 +51,7 @@ import {
   addUserLocationLayers,
   getUserLocationBounds,
   setUserLocationVisibility,
+  USER_LOCATION_ICON_LAYER_ID,
 } from "./userLocation";
 import {
   addTerminatorLayers,
@@ -282,6 +283,23 @@ export default function MapView() {
     map.on("mouseleave", AIRPORTS_LAYER_ID, () => {
       map.getCanvas().style.cursor = "";
     });
+    map.on("mouseenter", USER_LOCATION_ICON_LAYER_ID, () => {
+      map.getCanvas().style.cursor = "pointer";
+    });
+    map.on("mouseleave", USER_LOCATION_ICON_LAYER_ID, () => {
+      map.getCanvas().style.cursor = "";
+    });
+    map.on("click", USER_LOCATION_ICON_LAYER_ID, () => {
+      // Center on the already-resolved location the icon represents,
+      // rather than re-requesting geolocation like `handleJumpToLocation`
+      // — the icon only renders once a location is known, so there's
+      // always a value here.
+      if (!userLocationRef.current || !mapRef.current) return;
+      mapRef.current.fitBounds(getUserLocationBounds(userLocationRef.current), {
+        padding: 40,
+      });
+    });
+
     map.on("click", AIRPORTS_LAYER_ID, (event) => {
       const feature = event.features?.[0] as MapGeoJSONFeature | undefined;
       if (!feature || feature.geometry.type !== "Point") return;
