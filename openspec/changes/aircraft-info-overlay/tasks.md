@@ -70,11 +70,15 @@
 
 ## 9. RecordPanelHero component
 
+**Already exists** (`components/map/overlay/RecordPanelHero.tsx` + `.module.css`) from the prior revision. Confirmed via grep during this amendment: it contains no `rarity`/`tier`/`RARITY_TIER_COLORS`/`RarityTier` reference at all — nothing in this file needs amending for the 9-tier taxonomy correction. Tasks below are the original (already-satisfied) build tasks, kept for reference/traceability only.
+
 - [ ] 9.1 Add `components/map/overlay/RecordPanelHero.tsx` + `.module.css`: square-corner panel, top-right "AIRFRAME / {hex}" tab, left icon/placeholder block, right identity block (kicker, registration heading, callsign, hex, 2-col spec grid: manufacturer/model/operator+age).
 - [ ] 9.2 Implement aspect-driven reflow via `ResizeObserver` on the panel's own container ref (not a viewport media query): landscape arrangement when measured width ≥ height, portrait otherwise.
-- [ ] 9.3 Render explicit placeholders for unknown spec-grid fields, same discipline as 8.2.
+- [ ] 9.3 Render explicit placeholders for unknown spec-grid fields, same discipline as 8.3.
 
 ## 10. TelemetryMarquee component
+
+**Already exists** (`components/map/overlay/TelemetryMarquee.tsx` + `.module.css`) from the prior revision. Confirmed via grep during this amendment: it contains no `rarity`/`tier`/`RARITY_TIER_COLORS`/`RarityTier` reference at all — nothing in this file needs amending for the 9-tier taxonomy correction. Tasks below are the original (already-satisfied) build tasks, kept for reference/traceability only.
 
 - [ ] 10.1 Add `components/map/overlay/TelemetryMarquee.tsx` + `.module.css`: monospace (`var(--font-geist-mono)`) scrolling ticker of ALT/GS/HDG/V-S(with trend glyph)/SQK/DIST/SEEN pairs, built as a duplicated-content CSS `@keyframes` infinite-scroll (design.md Decision 11 — no new font dependency), fade-masked left/right edges.
 - [ ] 10.2 Pause the scroll animation on `:hover`/`:focus-within` (CSS, no JS needed) per spec.
@@ -97,6 +101,9 @@
 - [ ] 12.6 Manually verify: `RecordPanelHero` reflows between portrait/landscape by resizing the overlay's own container (e.g. narrowing the browser window) independent of overall page aspect, confirming it's driven by `ResizeObserver` on its own element, not a viewport media query alone.
 - [ ] 12.7 Manually verify: `TelemetryMarquee` scrolls continuously, pauses on hover and on keyboard focus, and resumes when the interaction ends.
 - [ ] 12.8 Manually verify: on a narrow viewport, the overlay's four components stack in the specified order (`RecordPanelHero`, `PlaneCard`, `FlightInfoPane`, `TelemetryMarquee`).
-- [ ] 12.9 Manually verify: a known common type (e.g. `B738`) computes a low rarity value/`common` or `uncommon` tier; an aircraft with an unset/unrecognized type designator computes the fixed default value (`15`) and `legendary` tier.
+- [ ] 12.9 Manually verify: a known common type (e.g. `B738`) computes a low rarity value/`standard` or `prime` tier; an aircraft with an unset type designator, and separately an aircraft with an unrecognized type designator, both compute `computeRarityValue === undefined` and tier `unidentified` (not a numeric fallback, and not silently equal to `standard`).
 - [ ] 12.10 Manually verify (once section 3's endpoint is confirmed): an aircraft with a callsign tar1090 has a route for shows real origin/destination in `FlightInfoPane`; an aircraft with no matching route (or before the endpoint is confirmed) shows the "no route data available" empty state, not an error or blank section.
-- [ ] 12.11 Run `npm run test:coverage` and confirm the new `aircraftRarity.test.ts` passes alongside the existing suite.
+- [ ] 12.11 Run `npm run test:coverage` and confirm the amended `aircraftRarity.test.ts` (section 2.7) passes alongside the existing suite.
+- [ ] 12.12 **New in this amendment.** Manually verify `PlaneCard` for at least one aircraft in each of `unidentified`, `standard`, `epic`, `mythic`, and `apex` (the two gradient-override tiers plus the base-defaults case) — confirm the frame's colors/gradient visually match design.md Decision 5's exact values, `unidentified` renders distinctly from `standard` (not identical), and the stat-grid region renders the "Not tracked yet" empty state (since all six stat fields are `undefined` for every aircraft as of this change).
+- [ ] 12.13 Run `npx tsc --noEmit`, `npm run lint`, `npm test` (or `npm run test:coverage`), and `npm run build`, and confirm all four pass cleanly after the section 2/8 amendments — pay particular attention to any other file importing `RarityTier`/`RARITY_TIER_COLORS`/the old 5 tier-name string literals (`"common"`/`"uncommon"`/`"rare"`) that a plain grep for those exact strings might have missed, since a narrowed string-literal type change (`RarityTier`) will surface remaining mismatches as `tsc` errors rather than a silent runtime bug.
+- [ ] 12.14 Run `openspec validate aircraft-info-overlay --strict` and confirm it passes after this amendment's `specs/aircraft-rarity/spec.md` and `specs/aircraft-info-overlay/spec.md` rewrites.
