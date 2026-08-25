@@ -607,6 +607,28 @@ export default function MapView() {
         }
       });
     });
+
+    // Deselect-on-click-elsewhere (design.md Decision 3): unscoped (not
+    // layer-id-scoped), so it fires for every click on the map, including
+    // ones that already hit the aircraft IconLayer's own onClick (deck.gl
+    // overlays the same canvas MapLibre owns) — the timestamp guard below
+    // skips this handler when that just happened, so a genuine aircraft
+    // click doesn't immediately deselect what it just selected.
+    map.on("click", () => {
+      if (!selectedAircraftHexRef.current) return;
+      if (Date.now() - lastAircraftClickAtRef.current < AIRCRAFT_DESELECT_CLICK_GUARD_MS) return;
+      handleAircraftClick(null);
+    });
+
+    // Escape key deselects (design.md Decision 3), same lifecycle as the
+    // other map.on(...) listeners above (removed on unmount below).
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && selectedAircraftHexRef.current) {
+        handleAircraftClick(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+
     resolveUserLocation().then((coords) => {
       handleLocationResolved(coords);
       if (!coords || !mapRef.current) return;
@@ -670,6 +692,7 @@ export default function MapView() {
       clearInterval(rangeOutlineIntervalId);
       clearInterval(aircraftIntervalId);
       clearInterval(rangeOutlineAircraftIntervalId);
+      window.removeEventListener("keydown", handleKeyDown);
       stopRangeOutlineSweep();
       map.remove();
       mapRef.current = null;
