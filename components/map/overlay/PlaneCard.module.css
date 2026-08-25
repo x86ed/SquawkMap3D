@@ -265,35 +265,11 @@
   letter-spacing: 1.08px;
   text-transform: uppercase;
   color: var(--rarity-highlight);
-  /* Fallback for the two tiers (mythic/apex) and unidentified whose exact
-     composited background wasn't captured live — approximate, not verified
-     exact like the six overrides below. */
-  background: color-mix(in srgb, var(--rarity-color) 22%, #0b0f17);
-}
-
-/* Exact composited badge backgrounds, read directly off adsb.win's live
-   `.aircraft-rarity__badge` computed style for these six tiers (its
-   background isn't a simple `--rarity-color` mix reproducible by formula —
-   verified by attempting to solve a linear RGB mix against several base
-   colors and failing to fit; these are the literal captured values). Not
-   yet captured for mythic/apex (falls back to the approximation above). */
-.aircraftRarityFrame[data-tier="standard"] .rarityBadge {
-  background: color(srgb 0.112 0.13898 0.187451);
-}
-.aircraftRarityFrame[data-tier="prime"] .rarityBadge {
-  background: color(srgb 0.0254118 0.166275 0.224157);
-}
-.aircraftRarityFrame[data-tier="remarkable"] .rarityBadge {
-  background: color(srgb 0.0527059 0.12298 0.277804);
-}
-.aircraftRarityFrame[data-tier="exceptional"] .rarityBadge {
-  background: color(srgb 0.134588 0.0843922 0.279686);
-}
-.aircraftRarityFrame[data-tier="epic"] .rarityBadge {
-  background: color(srgb 0.224 0.0665098 0.168627);
-}
-.aircraftRarityFrame[data-tier="legendary"] .rarityBadge {
-  background: color(srgb 0.222118 0.141804 0.0622745);
+  /* Verified against adsb.win's live `.aircraft-rarity__badge` computed
+     background for all of standard/prime/remarkable/exceptional/epic/
+     legendary — matches to 5-6 decimal places, so used uniformly for
+     mythic/apex/unidentified too rather than needing a per-tier literal. */
+  background: color-mix(in srgb, var(--rarity-color) 24%, #060a13);
 }
 
 .rarityBadge::before {
