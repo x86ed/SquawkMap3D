@@ -25,26 +25,45 @@ function sparklinePoints(series: SparklinePoint[]): string {
     .join(" ");
 }
 
-function Sparkline({ label, series, color }: { label: string; series: SparklinePoint[]; color: string }) {
-  if (series.length < 2) {
-    return (
-      <div className={styles.sparklineBlock}>
-        <div className={styles.sparklineLabel}>{label}</div>
-        <div className={styles.noDataState}>Not enough data yet</div>
-      </div>
-    );
-  }
+const SPARKLINE_SERIES: { key: "altitude" | "groundSpeed"; label: string; color: string }[] = [
+  { key: "altitude", label: "Altitude", color: "#06b6d4" },
+  { key: "groundSpeed", label: "Ground speed", color: "#22c55e" },
+];
+
+/** Both series drawn into one shared SVG canvas so altitude and ground
+ * speed overlap on the same plot rather than stacking as separate charts —
+ * each still independently normalized to its own min/max, since the two
+ * are on unrelated scales (feet vs. knots) and only their shapes, not a
+ * shared axis, are meaningful together. */
+function OverlaySparkline({ altitudeSeries, groundSpeedSeries }: { altitudeSeries: SparklinePoint[]; groundSpeedSeries: SparklinePoint[] }) {
+  const seriesByKey = { altitude: altitudeSeries, groundSpeed: groundSpeedSeries };
+  const hasAnyData = SPARKLINE_SERIES.some(({ key }) => seriesByKey[key].length >= 2);
 
   return (
     <div className={styles.sparklineBlock}>
-      <div className={styles.sparklineLabel}>{label}</div>
-      <svg
-        viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
-        className={styles.sparklineSvg}
-        preserveAspectRatio="none"
-      >
-        <polyline points={sparklinePoints(series)} fill="none" stroke={color} strokeWidth={2} />
-      </svg>
+      <div className={styles.sparklineLegend}>
+        {SPARKLINE_SERIES.map(({ key, label, color }) => (
+          <span key={key} className={styles.sparklineLegendItem}>
+            <span className={styles.sparklineSwatch} style={{ backgroundColor: color }} />
+            {label}
+          </span>
+        ))}
+      </div>
+      {hasAnyData ? (
+        <svg
+          viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
+          className={styles.sparklineSvg}
+          preserveAspectRatio="none"
+        >
+          {SPARKLINE_SERIES.map(({ key, color }) => {
+            const series = seriesByKey[key];
+            if (series.length < 2) return null;
+            return <polyline key={key} points={sparklinePoints(series)} fill="none" stroke={color} strokeWidth={2} />;
+          })}
+        </svg>
+      ) : (
+        <div className={styles.noDataState}>Not enough data yet</div>
+      )}
     </div>
   );
 }
@@ -100,8 +119,7 @@ export function FlightInfoPane({
 }) {
   return (
     <div className={styles.pane}>
-      <Sparkline label="Altitude" series={altitudeSeries} color="#06b6d4" />
-      <Sparkline label="Ground speed" series={groundSpeedSeries} color="#22c55e" />
+      <OverlaySparkline altitudeSeries={altitudeSeries} groundSpeedSeries={groundSpeedSeries} />
       <RouteBand route={route} firstSeenThisSessionAt={firstSeenThisSessionAt} />
     </div>
   );
