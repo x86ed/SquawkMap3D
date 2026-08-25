@@ -1,0 +1,62 @@
+.pane {
+  height: 100%;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(63, 63, 70, 0.42);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sparklineBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sparklineLabel {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.sparklineSvg {
+  width: 100%;
+  height: 40px;
+}
+
+.noDataState {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  font-style: italic;
+}
+
+.routeBand {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgba(63, 63, 70, 0.42);
+}
+
+.routeEndpoints {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #f1f5f9;
+}
+
+.routeArrow {
+  color: #64748b;
+}
+
+.routeTimeline {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+}
