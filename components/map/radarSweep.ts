@@ -1,14 +1,7 @@
 import type { Layer } from "@deck.gl/core";
 import { ScatterplotLayer, SolidPolygonLayer, TextLayer } from "@deck.gl/layers";
 import * as turf from "@turf/turf";
-import type {
-  Feature,
-  FeatureCollection,
-  LineString,
-  MultiLineString,
-  MultiPolygon,
-  Polygon,
-} from "geojson";
+import type { Feature, FeatureCollection, MultiLineString, MultiPolygon, Polygon } from "geojson";
 import type { Aircraft } from "./aircraft";
 import { FEET_TO_METERS } from "./aircraftLayer";
 import { METERS_PER_NM } from "./constants";
@@ -129,12 +122,27 @@ function isFlashing(hex: string, now: number): boolean {
   return last !== undefined && now - last < AIRCRAFT_FLASH_DURATION_MS;
 }
 
+/**
+ * Flattens the outline's Polygon/MultiPolygon geometry into a single
+ * MultiLineString (every ring, outer boundaries only matter here) for
+ * `turf.lineIntersect` to ray-cast against. Built directly from the
+ * coordinate arrays (not `turf.polygonToLine`, whose MultiPolygon path
+ * returns a FeatureCollection rather than a single Feature) since
+ * `rangeOutline.ts` already guarantees this exact Polygon/MultiPolygon
+ * shape.
+ */
 function outlineToLines(
   outline: FeatureCollection<Polygon | MultiPolygon>,
-): Feature<LineString | MultiLineString> | null {
+): Feature<MultiLineString> | null {
   const feature = outline.features[0];
   if (!feature) return null;
-  return turf.polygonToLine(feature) as Feature<LineString | MultiLineString>;
+  const { geometry } = feature;
+  const rings: [number, number][][] =
+    geometry.type === "Polygon"
+      ? (geometry.coordinates as [number, number][][])
+      : geometry.coordinates.flatMap((polygon) => polygon as [number, number][][]);
+  if (rings.length === 0) return null;
+  return turf.multiLineString(rings);
 }
 
 /**
@@ -148,7 +156,7 @@ function outlineToLines(
 function raycastOutlineDistanceMeters(
   site: [number, number],
   bearingDeg: number,
-  outlineLines: Feature<LineString | MultiLineString>,
+  outlineLines: Feature<MultiLineString>,
 ): number {
   const far = turf.destination(site, FALLBACK_RAY_RADIUS_METERS, bearingDeg, {
     units: "meters",
@@ -189,7 +197,7 @@ interface WedgeSlice {
 function buildWedgeSlices(
   site: [number, number],
   sweepAngleDeg: number,
-  outlineLines: Feature<LineString | MultiLineString>,
+  outlineLines: Feature<MultiLineString>,
 ): WedgeSlice[] {
   const currentDeg = normalizeDeg(sweepAngleDeg);
   const sliceWidth = WEDGE_TRAIL_WIDTH_DEG / WEDGE_SLICE_COUNT;
