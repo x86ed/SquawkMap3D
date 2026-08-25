@@ -50,7 +50,8 @@ import {
 import {
   addUserLocationLayers,
   getUserLocationBounds,
-  startDishRotation,
+  setUserLocationVisibility,
+  USER_LOCATION_ICON_LAYER_ID,
 } from "./userLocation";
 import {
   addTerminatorLayers,
@@ -58,6 +59,7 @@ import {
   setTerminatorVisibility,
 } from "./terminator";
 import { getCurrentLocation, type GeoCoords } from "./geolocation";
+import { getFeederLocation } from "./feederLocation";
 import {
   AIRCRAFT_FEED_REFRESH_INTERVAL_MS,
   AIRSPACE_BOUNDARIES_REFRESH_INTERVAL_MS,
@@ -86,6 +88,21 @@ import {
 // the bad relative-URL resolution entirely.
 setWorkerUrl("/maplibre-gl-worker.mjs");
 
+/**
+ * Resolves the position to anchor the user-location marker/rings at,
+ * preferring the feeder's own surveyed antenna position (the actual
+ * transmitter location) over the browser's geolocation — a feeder is
+ * stationary, so its receiver.json position is both more accurate and
+ * doesn't depend on the browser granting a geolocation permission prompt.
+ * Falls back to `getCurrentLocation()` when no feeder is configured or its
+ * receiver.json is unreachable.
+ */
+async function resolveUserLocation(): Promise<GeoCoords | null> {
+  const feederLocation = await getFeederLocation();
+  if (feederLocation) return feederLocation;
+  return getCurrentLocation();
+}
+
 export default function MapView() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -105,8 +122,8 @@ export default function MapView() {
   const dwdRadolanVisibleRef = useRef(true);
   const aircraftVisibleRef = useRef(true);
   const userLocationRef = useRef<GeoCoords | null>(null);
+  const userLocationVisibleRef = useRef(true);
   const styleReadyRef = useRef(false);
-  const dishRotationStopRef = useRef<(() => void) | null>(null);
   const deckOverlayRef = useRef<MapboxOverlay | null>(null);
   const aircraftIconAtlasRef = useRef<IconAtlas | null>(null);
 
@@ -125,23 +142,12 @@ export default function MapView() {
   const [noaaRadarVisible, setNoaaRadarVisible] = useState(true);
   const [dwdRadolanVisible, setDwdRadolanVisible] = useState(true);
   const [aircraftVisible, setAircraftVisible] = useState(true);
+  const [userLocationVisible, setUserLocationVisible] = useState(true);
   const [error, setError] = useState<string | null>(() =>
     getMapTilerKey()
       ? null
       : "Map unavailable: NEXT_PUBLIC_MAPTILER_KEY is not set. Add a MapTiler API key to .env.local to load the map.",
   );
-
-  // Stops any in-flight rotation loop before starting a new one — a leaked
-  // `requestAnimationFrame` loop from a previous location/style reload would
-  // otherwise keep calling `setData` forever.
-  const restartDishRotation = (map: MapLibreMap, coords: GeoCoords) => {
-    dishRotationStopRef.current?.();
-    dishRotationStopRef.current = startDishRotation(
-      map,
-      coords,
-      () => styleReadyRef.current,
-    );
-  };
 
   const refreshAircraft = async () => {
     if (!deckOverlayRef.current) return;
@@ -161,9 +167,9 @@ export default function MapView() {
 
   const handleLocationResolved = (coords: GeoCoords | null) => {
     userLocationRef.current = coords;
-    // `getCurrentLocation()` can resolve before the map's "load"/"style.load"
+    // `resolveUserLocation()` can resolve before the map's "load"/"style.load"
     // handler (`setupStyleDependentState`) has run for the first time (e.g. a
-    // fast/cached geolocation result racing initial style load), and
+    // fast feeder/geolocation result racing initial style load), and
     // `addSource`/`addLayer` throw if called before the style is ready.
     // `styleReadyRef` mirrors exactly what that handler has already
     // established as safe (it's the same event `addCustomLayers` relies on);
@@ -172,11 +178,11 @@ export default function MapView() {
     // whether the initial style parse completed, so it can still read false
     // well after the map is otherwise ready to accept new sources.
     // `userLocationRef.current` is already set above, so if the style isn't
-    // ready yet, `setupStyleDependentState` will add the dish/rings itself
+    // ready yet, `setupStyleDependentState` will add the marker/rings itself
     // once "load"/"style.load" fires — no separate retry needed here.
     if (coords && mapRef.current && styleReadyRef.current) {
-      addUserLocationLayers(mapRef.current, coords);
-      restartDishRotation(mapRef.current, coords);
+      addUserLocationLayers(mapRef.current, coords, AIRPORTS_LAYER_ID);
+      setUserLocationVisibility(mapRef.current, userLocationVisibleRef.current);
     }
   };
 
@@ -271,10 +277,8 @@ export default function MapView() {
       void refreshSpecialUseAirspace(map);
       if (airspaceBoundariesVisibleRef.current) void refreshAirspaceBoundaries(map);
       setPilotModeVisibility(map, pilotModeRef.current);
-      addUserLocationLayers(map, userLocationRef.current);
-      if (userLocationRef.current) {
-        restartDishRotation(map, userLocationRef.current);
-      }
+      addUserLocationLayers(map, userLocationRef.current, AIRPORTS_LAYER_ID);
+      setUserLocationVisibility(map, userLocationVisibleRef.current);
     };
 
     map.on("load", setupStyleDependentState);
@@ -295,6 +299,23 @@ export default function MapView() {
     map.on("mouseleave", AIRPORTS_LAYER_ID, () => {
       map.getCanvas().style.cursor = "";
     });
+    map.on("mouseenter", USER_LOCATION_ICON_LAYER_ID, () => {
+      map.getCanvas().style.cursor = "pointer";
+    });
+    map.on("mouseleave", USER_LOCATION_ICON_LAYER_ID, () => {
+      map.getCanvas().style.cursor = "";
+    });
+    map.on("click", USER_LOCATION_ICON_LAYER_ID, () => {
+      // Center on the already-resolved location the icon represents,
+      // rather than re-requesting geolocation like `handleJumpToLocation`
+      // — the icon only renders once a location is known, so there's
+      // always a value here.
+      if (!userLocationRef.current || !mapRef.current) return;
+      mapRef.current.fitBounds(getUserLocationBounds(userLocationRef.current), {
+        padding: 40,
+      });
+    });
+
     map.on("click", AIRPORTS_LAYER_ID, (event) => {
       const feature = event.features?.[0] as MapGeoJSONFeature | undefined;
       if (!feature || feature.geometry.type !== "Point") return;
@@ -323,7 +344,7 @@ export default function MapView() {
         }
       });
     });
-    getCurrentLocation().then((coords) => {
+    resolveUserLocation().then((coords) => {
       handleLocationResolved(coords);
       if (!coords || !mapRef.current) return;
       mapRef.current.fitBounds(getUserLocationBounds(coords), {
@@ -374,18 +395,15 @@ export default function MapView() {
       clearInterval(suaIntervalId);
       clearInterval(airspaceBoundariesIntervalId);
       clearInterval(aircraftIntervalId);
-      dishRotationStopRef.current?.();
-      dishRotationStopRef.current = null;
       map.remove();
       mapRef.current = null;
     };
-    // Mount-once effect: `handleLocationResolved`/`restartDishRotation` are
-    // plain closures re-created every render, so listing them here would
-    // tear the map down and rebuild it on every state change (theme toggle,
-    // etc). They're only ever called from map event handlers/promises after
-    // this effect has already run, and only read refs — never stale state —
-    // so it's safe to omit them.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Mount-once effect: `handleLocationResolved` is a plain closure
+    // re-created every render, so listing it here would tear the map down
+    // and rebuild it on every state change (theme toggle, etc). It's only
+    // ever called from map event handlers/promises after this effect has
+    // already run, and only reads refs — never stale state — so it's safe
+    // to omit it.
   }, []);
 
   const handleThemeToggle = () => {
@@ -523,8 +541,17 @@ export default function MapView() {
     void refreshAircraft();
   };
 
+  const handleUserLocationToggle = () => {
+    const next = !userLocationVisible;
+    userLocationVisibleRef.current = next;
+    setUserLocationVisible(next);
+    if (mapRef.current) {
+      setUserLocationVisibility(mapRef.current, next);
+    }
+  };
+
   const handleJumpToLocation = () => {
-    getCurrentLocation().then((coords) => {
+    resolveUserLocation().then((coords) => {
       handleLocationResolved(coords);
       if (!coords || !mapRef.current) return;
       mapRef.current.fitBounds(getUserLocationBounds(coords), {
@@ -673,6 +700,14 @@ export default function MapView() {
           onClick={handleJumpToLocation}
         >
           My location
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          data-active={userLocationVisible}
+          onClick={handleUserLocationToggle}
+        >
+          {userLocationVisible ? "Hide my location" : "Show my location"}
         </button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
 import type { MapTheme } from "./mapStyles";
+import { setMissingImageResolver } from "./missingImageResolver";
 
 // Inlined from app/atc.svg (viewBox 0 0 66 66) so it can be rasterized to a
 // canvas without a network/fetch round trip — files under app/ aren't
@@ -192,13 +193,14 @@ export function registerAirportIconResolver(
   map: MapLibreMap,
   colors: Record<MapTheme, string>,
 ): void {
-  map.setMissingStyleImageResolver((id) => {
+  setMissingImageResolver(map, "airport-icon", (id) => {
     let theme: MapTheme;
     if (id === airportIconImageId("light")) theme = "light";
     else if (id === airportIconImageId("dark")) theme = "dark";
     else {
-      // Not ours — return nothing so MapLibre falls through to its normal
-      // "styleimagemissing" handling for other missing images.
+      // Not ours — return nothing so the dispatcher tries the next
+      // registered resolver (or falls through to MapLibre's normal
+      // "styleimagemissing" handling if none claim it).
       return undefined;
     }
     // Returned (not fire-and-forget): `ImageManager._getImagesForIds`

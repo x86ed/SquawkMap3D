@@ -1,152 +1,34 @@
 import * as turf from "@turf/turf";
-import type { Feature, FeatureCollection, Polygon } from "geojson";
+import type { Feature, FeatureCollection, Point } from "geojson";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { GeoCoords } from "./geolocation";
 import { METERS_PER_NM, RANGE_RING_RADII_NM } from "./constants";
+import { USER_LOCATION_ICON_ID, registerUserLocationIconResolver } from "./userLocationIcon";
 
-export const USER_DISH_SOURCE_ID = "user-dish";
-export const USER_DISH_LAYER_ID = "user-dish-fill-extrusion";
+export const USER_LOCATION_SOURCE_ID = "user-location";
+export const USER_LOCATION_ICON_LAYER_ID = "user-location-icon";
 
 export const USER_RINGS_SOURCE_ID = "user-rings";
 export const USER_RINGS_LINE_LAYER_ID = "user-rings-line";
 export const USER_RINGS_LABEL_LAYER_ID = "user-rings-label";
 
-// Radar mast: a short octagon pedestal topped by a long, thin rotating
-// "blade" spanning through the pivot — reads as a rotating radar antenna
-// (like a search-radar sweep) rather than a static satellite dish, and pairs
-// naturally with `startDishRotation` below, which spins the blade in place.
-// `fill-extrusion` can't tilt a face to fake a parabolic dish, so a spinning
-// bar is the shape this geometry type can actually deliver on.
-const PEDESTAL_TIER = { radius: 90, base: 0, height: 300 } as const;
-const BLADE_TIER = {
-  halfLengthMeters: 300,
-  widthMeters: 90,
-  base: 300,
-  height: 350,
-} as const;
-
-// Sized well above literal real-world radar-mast dimensions so the marker is
-// actually visible at the zoom level the map lands on after a location
-// resolves — see design.md's "Marker scale vs. ring scale" addendum. A
-// literally-scaled mast is sub-pixel at any zoom wide enough to show even the
-// nearest (50 NM) range ring, so this is a deliberate stylized scale, not a
-// to-scale model.
-
-const DISH_FILL_COLOR = "#e6e6e6";
-const DISH_BLADE_FILL_COLOR = "#00b8db";
-const DISH_FILL_OPACITY = 0.9;
 const RING_LINE_COLOR = "#00b8db";
 const RING_LINE_WIDTH = 1.5;
 
-const DISH_ROTATION_DEG_PER_SEC = 60;
-const DISH_ROTATION_UPDATE_INTERVAL_MS = 80;
-
-function buildDishPedestal(center: [number, number]): Feature {
-  const polygon = turf.circle(center, PEDESTAL_TIER.radius, {
-    steps: 8,
-    units: "meters",
-  });
-  polygon.properties = {
-    part: "pedestal",
-    base: PEDESTAL_TIER.base,
-    height: PEDESTAL_TIER.height,
-  };
-  return polygon;
-}
-
-/** Blade at rotation angle 0: a stadium shape spanning through `center`. */
-function buildDishBlade(center: [number, number]): Feature<Polygon> {
-  const west = turf.destination(center, BLADE_TIER.halfLengthMeters, -90, {
-    units: "meters",
-  });
-  const east = turf.destination(center, BLADE_TIER.halfLengthMeters, 90, {
-    units: "meters",
-  });
-  const spine = turf.lineString([
-    west.geometry.coordinates,
-    east.geometry.coordinates,
-  ]);
-  const blade = turf.buffer(spine, BLADE_TIER.widthMeters / 2, {
-    units: "meters",
-  }) as Feature<Polygon>;
-  blade.properties = {
-    part: "blade",
-    base: BLADE_TIER.base,
-    height: BLADE_TIER.height,
-  };
-  return blade;
+function buildUserLocationPoint(center: [number, number]): Feature<Point> {
+  return turf.point(center);
 }
 
 /**
- * Starts a continuous rotation animation of the dish's blade around `coords`,
- * repainting the dish source in place. Returns a stop function; callers must
- * call it before starting another rotation (e.g. on re-jump or unmount) —
- * a leaked `requestAnimationFrame` loop keeps calling `setData` forever.
- *
- * `isStyleReady` gates every `setData` call: `source.setData()` schedules a
- * MapLibre repaint, and MapLibre's internal terrain-depth pre-pass reads
- * `this.style.projection.shaderPreludeCode`, which is transiently `undefined`
- * for a frame or two during `map.setStyle()` (a theme swap) — a repaint
- * landing in that window throws deep inside MapLibre's own render loop
- * (uncatchable from here). This animation forces far more repaints than the
- * app otherwise would, which made that narrow, pre-existing MapLibre race
- * far more likely to hit. Pass the same `styleReadyRef.current` check the
- * rest of `MapView.tsx` already uses to know when a swap is in flight.
- */
-export function startDishRotation(
-  map: MapLibreMap,
-  coords: GeoCoords,
-  isStyleReady: () => boolean,
-): () => void {
-  const pivot: [number, number] = [coords.longitude, coords.latitude];
-  const pedestal = buildDishPedestal(pivot);
-  let blade = buildDishBlade(pivot);
-  let lastUpdateTime: number | null = null;
-  let stopped = false;
-  let rafId: number;
-
-  const tick = (time: number) => {
-    if (stopped) return;
-    if (lastUpdateTime === null) {
-      lastUpdateTime = time;
-    } else if (time - lastUpdateTime >= DISH_ROTATION_UPDATE_INTERVAL_MS) {
-      const deltaDeg =
-        (DISH_ROTATION_DEG_PER_SEC * (time - lastUpdateTime)) / 1000;
-      blade = turf.transformRotate(blade, deltaDeg, {
-        pivot,
-      }) as Feature<Polygon>;
-      lastUpdateTime = time;
-      if (isStyleReady()) {
-        const source = map.getSource(USER_DISH_SOURCE_ID) as
-          | GeoJSONSource
-          | undefined;
-        source?.setData(turf.featureCollection([pedestal, blade]));
-      }
-    }
-    rafId = requestAnimationFrame(tick);
-  };
-  rafId = requestAnimationFrame(tick);
-
-  return () => {
-    stopped = true;
-    cancelAnimationFrame(rafId);
-  };
-}
-
-/**
- * Pure geometry builder: computes the dish (pedestal + blade at rotation
- * angle 0) and range rings/labels around `coords`. No map dependency, no
- * side effects.
+ * Pure geometry builder: computes the user-location point and range
+ * rings/labels around `coords`. No map dependency, no side effects.
  */
 export function buildUserLocationFeatures(
   coords: GeoCoords,
-): { dish: FeatureCollection; rings: FeatureCollection } {
+): { marker: FeatureCollection; rings: FeatureCollection } {
   const center: [number, number] = [coords.longitude, coords.latitude];
 
-  const dishFeatures: Feature[] = [
-    buildDishPedestal(center),
-    buildDishBlade(center),
-  ];
+  const markerFeatures: Feature[] = [buildUserLocationPoint(center)];
 
   const ringFeatures: Feature[] = RANGE_RING_RADII_NM.flatMap((radiusNM) => {
     const ring = turf.circle(center, radiusNM * METERS_PER_NM, {
@@ -165,7 +47,7 @@ export function buildUserLocationFeatures(
   });
 
   return {
-    dish: turf.featureCollection(dishFeatures),
+    marker: turf.featureCollection(markerFeatures),
     rings: turf.featureCollection(ringFeatures),
   };
 }
@@ -195,30 +77,42 @@ export function getUserLocationBounds(
 }
 
 /**
- * Idempotently adds (or updates) the dish and range-ring sources/layers,
- * mirroring `addCustomLayers`'s idempotency so it can be re-invoked after
- * `style.load` (theme swap) and on repeated location resolution. No-ops if
- * `coords` is `null` (location never resolved).
+ * Idempotently adds (or updates) the user-location icon and range-ring
+ * sources/layers, mirroring `addCustomLayers`'s idempotency so it can be
+ * re-invoked after `style.load` (theme swap) and on repeated location
+ * resolution. No-ops if `coords` is `null` (location never resolved).
+ * Also (re-)registers the icon's `missingStyleImageResolver` so the symbol
+ * layer's icon resolves after a theme swap re-requests it.
  *
  * The rings source holds both LineString (ring outlines) and Point (labels)
  * features in one FeatureCollection; the two layers filter by geometry type
  * rather than splitting into two sources, per design.md decision 4.
+ *
+ * `beforeLayerId`, when given and present in the style, inserts all three
+ * layers directly below it (MapLibre draws layers in insertion order, later
+ * = on top) — used to keep the airports layer drawing above the user
+ * location marker/rings rather than getting buried under it.
  */
 export function addUserLocationLayers(
   map: MapLibreMap,
   coords: GeoCoords | null,
+  beforeLayerId?: string,
 ): void {
   if (!coords) return;
 
-  const { dish, rings } = buildUserLocationFeatures(coords);
+  const before = beforeLayerId && map.getLayer(beforeLayerId) ? beforeLayerId : undefined;
 
-  const dishSource = map.getSource(USER_DISH_SOURCE_ID) as
+  registerUserLocationIconResolver(map, RING_LINE_COLOR);
+
+  const { marker, rings } = buildUserLocationFeatures(coords);
+
+  const markerSource = map.getSource(USER_LOCATION_SOURCE_ID) as
     | GeoJSONSource
     | undefined;
-  if (!dishSource) {
-    map.addSource(USER_DISH_SOURCE_ID, { type: "geojson", data: dish });
+  if (!markerSource) {
+    map.addSource(USER_LOCATION_SOURCE_ID, { type: "geojson", data: marker });
   } else {
-    dishSource.setData(dish);
+    markerSource.setData(marker);
   }
 
   const ringsSource = map.getSource(USER_RINGS_SOURCE_ID) as
@@ -230,55 +124,76 @@ export function addUserLocationLayers(
     ringsSource.setData(rings);
   }
 
-  if (!map.getLayer(USER_DISH_LAYER_ID)) {
-    map.addLayer({
-      id: USER_DISH_LAYER_ID,
-      type: "fill-extrusion",
-      source: USER_DISH_SOURCE_ID,
-      paint: {
-        "fill-extrusion-base": ["get", "base"],
-        "fill-extrusion-height": ["get", "height"],
-        "fill-extrusion-color": [
-          "match",
-          ["get", "part"],
-          "blade",
-          DISH_BLADE_FILL_COLOR,
-          DISH_FILL_COLOR,
-        ],
-        "fill-extrusion-opacity": DISH_FILL_OPACITY,
+  if (!map.getLayer(USER_LOCATION_ICON_LAYER_ID)) {
+    map.addLayer(
+      {
+        id: USER_LOCATION_ICON_LAYER_ID,
+        type: "symbol",
+        source: USER_LOCATION_SOURCE_ID,
+        layout: {
+          "icon-image": USER_LOCATION_ICON_ID,
+          "icon-allow-overlap": true,
+          "icon-anchor": "center",
+        },
       },
-    });
+      before,
+    );
   }
 
   if (!map.getLayer(USER_RINGS_LINE_LAYER_ID)) {
-    map.addLayer({
-      id: USER_RINGS_LINE_LAYER_ID,
-      type: "line",
-      source: USER_RINGS_SOURCE_ID,
-      filter: ["==", ["geometry-type"], "LineString"],
-      paint: {
-        "line-color": RING_LINE_COLOR,
-        "line-width": RING_LINE_WIDTH,
+    map.addLayer(
+      {
+        id: USER_RINGS_LINE_LAYER_ID,
+        type: "line",
+        source: USER_RINGS_SOURCE_ID,
+        filter: ["==", ["geometry-type"], "LineString"],
+        paint: {
+          "line-color": RING_LINE_COLOR,
+          "line-width": RING_LINE_WIDTH,
+        },
       },
-    });
+      before,
+    );
   }
 
   if (!map.getLayer(USER_RINGS_LABEL_LAYER_ID)) {
-    map.addLayer({
-      id: USER_RINGS_LABEL_LAYER_ID,
-      type: "symbol",
-      source: USER_RINGS_SOURCE_ID,
-      filter: ["==", ["geometry-type"], "Point"],
-      layout: {
-        "text-field": ["get", "label"],
-        "text-size": 12,
-        "text-anchor": "bottom",
+    map.addLayer(
+      {
+        id: USER_RINGS_LABEL_LAYER_ID,
+        type: "symbol",
+        source: USER_RINGS_SOURCE_ID,
+        filter: ["==", ["geometry-type"], "Point"],
+        layout: {
+          "text-field": ["get", "label"],
+          "text-size": 12,
+          "text-anchor": "bottom",
+        },
+        paint: {
+          "text-color": RING_LINE_COLOR,
+          "text-halo-color": "#ffffff",
+          "text-halo-width": 1.5,
+        },
       },
-      paint: {
-        "text-color": RING_LINE_COLOR,
-        "text-halo-color": "#ffffff",
-        "text-halo-width": 1.5,
-      },
-    });
+      before,
+    );
+  }
+}
+
+/**
+ * Shows/hides the user-location icon and range rings (+ labels) together as
+ * one combined layer, matching the acceptance criteria's single toggle for
+ * "the rings plus the user icon". Independent of pilot mode, same as
+ * `setMilitaryBasesVisibility` and friends in `layers.ts`.
+ */
+export function setUserLocationVisibility(map: MapLibreMap, visible: boolean): void {
+  const visibility = visible ? "visible" : "none";
+  if (map.getLayer(USER_LOCATION_ICON_LAYER_ID)) {
+    map.setLayoutProperty(USER_LOCATION_ICON_LAYER_ID, "visibility", visibility);
+  }
+  if (map.getLayer(USER_RINGS_LINE_LAYER_ID)) {
+    map.setLayoutProperty(USER_RINGS_LINE_LAYER_ID, "visibility", visibility);
+  }
+  if (map.getLayer(USER_RINGS_LABEL_LAYER_ID)) {
+    map.setLayoutProperty(USER_RINGS_LABEL_LAYER_ID, "visibility", visibility);
   }
 }
