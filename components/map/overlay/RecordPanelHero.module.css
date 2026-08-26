@@ -1,12 +1,12 @@
 .panel {
   position: relative;
   height: 100%;
-  padding: 16px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(63, 63, 70, 0.42);
   /* Deliberately square corners — distinct from PlaneCard's rounded sticker
    * look. */
   border-radius: 0;
+  overflow: hidden;
 }
 
 .tab {
@@ -26,33 +26,43 @@
 
 .body {
   display: flex;
-  gap: 16px;
-  align-items: flex-start;
+  height: 100%;
 }
 
-/* Landscape (measured width >= height, the default): icon block beside the
- * identity block. Portrait: stacked. Driven entirely by the `data-orientation`
- * attribute this component sets from its own ResizeObserver measurement. */
+/* Landscape (measured width >= height, the default): the image bleeds to
+ * the panel's top/left/bottom edges and takes ~60% of the width, identity
+ * block fills the rest. Portrait: stacked, image on top at a fixed share of
+ * the height instead of the width. Driven entirely by the
+ * `data-orientation` attribute this component sets from its own
+ * ResizeObserver measurement — not a viewport media query. */
+.iconBlock {
+  flex: 0 0 60%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 64px;
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.04);
+  border-right: 1px solid rgba(63, 63, 70, 0.42);
+}
+
 .panel[data-orientation="portrait"] .body {
   flex-direction: column;
 }
 
-.iconBlock {
-  flex-shrink: 0;
-  width: 56px;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28px;
-  color: #64748b;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(63, 63, 70, 0.42);
+.panel[data-orientation="portrait"] .iconBlock {
+  flex: 0 0 40%;
+  border-right: none;
+  border-bottom: 1px solid rgba(63, 63, 70, 0.42);
 }
 
 .identity {
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  padding: 16px 20px;
+  overflow-y: auto;
 }
 
 .kicker {
