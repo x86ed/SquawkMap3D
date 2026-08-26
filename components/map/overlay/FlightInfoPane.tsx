@@ -26,13 +26,25 @@ const SPARKLINE_SERIES: {
   key: "altitude" | "groundSpeed";
   label: string;
   color: string;
-  domain: [number, number];
+  /** Domain max when the series hasn't exceeded it — the axis doesn't
+   * grow until the aircraft actually flies past this. */
+  defaultMax: number;
+  /** Once the series' own peak exceeds `defaultMax`, the domain max grows
+   * to peak + this padding, so the line never touches the very top. */
+  growthPadding: number;
   unit: string;
   tickCount: number;
 }[] = [
-  { key: "altitude", label: "Altitude", color: "#06b6d4", domain: [0, 100000], unit: "ft", tickCount: 5 },
-  { key: "groundSpeed", label: "Ground speed", color: "#22c55e", domain: [0, 1000], unit: "kt", tickCount: 5 },
+  { key: "altitude", label: "Altitude", color: "#06b6d4", defaultMax: 40000, growthPadding: 1000, unit: "ft", tickCount: 5 },
+  { key: "groundSpeed", label: "Ground speed", color: "#22c55e", defaultMax: 600, growthPadding: 100, unit: "kt", tickCount: 5 },
 ];
+
+/** `[0, defaultMax]` unless the series' own peak value has grown past
+ * `defaultMax`, in which case the domain grows to `peak + growthPadding`. */
+function computeDomain(series: SparklinePoint[], defaultMax: number, growthPadding: number): [number, number] {
+  const seriesMax = series.length === 0 ? 0 : Math.max(...series.map((p) => p.value));
+  return [0, Math.max(defaultMax, seriesMax + growthPadding)];
+}
 
 /** Evenly spaced tick values from the domain max down to its min (top to
  * bottom, matching the plot's y-axis direction) — e.g. [100000, 75000,
@@ -43,13 +55,19 @@ function axisTicks([domainMin, domainMax]: [number, number], tickCount: number):
 }
 
 /** Both series drawn into one shared SVG canvas, overlapping rather than
- * stacking as separate charts, each plotted against its own fixed,
- * labeled y-axis (altitude 0–100,000 ft, ground speed 0–1000 kt) — a
- * shared canvas but never a shared scale, since the two are on unrelated
- * units. Each axis's tick labels are color-coded to match its line. */
+ * stacking as separate charts, each plotted against its own labeled y-axis
+ * — a shared canvas but never a shared scale, since the two are on
+ * unrelated units. Each axis's domain defaults to a fixed max (altitude
+ * 40,000 ft, ground speed 600 kt) and grows dynamically once the aircraft's
+ * own observed peak exceeds it (to peak + 1,000 ft / peak + 100 kt), so the
+ * scale only stretches when the aircraft actually demands it. Each axis's
+ * tick labels are color-coded to match its line. */
 function OverlaySparkline({ altitudeSeries, groundSpeedSeries }: { altitudeSeries: SparklinePoint[]; groundSpeedSeries: SparklinePoint[] }) {
   const seriesByKey = { altitude: altitudeSeries, groundSpeed: groundSpeedSeries };
   const hasAnyData = SPARKLINE_SERIES.some(({ key }) => seriesByKey[key].length >= 2);
+  const domains = SPARKLINE_SERIES.map(({ key, defaultMax, growthPadding }) =>
+    computeDomain(seriesByKey[key], defaultMax, growthPadding),
+  );
 
   return (
     <div className={styles.sparklineBlock}>
@@ -64,25 +82,26 @@ function OverlaySparkline({ altitudeSeries, groundSpeedSeries }: { altitudeSerie
       {hasAnyData ? (
         <div className={styles.sparklineRow}>
           <div className={styles.axisColumn} style={{ color: SPARKLINE_SERIES[0].color }}>
-            {axisTicks(SPARKLINE_SERIES[0].domain, SPARKLINE_SERIES[0].tickCount).map((tick) => (
-              <span key={tick}>{tick >= 1000 ? `${tick / 1000}k` : tick}</span>
-            ))}
+            {axisTicks(domains[0], SPARKLINE_SERIES[0].tickCount).map((tick) => {
+              const rounded = Math.round(tick);
+              return <span key={tick}>{rounded >= 1000 ? `${(rounded / 1000).toFixed(1)}k` : rounded}</span>;
+            })}
           </div>
           <svg
             viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
             className={styles.sparklineSvg}
             preserveAspectRatio="none"
           >
-            {SPARKLINE_SERIES.map(({ key, color, domain }) => {
+            {SPARKLINE_SERIES.map(({ key, color }, i) => {
               const series = seriesByKey[key];
               if (series.length < 2) return null;
-              return <polyline key={key} points={sparklinePoints(series, domain)} fill="none" stroke={color} strokeWidth={2} />;
+              return <polyline key={key} points={sparklinePoints(series, domains[i])} fill="none" stroke={color} strokeWidth={2} />;
             })}
           </svg>
           <div className={styles.axisColumn} style={{ color: SPARKLINE_SERIES[1].color }}>
-            {axisTicks(SPARKLINE_SERIES[1].domain, SPARKLINE_SERIES[1].tickCount).map((tick) => (
+            {axisTicks(domains[1], SPARKLINE_SERIES[1].tickCount).map((tick) => (
               <span key={tick}>
-                {tick} {SPARKLINE_SERIES[1].unit}
+                {Math.round(tick)} {SPARKLINE_SERIES[1].unit}
               </span>
             ))}
           </div>
