@@ -145,11 +145,15 @@
   color: oklch(0.554 0.046 257.417);
 }
 
+/* Grows with the card cell's own measured height (`container-type: size` on
+   .card in AircraftOverlay.module.css) instead of a fixed px value, so the
+   card's headline model name gets visibly larger when the drawer gives the
+   card more room — not just more surrounding whitespace. */
 .modelName {
   margin-top: 4px;
-  font-size: 20px;
+  font-size: clamp(20px, 9cqh, 32px);
   font-weight: 900;
-  line-height: 28px;
+  line-height: 1.2;
   color: rgb(241, 245, 249);
   overflow-wrap: anywhere;
 }
@@ -166,10 +170,13 @@
    rather than the near-invisible hairline the files' own original
    mm-scaled stroke width would produce at this size. The `drop-shadow`
    glow mirrors adsb.win's own aircraft-icon treatment. */
+/* Same container-height-driven growth as .modelName — the type silhouette
+   is this card's "graph"-equivalent visual, so it scales with the cell
+   rather than sitting fixed at 48px while headroom opens up around it. */
 .shapeIcon {
   flex-shrink: 0;
-  width: 48px;
-  height: 48px;
+  width: clamp(48px, 20cqh, 88px);
+  height: clamp(48px, 20cqh, 88px);
   color: var(--rarity-color);
   filter: drop-shadow(0 0 3px var(--rarity-glow));
 }

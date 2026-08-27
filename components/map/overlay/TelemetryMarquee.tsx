@@ -24,20 +24,30 @@ interface TelemetryMarqueeProps {
   secondsSinceLastMessage?: number;
 }
 
-function buildItems(props: TelemetryMarqueeProps): string[] {
-  const items: string[] = [];
-  if (props.altitude !== undefined) items.push(`ALT ${Math.round(props.altitude)} FT`);
-  if (props.groundSpeed !== undefined) items.push(`GS ${Math.round(props.groundSpeed)} KT`);
-  if (props.track !== undefined) items.push(`HDG ${Math.round(props.track)}°`);
+interface TelemetryPair {
+  k: string;
+  v: string;
+}
+
+/** Structured `k`/`v` pairs, each rendered as its own dimmed-key/bright-value
+ * span (rather than one flat joined string) so the key reads as a label and
+ * the value as data — missing values are simply omitted, never fabricated
+ * (aircraft-info-overlay spec's "Missing telemetry value omitted, not
+ * fabricated" scenario). */
+function buildPairs(props: TelemetryMarqueeProps): TelemetryPair[] {
+  const pairs: TelemetryPair[] = [];
+  if (props.altitude !== undefined) pairs.push({ k: "ALT", v: `${Math.round(props.altitude)} FT` });
+  if (props.groundSpeed !== undefined) pairs.push({ k: "GS", v: `${Math.round(props.groundSpeed)} KT` });
+  if (props.track !== undefined) pairs.push({ k: "HDG", v: `${Math.round(props.track)}°` });
   if (props.verticalRate !== undefined) {
-    items.push(`V/S ${verticalRateTrend(props.verticalRate)} ${Math.round(props.verticalRate)} FPM`);
+    pairs.push({ k: "V/S", v: `${verticalRateTrend(props.verticalRate)} ${Math.round(props.verticalRate)} FPM` });
   }
-  if (props.squawk) items.push(`SQK ${props.squawk}`);
-  if (props.distanceNm !== undefined) items.push(`DIST ${props.distanceNm.toFixed(1)} NM`);
+  if (props.squawk) pairs.push({ k: "SQK", v: props.squawk });
+  if (props.distanceNm !== undefined) pairs.push({ k: "DIST", v: `${props.distanceNm.toFixed(1)} NM` });
   if (props.secondsSinceLastMessage !== undefined) {
-    items.push(`SEEN ${Math.round(props.secondsSinceLastMessage)}s`);
+    pairs.push({ k: "SEEN", v: `${Math.round(props.secondsSinceLastMessage)}s` });
   }
-  return items;
+  return pairs;
 }
 
 /**
@@ -49,21 +59,26 @@ function buildItems(props: TelemetryMarqueeProps): string[] {
  * via CSS `:hover`/`:focus-within`, no JS needed.
  */
 export function TelemetryMarquee(props: TelemetryMarqueeProps) {
-  const items = buildItems(props);
+  const pairs = buildPairs(props);
 
-  if (items.length === 0) {
+  if (pairs.length === 0) {
     return <div className={styles.marquee}>No telemetry available</div>;
   }
-
-  const text = items.join("   •   ");
 
   return (
     <div className={styles.marquee} tabIndex={0}>
       <div className={styles.track}>
-        <span className={styles.segment}>{text}</span>
-        <span className={styles.segment} aria-hidden="true">
-          {text}
-        </span>
+        {[0, 1].map((copy) => (
+          <div className={styles.segment} key={copy} aria-hidden={copy === 1}>
+            {pairs.map((pair, i) => (
+              <span className={styles.pair} key={`${copy}-${i}`}>
+                <span className={styles.k}>{pair.k}</span>
+                <span className={styles.v}>{pair.v}</span>
+                <span className={styles.dot}>·</span>
+              </span>
+            ))}
+          </div>
+        ))}
       </div>
     </div>
   );

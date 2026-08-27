@@ -89,12 +89,22 @@
 
 /* card/hero/flightInfo float above the marquee's bleed (z-index:2 vs. the
    marquee's z-index:1) so it can tuck up underneath their bottom edge. */
+/* container-type: size on card/hero/flightInfo (not marquee, which stays a
+   fixed 44px strip regardless of drawer height) lets each panel's own CSS
+   size its headline text/icons off `cqh` — the cell's actual rendered
+   height — rather than a fixed px value. Because the marquee never claims
+   more than its fixed row, any extra height the drawer has to give (a
+   taller viewport, or the single-column mobile layout's `1fr` flightInfo
+   row) flows entirely into this row, and these three panels now visibly
+   grow into it instead of just gaining dead padding. */
 .hero {
   grid-area: hero;
   position: relative;
   z-index: 2;
   min-width: 0;
   min-height: 0;
+  container-type: size;
+  container-name: overlay-hero;
   /* Sits a touch higher than its row-mates — a deliberate layered-panel
      offset, not a misalignment. */
   margin-top: -6px;
@@ -106,6 +116,8 @@
   z-index: 2;
   min-width: 0;
   min-height: 0;
+  container-type: size;
+  container-name: overlay-card;
 }
 
 .flightInfo {
@@ -114,6 +126,8 @@
   z-index: 2;
   min-width: 0;
   min-height: 0;
+  container-type: size;
+  container-name: overlay-flight-info;
 }
 
 /* Bleeds past the drawer's own side padding and tucks up underneath row

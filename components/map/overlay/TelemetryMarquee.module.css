@@ -22,9 +22,9 @@
 }
 
 .track {
-  display: flex;
+  display: inline-flex;
   width: max-content;
-  animation: scroll 22s linear infinite;
+  animation: scroll 26s linear infinite;
 }
 
 .marquee:hover .track,
@@ -33,8 +33,34 @@
 }
 
 .segment {
-  padding-right: 40px;
+  display: inline-flex;
+  align-items: center;
   white-space: nowrap;
+}
+
+/* Dimmed key label / bright value, dot-separated — a structured pair
+ * instead of one flat joined string, so the key reads as a label and the
+ * value as the actual data point. */
+.pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+}
+
+.k {
+  color: #64748b;
+  letter-spacing: 0.06em;
+}
+
+.v {
+  color: #f1f5f9;
+  font-weight: 700;
+}
+
+.dot {
+  color: #06b6d4;
+  margin-left: 14px;
 }
 
 @keyframes scroll {

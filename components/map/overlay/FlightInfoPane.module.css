@@ -22,11 +22,16 @@
   gap: 12px;
 }
 
+/* Grows with the flightInfo cell's own measured height (`container-type:
+   size` in AircraftOverlay.module.css) — the plot itself already fills the
+   cell via flex:1/height:100% on .sparklineSvg, so it's the labels around
+   it that need this to read as proportionally bigger, not just spread over
+   a taller box. */
 .sparklineLegendItem {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 10px;
+  font-size: clamp(10px, 3.4cqh, 14px);
   font-weight: 900;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -53,7 +58,7 @@
   flex-direction: column;
   justify-content: space-between;
   flex-shrink: 0;
-  font-size: 9px;
+  font-size: clamp(9px, 3cqh, 12px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
