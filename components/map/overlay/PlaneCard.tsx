@@ -10,6 +10,9 @@ export interface PlaneCardProps {
    * `aircraftShapes.ts`); falls back to that set's own "Unidentified"
    * shape when unset or unrecognized. */
   typeDesignator?: string;
+  /** ADS-B emitter category — passed straight through to `getAircraftShape`
+   * as its coarse fallback when `typeDesignator` isn't available. */
+  category?: string;
   manufacturerModel?: string;
   rarityTier: RarityTier;
   /**
@@ -71,6 +74,7 @@ function capitalize(tier: RarityTier): string {
 export function PlaneCard({
   registration,
   typeDesignator,
+  category,
   manufacturerModel,
   rarityTier,
   uniqueRegistrationsCount,
@@ -89,7 +93,7 @@ export function PlaneCard({
     xp !== undefined &&
     xpProgressToNextTier !== undefined;
 
-  const shape = getAircraftShape(typeDesignator);
+  const shape = getAircraftShape(typeDesignator, category);
   const nextTier = nextRarityTier(rarityTier);
 
   return (

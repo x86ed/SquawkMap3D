@@ -87,7 +87,7 @@ function normalize(raw: NonNullable<RawAircraftJson["aircraft"]>[number]): Aircr
     verticalRate: raw.baro_rate,
     squawk: raw.squawk,
     category: raw.category,
-    typeDesignator: raw.t,
+    typeDesignator: raw.t?.trim() || undefined,
     registration: raw.r?.trim() || undefined,
     manufacturerModel: raw.desc?.trim() || undefined,
     operator: raw.ownOp?.trim() || undefined,

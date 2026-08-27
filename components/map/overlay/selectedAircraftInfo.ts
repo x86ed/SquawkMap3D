@@ -26,6 +26,13 @@ export interface SelectedAircraftInfo {
    * (`aircraftShapes.ts`); `undefined` when the feeder hasn't loaded
    * tar1090-db. */
   typeDesignator?: string;
+  /** ADS-B emitter category ("A0"-"D7") — always sent in the aircraft's own
+   * ADS-B transmissions, unlike `typeDesignator` (which needs the feeder to
+   * have tar1090-db loaded). Used by `aircraftShapes.ts` as a coarse
+   * silhouette fallback (e.g. "generic rotorcraft") when the exact type
+   * designator isn't available, rather than always falling back to the
+   * bare "Unidentified" shape. */
+  category?: string;
   manufacturerModel?: string;
   operator?: string;
   year?: string;
@@ -93,6 +100,7 @@ export function buildSelectedAircraftInfo(
     callsign: aircraft.callsign,
     registration: aircraft.registration,
     typeDesignator: aircraft.typeDesignator,
+    category: aircraft.category,
     manufacturerModel: aircraft.manufacturerModel,
     operator: aircraft.operator,
     year: aircraft.year,
