@@ -155,24 +155,28 @@
 }
 
 /* Top-view aircraft silhouette (vendored from RexKramer1/AircraftShapesSVG,
-   GPL-3.0 — see public/aircraft-shapes/LICENSE), tinted via CSS mask rather
-   than baking a color into the SVG file itself: every vendored shape is a
-   plain white silhouette, and `mask-image` lets one unmodified file render
-   in any tier's accent color by painting `background-color` through it. */
+   GPL-3.0 — see public/aircraft-shapes/LICENSE), rendered as an inlined SVG
+   (not `<img>`) so it can be colored with a plain CSS `color`, exactly
+   matching the tier's accent — every vendored file's paths were rewritten
+   to `stroke:currentColor`/`fill:currentColor` at generation time (see
+   scripts/generate-aircraft-shapes-manifest.mjs). Each source drawing is a
+   thin outline stroke, not a filled silhouette, so `vector-effect:
+   non-scaling-stroke` plus a boosted `stroke-width` keep it visible (a
+   crisp constant pixel width regardless of the icon's own render size)
+   rather than the near-invisible hairline the files' own original
+   mm-scaled stroke width would produce at this size. The `drop-shadow`
+   glow mirrors adsb.win's own aircraft-icon treatment. */
 .shapeIcon {
   flex-shrink: 0;
   width: 48px;
   height: 48px;
-  background-color: var(--rarity-color);
-  -webkit-mask-image: var(--shape-url);
-  mask-image: var(--shape-url);
-  -webkit-mask-size: contain;
-  mask-size: contain;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  mask-position: center;
-  opacity: 0.9;
+  color: var(--rarity-color);
+  filter: drop-shadow(0 0 3px var(--rarity-glow));
+}
+
+.shapeIcon path {
+  vector-effect: non-scaling-stroke;
+  stroke-width: 2.5px !important;
 }
 
 .identityStats {

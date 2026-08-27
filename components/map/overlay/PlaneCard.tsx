@@ -1,7 +1,6 @@
-import type { CSSProperties } from "react";
 import styles from "./PlaneCard.module.css";
 import type { RarityTier } from "../aircraftRarity";
-import { getAircraftShapeUrl } from "../aircraftShapes";
+import { getAircraftShape } from "../aircraftShapes";
 
 const UNKNOWN = "Unknown";
 
@@ -79,6 +78,8 @@ export function PlaneCard({
     xp !== undefined &&
     xpProgressToNextTier !== undefined;
 
+  const shape = getAircraftShape(typeDesignator);
+
   return (
     <div className={styles.aircraftRarityFrame} data-tier={rarityTier}>
       <div className={styles.aircraftTierCard}>
@@ -89,10 +90,12 @@ export function PlaneCard({
             <p className={styles.registrationLabel}>{registration ?? UNKNOWN}</p>
             <h3 className={styles.modelName}>{manufacturerModel ?? UNKNOWN}</h3>
           </div>
-          <div
+          <svg
             className={styles.shapeIcon}
-            style={{ "--shape-url": `url(${getAircraftShapeUrl(typeDesignator)})` } as CSSProperties}
+            viewBox={shape.viewBox}
             aria-hidden="true"
+            // shape.markup is sourced only from the vendored, license-attributed SVG files at build time (scripts/generate-aircraft-shapes-manifest.mjs), never from user/network input
+            dangerouslySetInnerHTML={{ __html: shape.markup }}
           />
         </div>
         <dl className={styles.identityStats}>

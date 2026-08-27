@@ -11,23 +11,35 @@ import aircraftShapeManifest from "./data/aircraftShapes.json";
  * `components/map/data/aircraftShapes.json` — re-run that script manually
  * if the vendored SVG set changes; this isn't part of the build/CI.
  *
- * Every shape is a plain white silhouette (`fill:#ffffff`) with no other
- * color baked in, by design: rather than re-coloring each SVG file, callers
- * apply this app's own tier/rarity accent color via a CSS `mask-image`
- * (see `PlaneCard.module.css`'s `.shapeIcon`), so the same vendored file
- * works unmodified at any accent color without needing per-tier asset
- * variants.
+ * Every vendored file's paths are plain `fill:none; stroke:#000000` outline
+ * drawings — there's no solid silhouette fill to speak of. Rather than
+ * loading them as `<img>` and trying to recolor a rasterized image (what
+ * adsb.win does, via a per-tier-tuned CSS `filter: invert() sepia()
+ * hue-rotate() ...` chain — confirmed by inspecting their live site; it
+ * only works because `<img>` can't reach into the SVG to change the actual
+ * stroke color), the generator script already rewrote every
+ * `stroke:#000000`/`fill:#ffffff` to `stroke:currentColor`/
+ * `fill:currentColor`. Callers render `markup` as an *inlined* SVG (not an
+ * `<img src>`) so a plain CSS `color` on the wrapping element resolves the
+ * exact tier accent color directly — see `PlaneCard.module.css`'s
+ * `.shapeIcon`.
  */
-const SHAPES_BASE_PATH = "/aircraft-shapes/shapes";
+export interface AircraftShape {
+  viewBox: string;
+  /** Inner SVG markup (the vendored file's drawing layers) — render inside
+   * your own `<svg viewBox={shape.viewBox}>` via `dangerouslySetInnerHTML`.
+   * Sourced from the vendored, license-attributed files at build time
+   * (`generate-aircraft-shapes-manifest.mjs`), never from user input. */
+  markup: string;
+}
+
 const UNIDENTIFIED_KEY = "UNIDENTIFIED";
 
-const manifest = aircraftShapeManifest as Record<string, string>;
+const manifest = aircraftShapeManifest as Record<string, AircraftShape>;
 
-/** The vendored silhouette's public URL for `typeDesignator`, or the
- * shape set's own "Unidentified aircraft" fallback silhouette when
- * `typeDesignator` is unset or has no matching shape. */
-export function getAircraftShapeUrl(typeDesignator: string | undefined): string {
-  const filename =
-    (typeDesignator && manifest[typeDesignator.toUpperCase()]) || manifest[UNIDENTIFIED_KEY];
-  return `${SHAPES_BASE_PATH}/${filename}`;
+/** The vendored silhouette for `typeDesignator`, or the shape set's own
+ * "Unidentified aircraft" fallback shape when `typeDesignator` is unset or
+ * has no matching entry. */
+export function getAircraftShape(typeDesignator: string | undefined): AircraftShape {
+  return (typeDesignator && manifest[typeDesignator.toUpperCase()]) || manifest[UNIDENTIFIED_KEY];
 }
