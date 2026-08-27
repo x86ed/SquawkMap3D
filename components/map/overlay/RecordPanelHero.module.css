@@ -35,23 +35,55 @@
  * the height instead of the width. Driven entirely by the
  * `data-orientation` attribute this component sets from its own
  * ResizeObserver measurement — not a viewport media query. */
-.iconBlock {
+.iconBlock,
+.photoBlock {
   flex: 0 0 60%;
   min-width: 0;
+  border-right: 1px solid rgba(63, 63, 70, 0.42);
+}
+
+.iconBlock {
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 64px;
   color: #64748b;
   background: rgba(255, 255, 255, 0.04);
-  border-right: 1px solid rgba(63, 63, 70, 0.42);
+}
+
+.photoBlock {
+  position: relative;
+  display: block;
+  overflow: hidden;
+}
+
+.photoImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.photoCaption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #f8fafc;
+  background: rgba(2, 6, 23, 0.75);
+  backdrop-filter: blur(6px);
 }
 
 .panel[data-orientation="portrait"] .body {
   flex-direction: column;
 }
 
-.panel[data-orientation="portrait"] .iconBlock {
+.panel[data-orientation="portrait"] .iconBlock,
+.panel[data-orientation="portrait"] .photoBlock {
   flex: 0 0 40%;
   border-right: none;
   border-bottom: 1px solid rgba(63, 63, 70, 0.42);
