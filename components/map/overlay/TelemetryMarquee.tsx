@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import styles from "./TelemetryMarquee.module.css";
 
 // Dead-zone around zero for the vertical-rate trend indicator (design.md's
@@ -58,18 +59,55 @@ function buildPairs(props: TelemetryMarqueeProps): TelemetryPair[] {
  * telemetry value omitted, not fabricated" scenario). Pauses on hover/focus
  * via CSS `:hover`/`:focus-within`, no JS needed.
  */
+/** How many times `.segment` must repeat so the track's total content width
+ * always covers at least twice the marquee's own visible width — the
+ * minimum needed for the loop to look continuous at every point in the
+ * cycle. Two hard-coded copies (the obvious approach) only holds up when a
+ * single copy is already wider than the marquee itself; a wide drawer with
+ * few telemetry values (some are simply omitted — see `buildPairs`) has a
+ * copy narrower than that, and the track runs out of content before it
+ * reaches the marquee's right edge, reading as the ticker stopping instead
+ * of wrapping. */
+function computeRequiredCopies(containerWidth: number, segmentWidth: number): number {
+  if (segmentWidth <= 0 || containerWidth <= 0) return 2;
+  return Math.max(2, Math.ceil(containerWidth / segmentWidth) + 1);
+}
+
 export function TelemetryMarquee(props: TelemetryMarqueeProps) {
   const pairs = buildPairs(props);
+
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const segmentRef = useRef<HTMLDivElement | null>(null);
+  const [copies, setCopies] = useState(2);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const segment = segmentRef.current;
+    if (!container || !segment) return;
+
+    const recompute = () => {
+      setCopies(computeRequiredCopies(container.clientWidth, segment.scrollWidth));
+    };
+
+    const observer = new ResizeObserver(recompute);
+    observer.observe(container);
+    observer.observe(segment);
+    recompute();
+    return () => observer.disconnect();
+  }, [pairs.length]);
 
   if (pairs.length === 0) {
     return <div className={styles.marquee}>No telemetry available</div>;
   }
 
   return (
-    <div className={styles.marquee} tabIndex={0}>
-      <div className={styles.track}>
-        {[0, 1].map((copy) => (
-          <div className={styles.segment} key={copy} aria-hidden={copy === 1}>
+    <div className={styles.marquee} tabIndex={0} ref={containerRef}>
+      <div
+        className={styles.track}
+        style={{ "--marquee-shift": `${100 / copies}%` } as React.CSSProperties}
+      >
+        {Array.from({ length: copies }, (_, copy) => (
+          <div className={styles.segment} key={copy} aria-hidden={copy !== 0} ref={copy === 0 ? segmentRef : undefined}>
             {pairs.map((pair, i) => (
               <span className={styles.pair} key={`${copy}-${i}`}>
                 <span className={styles.k}>{pair.k}</span>
