@@ -7,7 +7,6 @@
   overflow: hidden;
   padding: 8px 0;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 13px;
   font-weight: 600;
   color: #cbd5e1;
   /* Fade-masked left/right edges. */
@@ -25,6 +24,15 @@
   display: inline-flex;
   width: max-content;
   animation: scroll 26s linear infinite;
+  /* Scales off `cqw` — the strip's own rendered width (`container-type:
+     inline-size`, set on the ancestor `.marquee` in
+     AircraftOverlay.module.css) — instead of a fixed 13px, so it actually
+     shrinks on a narrow/portrait drawer rather than staying pinned at its
+     desktop size. Set here on a descendant of the query container, not on
+     `.marquee` itself, since `cqw` doesn't resolve reliably on the
+     container element's own box. .pair/.dot spacing below is `em`-based so
+     it scales down right along with this. */
+  font-size: clamp(11px, 2.4cqw, 13px);
 }
 
 .marquee:hover .track,
@@ -44,8 +52,8 @@
 .pair {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 14px;
+  gap: 0.6em;
+  padding: 0 1.05em;
 }
 
 .k {
@@ -60,7 +68,7 @@
 
 .dot {
   color: #06b6d4;
-  margin-left: 14px;
+  margin-left: 1.05em;
 }
 
 @keyframes scroll {

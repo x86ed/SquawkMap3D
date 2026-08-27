@@ -22,16 +22,19 @@
   gap: 12px;
 }
 
-/* Grows with the flightInfo cell's own measured height (`container-type:
+/* Grows with the flightInfo cell's own measured size (`container-type:
    size` in AircraftOverlay.module.css) — the plot itself already fills the
    cell via flex:1/height:100% on .sparklineSvg, so it's the labels around
    it that need this to read as proportionally bigger, not just spread over
-   a taller box. */
+   a taller box. `cqmin` (bounded by whichever of the cell's width/height is
+   smaller), not `cqh` alone, so a narrow-but-tall cell — e.g. the portrait
+   layout's card/flightInfo row — can't blow the labels up past what its own
+   width can actually hold. */
 .sparklineLegendItem {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: clamp(10px, 3.4cqh, 14px);
+  font-size: clamp(10px, 3.4cqmin, 14px);
   font-weight: 900;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -58,7 +61,7 @@
   flex-direction: column;
   justify-content: space-between;
   flex-shrink: 0;
-  font-size: clamp(9px, 3cqh, 12px);
+  font-size: clamp(9px, 3cqmin, 12px);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }

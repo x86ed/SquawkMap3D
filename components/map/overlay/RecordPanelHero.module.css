@@ -46,8 +46,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Same container-height-driven growth as .heading. */
-  font-size: clamp(48px, 26cqh, 112px);
+  /* Same container-size-driven growth as .heading, same `cqmin` cap. */
+  font-size: clamp(48px, 26cqmin, 112px);
   color: #64748b;
   background: rgba(255, 255, 255, 0.04);
 }
@@ -106,14 +106,17 @@
   color: #64748b;
 }
 
-/* Grows with the hero cell's own measured height (`container-type: size` on
+/* Grows with the hero cell's own measured size (`container-type: size` on
    .hero in AircraftOverlay.module.css) rather than a fixed px value — when
    the marquee's fixed-height row leaves this panel more room, the
    registration heading grows into it instead of just floating in more
-   whitespace. Clamped to the same 24px this used to be hard-coded at on the
-   low end. */
+   whitespace. `cqmin` (bounded by whichever of the cell's width/height is
+   smaller) instead of `cqh` alone, so a narrow-but-tall cell — e.g. the
+   portrait layout's card/flightInfo row — can't blow the heading up past
+   what its own width can actually hold. Clamped to the same 24px this used
+   to be hard-coded at on the low end. */
 .heading {
-  font-size: clamp(24px, 11cqh, 40px);
+  font-size: clamp(24px, 11cqmin, 40px);
   font-weight: 900;
   letter-spacing: -0.01em;
   color: #f1f5f9;

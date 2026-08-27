@@ -141,27 +141,40 @@
   min-width: 0;
   min-height: 0;
   margin: -24px -20px 0;
+  /* Lets the marquee's own font-size/spacing scale off `cqw` — the strip's
+     actual rendered width — so it reads as adaptive on a narrow drawer
+     instead of staying pinned to its desktop-width font size. */
+  container-type: inline-size;
+  container-name: overlay-marquee;
 }
 
-/* Single-column stack on narrow viewports (aircraft-info-overlay spec's
- * "Narrow viewport stacks to a single column" scenario): hero, card,
- * flightInfo, marquee, in that order. */
+/* Narrow/portrait viewports (aircraft-info-overlay spec's "Narrow viewport
+ * stacks to a single column" scenario): airframe as its own full-width top
+ * layer, card and flight-info graph sharing a row beneath it (so neither
+ * one alone can balloon to fill all the leftover vertical space — the
+ * flightInfo graph "taking over the view" when it had a whole 1fr row to
+ * itself), marquee pinned to its usual fixed-height strip at the bottom. */
 @media (max-width: 760px) {
   .drawer {
     height: 80vh;
   }
 
   .grid {
-    grid-template-columns: 1fr;
-    /* hero/card/marquee size to their own content; flightInfo (the
-       flight status panel) takes whatever's left, keeping it the
-       dominant panel in the stack the same way it's 80% of the row on
-       wider viewports. */
-    grid-template-rows: auto auto 1fr auto;
+    grid-template-columns: 1fr 1fr;
+    /* Hero gets a fixed row height rather than `auto` — an auto-sized grid
+       track doesn't give RecordPanelHero's own `height: 100%` internals
+       anything definite to resolve against, so it was collapsing to
+       ~content-min-height (i.e. barely rendering). */
+    grid-template-rows: 140px minmax(160px, 1fr) 44px;
     grid-template-areas:
-      "hero"
-      "card"
-      "flightInfo"
-      "marquee";
+      "hero hero"
+      "card flightInfo"
+      "marquee marquee";
+  }
+
+  /* The desktop layered-offset only makes sense sitting between its two
+     row-mates; here it's its own full-width top row. */
+  .hero {
+    margin-top: 0;
   }
 }

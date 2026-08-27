@@ -116,6 +116,21 @@
   gap: 12px;
 }
 
+/* Below ~200px of card width (the portrait layout's card/flightInfo row,
+   where the card only gets half the drawer's width) there isn't room for
+   the identity text and the shape icon side by side without squeezing
+   .modelName down to a near-zero column that wraps letter-by-letter —
+   stack the icon above the identity block instead. */
+@container overlay-card (max-width: 200px) {
+  .headerRow {
+    flex-direction: column;
+  }
+
+  .shapeIcon {
+    align-self: flex-end;
+  }
+}
+
 .identity {
   display: flex;
   flex-direction: column;
@@ -145,13 +160,16 @@
   color: oklch(0.554 0.046 257.417);
 }
 
-/* Grows with the card cell's own measured height (`container-type: size` on
+/* Grows with the card cell's own measured size (`container-type: size` on
    .card in AircraftOverlay.module.css) instead of a fixed px value, so the
    card's headline model name gets visibly larger when the drawer gives the
-   card more room — not just more surrounding whitespace. */
+   card more room — not just more surrounding whitespace. `cqmin` (bounded
+   by whichever of the cell's width/height is smaller), not `cqh` alone, so
+   a narrow-but-tall cell — e.g. the portrait layout's card/flightInfo row —
+   can't blow the heading up past what its own width can actually hold. */
 .modelName {
   margin-top: 4px;
-  font-size: clamp(20px, 9cqh, 32px);
+  font-size: clamp(20px, 9cqmin, 32px);
   font-weight: 900;
   line-height: 1.2;
   color: rgb(241, 245, 249);
@@ -170,13 +188,14 @@
    rather than the near-invisible hairline the files' own original
    mm-scaled stroke width would produce at this size. The `drop-shadow`
    glow mirrors adsb.win's own aircraft-icon treatment. */
-/* Same container-height-driven growth as .modelName — the type silhouette
-   is this card's "graph"-equivalent visual, so it scales with the cell
-   rather than sitting fixed at 48px while headroom opens up around it. */
+/* Same container-size-driven growth as .modelName, same `cqmin` cap — the
+   type silhouette is this card's "graph"-equivalent visual, so it scales
+   with the cell rather than sitting fixed at 48px while headroom opens up
+   around it. */
 .shapeIcon {
   flex-shrink: 0;
-  width: clamp(48px, 20cqh, 88px);
-  height: clamp(48px, 20cqh, 88px);
+  width: clamp(48px, 20cqmin, 88px);
+  height: clamp(48px, 20cqmin, 88px);
   color: var(--rarity-color);
   filter: drop-shadow(0 0 3px var(--rarity-glow));
 }
