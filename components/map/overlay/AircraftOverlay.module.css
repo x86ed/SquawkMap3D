@@ -7,7 +7,7 @@
   bottom: 0;
   z-index: 3;
   height: 45vh;
-  overflow-y: auto;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   padding: 10px 20px 20px;
@@ -54,6 +54,18 @@
   transition: background 150ms ease;
 }
 
+/* Always exactly fills the drawer's remaining height below the handle
+   (flex:1) — .grid, inside it, is scaled down (never scrolled) if its
+   content still doesn't fit at that size; see AircraftOverlay.tsx's
+   ResizeObserver. */
+.scaleViewport {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .grid {
   flex: 1;
   min-height: 0;
@@ -66,22 +78,34 @@
     "card hero flightInfo"
     "marquee marquee marquee";
   gap: 16px;
+  /* Scaled down (never scrolled) from the drawer's own ResizeObserver when
+     content still doesn't fit at 1:1 — see AircraftOverlay.tsx. Centered so
+     any resulting letterboxing is symmetric rather than offset. */
+  transform-origin: center center;
 }
 
 .hero {
   grid-area: hero;
+  min-width: 0;
+  min-height: 0;
 }
 
 .card {
   grid-area: card;
+  min-width: 0;
+  min-height: 0;
 }
 
 .flightInfo {
   grid-area: flightInfo;
+  min-width: 0;
+  min-height: 0;
 }
 
 .marquee {
   grid-area: marquee;
+  min-width: 0;
+  min-height: 0;
 }
 
 /* Single-column stack on narrow viewports (aircraft-info-overlay spec's
