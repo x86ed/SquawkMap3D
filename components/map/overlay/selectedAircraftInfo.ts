@@ -21,6 +21,11 @@ export interface SelectedAircraftInfo {
   hex: string;
   callsign?: string;
   registration?: string;
+  /** ICAO type designator (e.g. "B738") — used to look up both the vendored
+   * rarity dataset row and the vendored aircraft-silhouette SVG
+   * (`aircraftShapes.ts`); `undefined` when the feeder hasn't loaded
+   * tar1090-db. */
+  typeDesignator?: string;
   manufacturerModel?: string;
   operator?: string;
   year?: string;
@@ -83,6 +88,7 @@ export function buildSelectedAircraftInfo(
     hex: aircraft.hex,
     callsign: aircraft.callsign,
     registration: aircraft.registration,
+    typeDesignator: aircraft.typeDesignator,
     manufacturerModel: aircraft.manufacturerModel,
     operator: aircraft.operator,
     year: aircraft.year,

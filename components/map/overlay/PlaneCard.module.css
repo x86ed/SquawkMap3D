@@ -154,11 +154,24 @@
   overflow-wrap: anywhere;
 }
 
-.planeIcon {
+/* Top-view aircraft silhouette (vendored from RexKramer1/AircraftShapesSVG,
+   GPL-3.0 — see public/aircraft-shapes/LICENSE), tinted via CSS mask rather
+   than baking a color into the SVG file itself: every vendored shape is a
+   plain white silhouette, and `mask-image` lets one unmodified file render
+   in any tier's accent color by painting `background-color` through it. */
+.shapeIcon {
   flex-shrink: 0;
-  font-size: 26px;
-  color: rgb(226, 232, 240);
-  transform: rotate(45deg);
+  width: 48px;
+  height: 48px;
+  background-color: var(--rarity-color);
+  -webkit-mask-image: var(--shape-url);
+  mask-image: var(--shape-url);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
   opacity: 0.9;
 }
 

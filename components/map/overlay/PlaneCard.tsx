@@ -1,10 +1,16 @@
+import type { CSSProperties } from "react";
 import styles from "./PlaneCard.module.css";
 import type { RarityTier } from "../aircraftRarity";
+import { getAircraftShapeUrl } from "../aircraftShapes";
 
 const UNKNOWN = "Unknown";
 
 export interface PlaneCardProps {
   registration?: string;
+  /** ICAO type designator — selects the vendored top-view silhouette (see
+   * `aircraftShapes.ts`); falls back to that set's own "Unidentified"
+   * shape when unset or unrecognized. */
+  typeDesignator?: string;
   manufacturerModel?: string;
   operator?: string;
   rarityTier: RarityTier;
@@ -54,6 +60,7 @@ function formatDuration(totalSeconds: number): string {
  */
 export function PlaneCard({
   registration,
+  typeDesignator,
   manufacturerModel,
   operator,
   rarityTier,
@@ -82,9 +89,11 @@ export function PlaneCard({
             <p className={styles.registrationLabel}>{registration ?? UNKNOWN}</p>
             <h3 className={styles.modelName}>{manufacturerModel ?? UNKNOWN}</h3>
           </div>
-          <div className={styles.planeIcon} aria-hidden="true">
-            ✈
-          </div>
+          <div
+            className={styles.shapeIcon}
+            style={{ "--shape-url": `url(${getAircraftShapeUrl(typeDesignator)})` } as CSSProperties}
+            aria-hidden="true"
+          />
         </div>
         <dl className={styles.identityStats}>
           <div className={styles.statFull}>
