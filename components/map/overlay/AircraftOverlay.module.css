@@ -71,9 +71,12 @@
   min-height: 0;
   display: grid;
   grid-template-columns: 1fr 1.4fr 1fr;
-  /* Row 1 (card/hero/flightInfo) takes 80% of the drawer's vertical
-     space, the marquee ticker strip the remaining 20%. */
-  grid-template-rows: 4fr 1fr;
+  /* Row 1 (card/hero/flightInfo) claims all height not needed by the
+     marquee's own compact, fixed-height ticker strip — rather than a fixed
+     80/20 split, the card and flight-info graph get proportionally larger
+     as the drawer itself gets taller, since the marquee no longer eats a
+     fixed share of it. */
+  grid-template-rows: 1fr 44px;
   grid-template-areas:
     "card hero flightInfo"
     "marquee marquee marquee";
@@ -84,28 +87,46 @@
   transform-origin: center center;
 }
 
+/* card/hero/flightInfo float above the marquee's bleed (z-index:2 vs. the
+   marquee's z-index:1) so it can tuck up underneath their bottom edge. */
 .hero {
   grid-area: hero;
+  position: relative;
+  z-index: 2;
   min-width: 0;
   min-height: 0;
+  /* Sits a touch higher than its row-mates — a deliberate layered-panel
+     offset, not a misalignment. */
+  margin-top: -6px;
 }
 
 .card {
   grid-area: card;
+  position: relative;
+  z-index: 2;
   min-width: 0;
   min-height: 0;
 }
 
 .flightInfo {
   grid-area: flightInfo;
+  position: relative;
+  z-index: 2;
   min-width: 0;
   min-height: 0;
 }
 
+/* Bleeds past the drawer's own side padding and tucks up underneath row
+   1's bottom edge (negative margin-top beyond the grid's 16px row gap,
+   z-index:1 under card/hero/flightInfo's z-index:2) rather than sitting in
+   its own clean, fully-separate strip. */
 .marquee {
   grid-area: marquee;
+  position: relative;
+  z-index: 1;
   min-width: 0;
   min-height: 0;
+  margin: -24px -20px 0;
 }
 
 /* Single-column stack on narrow viewports (aircraft-info-overlay spec's
