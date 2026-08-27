@@ -29,14 +29,13 @@ export function AircraftOverlay({
       <div className={styles.drawer} data-open={open} role="dialog" aria-label="Aircraft details">
         {info && (
           <>
-            <div className={styles.dragHandle} aria-hidden="true" />
             <button
               type="button"
-              className={styles.closeButton}
+              className={styles.dragHandle}
               onClick={onClose}
               aria-label="Close aircraft details"
             >
-              &times;
+              <span className={styles.dragHandleGrip} aria-hidden="true" />
             </button>
             <div className={styles.grid}>
               <div className={styles.hero}>
