@@ -179,12 +179,6 @@
   stroke-width: 2.5px !important;
 }
 
-.identityStats {
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid oklab(0.999994 0.0000455678 0.0000200868 / 0.1);
-}
-
 .statLabel {
   font-size: 10px;
   font-weight: 900;
@@ -198,10 +192,6 @@
   font-size: 16px;
   font-weight: 900;
   color: rgb(241, 245, 249);
-}
-
-.statFull {
-  grid-column: span 2;
 }
 
 /* Fleet-wide stat grid + XP/progress row (design.md Decision 14) —
@@ -286,8 +276,8 @@
 }
 
 .statsEmpty {
-  margin-top: 16px;
-  padding-top: 16px;
+  margin-top: 32px;
+  padding-top: 20px;
   border-top: 1px solid oklab(0.999994 0.0000455678 0.0000200868 / 0.1);
   font-size: 12px;
   font-weight: 600;

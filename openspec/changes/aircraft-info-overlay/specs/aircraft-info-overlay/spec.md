@@ -42,14 +42,14 @@ The overlay SHALL use a responsive layout that arranges `RecordPanelHero`, `Plan
 - **THEN** the four components reflow to a single stacked column in the order: `RecordPanelHero`, `PlaneCard`, `FlightInfoPane`, `TelemetryMarquee`
 
 ### Requirement: PlaneCard shows aircraft identity and rarity tier
-`PlaneCard` SHALL display the selected aircraft's registration, manufacturer/model, and operator when known, and SHALL display its computed rarity tier — one of the nine real tier values defined by the `aircraft-rarity` capability (`unidentified`, `standard`, `prime`, `remarkable`, `exceptional`, `epic`, `legendary`, `mythic`, `apex`) — as a labeled tag, with the card's frame/accent styling driven by that tier's `{ color, highlight, glow }` style (per the `aircraft-rarity` capability), including the `mythic`/`apex` gradient frame overrides. Fields with no known value SHALL render an explicit placeholder rather than blank space or the literal string "undefined"/"null".
+`PlaneCard` SHALL display the selected aircraft's registration and manufacturer/model when known, and SHALL display its computed rarity tier — one of the nine real tier values defined by the `aircraft-rarity` capability (`unidentified`, `standard`, `prime`, `remarkable`, `exceptional`, `epic`, `legendary`, `mythic`, `apex`) — as a labeled tag, with the card's frame/accent styling driven by that tier's `{ color, highlight, glow }` style (per the `aircraft-rarity` capability), including the `mythic`/`apex` gradient frame overrides. Fields with no known value SHALL render an explicit placeholder rather than blank space or the literal string "undefined"/"null". Operator is intentionally not shown here — adsb.win's own real card has no operator field (confirmed on its live authenticated dashboard); it's shown instead by `RecordPanelHero`'s spec grid.
 
 #### Scenario: Full identity data known
-- **WHEN** the selected aircraft has a known registration, manufacturer/model description, and operator
-- **THEN** `PlaneCard` displays all three, alongside a tag showing the aircraft's rarity tier name (one of the nine real tier values) styled with that tier's accent style
+- **WHEN** the selected aircraft has a known registration and manufacturer/model description
+- **THEN** `PlaneCard` displays both, alongside a tag showing the aircraft's rarity tier name (one of the nine real tier values) styled with that tier's accent style
 
 #### Scenario: Identity data unknown
-- **WHEN** the selected aircraft is missing its registration, manufacturer/model, and/or operator (e.g. the feeder has no tar1090-db loaded)
+- **WHEN** the selected aircraft is missing its registration and/or manufacturer/model (e.g. the feeder has no tar1090-db loaded)
 - **THEN** `PlaneCard` renders an explicit "unknown" placeholder for each missing field, with no literal "undefined"/"null" text and no blank/missing row
 
 #### Scenario: Aircraft with no rarity classification renders the unidentified tier honestly

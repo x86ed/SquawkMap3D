@@ -11,7 +11,6 @@ export interface PlaneCardProps {
    * shape when unset or unrecognized. */
   typeDesignator?: string;
   manufacturerModel?: string;
-  operator?: string;
   rarityTier: RarityTier;
   /**
    * Fleet-wide per-aircraft-type stats (design.md Decision 14) — always
@@ -73,7 +72,6 @@ export function PlaneCard({
   registration,
   typeDesignator,
   manufacturerModel,
-  operator,
   rarityTier,
   uniqueRegistrationsCount,
   flightsCapturedCount,
@@ -112,12 +110,6 @@ export function PlaneCard({
             dangerouslySetInnerHTML={{ __html: shape.markup }}
           />
         </div>
-        <dl className={styles.identityStats}>
-          <div className={styles.statFull}>
-            <dt className={styles.statLabel}>Operator</dt>
-            <dd className={styles.statValue}>{operator ?? UNKNOWN}</dd>
-          </div>
-        </dl>
         {statsPresent ? (
           <>
             <dl className={styles.statGrid}>

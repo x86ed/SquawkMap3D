@@ -54,7 +54,6 @@ export function AircraftOverlay({
                   registration={info.registration}
                   typeDesignator={info.typeDesignator}
                   manufacturerModel={info.manufacturerModel}
-                  operator={info.operator}
                   rarityTier={info.rarityTier}
                   uniqueRegistrationsCount={info.uniqueRegistrationsCount}
                   flightsCapturedCount={info.flightsCapturedCount}
