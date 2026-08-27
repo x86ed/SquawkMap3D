@@ -1,7 +1,8 @@
 import type { Aircraft } from "./aircraft";
+import { CATEGORY_FALLBACK_KEY } from "./aircraftShapes";
 import { AIRCRAFT_CATEGORY_FALLBACK_ICON } from "./constants";
 
-export type IconSource = "type" | "category" | "generic";
+export type IconSource = "type" | "category-type" | "category" | "generic";
 
 export interface ResolvedIcon {
   source: IconSource;
@@ -24,15 +25,27 @@ const TYPE_SHAPE_URL = (typeDesignator: string) =>
 let knownTypeDesignators = new Set<string>();
 
 /**
- * Resolves which atlas entry an aircraft should render with: its own
- * ICAO-type-designator shape if vendored, else its ADS-B emitter category's
- * generic silhouette, else the plain generic marker — an aircraft is never
- * left without an icon (see aircraft-tracks-layer spec's icon-fallback
- * requirement).
+ * Resolves which atlas entry an aircraft should render with, in order: its
+ * own ICAO-type-designator shape if vendored; else, for the categories
+ * `aircraftShapes.ts`'s `CATEGORY_FALLBACK_KEY` has a representative
+ * AircraftShapesSVG type for, that same shape (the atlas already contains
+ * an entry for it — every real type designator is vendored into the atlas
+ * regardless of whether this particular aircraft matched one directly) —
+ * this is also what `PlaneCard` falls back to, so an aircraft with no known
+ * exact type still renders the *same* icon on the map and in its detail
+ * card; else its ADS-B emitter category's pw-silhouettes generic silhouette
+ * (covers a few categories — skydivers, UAVs, surface vehicles — that have
+ * no reasonable AircraftShapesSVG stand-in); else the plain generic marker
+ * — an aircraft is never left without an icon (see aircraft-tracks-layer
+ * spec's icon-fallback requirement).
  */
 export function resolveIconKey(aircraft: Aircraft): ResolvedIcon {
   if (aircraft.typeDesignator && knownTypeDesignators.has(aircraft.typeDesignator)) {
     return { source: "type", key: aircraft.typeDesignator };
+  }
+  const categoryTypeKey = aircraft.category && CATEGORY_FALLBACK_KEY[aircraft.category];
+  if (categoryTypeKey && knownTypeDesignators.has(categoryTypeKey)) {
+    return { source: "category-type", key: categoryTypeKey };
   }
   if (aircraft.category && AIRCRAFT_CATEGORY_FALLBACK_ICON[aircraft.category]) {
     return { source: "category", key: aircraft.category };

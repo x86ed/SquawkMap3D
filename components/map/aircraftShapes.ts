@@ -49,8 +49,14 @@ const manifest = aircraftShapeManifest as Record<string, AircraftShape>;
  * same generic "Unidentified" outline. Categories with no reasonable
  * representative in the vendored 179-shape set (UAVs, surface vehicles,
  * obstacles, etc.) are omitted and fall through to `UNIDENTIFIED_KEY`.
+ *
+ * Exported so `aircraftIcons.ts`'s map-marker resolution can fall back to
+ * the same representative shapes — keeping the card and the map's icon for
+ * an aircraft of unknown exact type consistent, rather than the map falling
+ * back to a visually distinct icon set (pw-silhouettes) that this table
+ * doesn't cover.
  */
-const CATEGORY_FALLBACK_KEY: Record<string, string> = {
+export const CATEGORY_FALLBACK_KEY: Record<string, string> = {
   A1: "C172", // light (<15,500 lbs) — small single/twin prop
   A2: "PC12", // small (15,500-75,000 lbs) — turboprop
   A3: "B738", // large (75,000-300,000 lbs) — typical airliner
