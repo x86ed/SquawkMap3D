@@ -1,6 +1,7 @@
 import type { Aircraft } from "./aircraft";
 import { CATEGORY_FALLBACK_KEY } from "./aircraftShapes";
 import { AIRCRAFT_CATEGORY_FALLBACK_ICON } from "./constants";
+import { computeTightViewBox } from "./svgBBox";
 
 export type IconSource = "type" | "category-type" | "category" | "generic";
 
@@ -80,11 +81,14 @@ const ICON_ORIENTATION_OFFSET_DEG: Record<string, number> = {
   B1: 90,
 };
 
-const CELL_SIZE = 64;
+// 96px (up from an original 64px) so a 40px on-screen icon (aircraftLayer.ts's
+// `getSize`) still has real supersampled resolution behind it instead of
+// stretching a blurry, thin-lined source.
+const CELL_SIZE = 96;
 // Padding kept between drawn shapes and the cell edge so deck.gl's IconLayer
 // (which samples slightly outside a tightly-packed sprite when scaling)
 // doesn't bleed into a neighboring icon in the atlas.
-const CELL_PADDING = 4;
+const CELL_PADDING = 6;
 
 function loadImage(url: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
@@ -93,6 +97,63 @@ function loadImage(url: string): Promise<HTMLImageElement | null> {
     img.onerror = () => resolve(null);
     img.src = url;
   });
+}
+
+/**
+ * Fetches a vendored shape SVG and rebuilds it before rasterizing, fixing
+ * two problems confirmed by inspecting the vendored files directly (see
+ * `svgBBox.ts`'s doc comment): first, each file's own declared `viewBox`
+ * isn't tightly cropped to its actual drawing — some types fill their
+ * canvas reasonably, others (the Cessna 172, one of the most common types)
+ * draw at barely a fourteenth of it, rendering as a near-invisible speck at
+ * icon size regardless of how big the icon itself is drawn. Second, several
+ * files are pure `fill:none` outline strokes with no solid fill at all,
+ * which reads as a hairline at small sizes.
+ *
+ * Both are fixed by measuring the real content bounding box (`getBBox`,
+ * requires the markup to be mounted in a laid-out document) and rebuilding
+ * a standalone SVG cropped to that box with every path's fill/stroke forced
+ * to solid white — deck.gl's IconLayer then multiplies that solid white by
+ * `getColor` (aircraftLayer.ts) for the actual on-map tint, so what's
+ * rasterized here just needs to be a correctly-sized, fully opaque
+ * silhouette. An explicit pixel `width`/`height` (not just `viewBox`) is
+ * set on the rebuilt SVG so the resulting `<img>`'s `naturalWidth`/
+ * `naturalHeight` — which `buildAircraftIconAtlas` scales the drawn size
+ * from — actually reflects the crop's square aspect, since a raw `<svg>`
+ * with no explicit size defaults to a fixed 300×150 box regardless of its
+ * `viewBox`.
+ */
+async function loadShapeImage(url: string): Promise<HTMLImageElement | null> {
+  let response: Response;
+  try {
+    response = await fetch(url);
+  } catch {
+    return null;
+  }
+  if (!response.ok) return null;
+
+  const text = await response.text();
+  const doc = new DOMParser().parseFromString(text, "image/svg+xml");
+  const svgEl = doc.querySelector("svg");
+  if (!svgEl || doc.querySelector("parsererror")) return null;
+
+  const fallbackViewBox = svgEl.getAttribute("viewBox") ?? "0 0 100 100";
+  const innerMarkup = svgEl.innerHTML;
+  const tightViewBox = computeTightViewBox(innerMarkup, fallbackViewBox);
+
+  const wrapped =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${tightViewBox}" width="256" height="256">` +
+    `<style>path,polygon,polyline,circle,ellipse,rect{fill:#ffffff!important;stroke:#ffffff!important;stroke-width:3px;vector-effect:non-scaling-stroke;}</style>` +
+    innerMarkup +
+    `</svg>`;
+
+  const blob = new Blob([wrapped], { type: "image/svg+xml" });
+  const blobUrl = URL.createObjectURL(blob);
+  try {
+    return await loadImage(blobUrl);
+  } finally {
+    URL.revokeObjectURL(blobUrl);
+  }
 }
 
 /** A plain rotated triangle, drawn directly to canvas — no external asset —
@@ -141,7 +202,7 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
   if (!ctx) throw new Error("2D canvas context unavailable");
 
   const images = await Promise.all(
-    entries.map((entry) => (entry.url ? loadImage(entry.url) : Promise.resolve(null))),
+    entries.map((entry) => (entry.url ? loadShapeImage(entry.url) : Promise.resolve(null))),
   );
 
   const mapping: Record<string, IconAtlasEntry> = {};

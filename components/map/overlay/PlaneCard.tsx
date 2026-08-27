@@ -1,6 +1,8 @@
+import { useMemo } from "react";
 import styles from "./PlaneCard.module.css";
 import { nextRarityTier, type RarityTier } from "../aircraftRarity";
-import { getAircraftShape } from "../aircraftShapes";
+import { getAircraftShape, type AircraftShape } from "../aircraftShapes";
+import { computeTightViewBox } from "../svgBBox";
 
 const UNKNOWN = "Unknown";
 
@@ -44,6 +46,22 @@ function formatDuration(totalSeconds: number): string {
 
 function capitalize(tier: RarityTier): string {
   return tier.charAt(0).toUpperCase() + tier.slice(1);
+}
+
+/**
+ * The vendored shape's own declared `viewBox` isn't tightly cropped to its
+ * actual drawing (see `svgBBox.ts`'s doc comment — some types, like the
+ * Cessna 172, draw at barely a fourteenth of their nominal canvas), so
+ * using it directly renders as a near-invisible speck regardless of how big
+ * `.shapeIcon` itself is sized. Measures the shape's real content bounding
+ * box (mounts the markup into a detached, off-screen `<svg>` just long
+ * enough to call `getBBox()`, then immediately unmounts it — see
+ * `computeTightViewBox`) and returns a tight, padded, square crop instead,
+ * memoized per `shape` reference so re-renders with the same selected
+ * aircraft don't remeasure.
+ */
+function useTightAircraftShapeViewBox(shape: AircraftShape): string {
+  return useMemo(() => computeTightViewBox(shape.markup, shape.viewBox), [shape]);
 }
 
 /**
@@ -95,6 +113,7 @@ export function PlaneCard({
 
   const shape = getAircraftShape(typeDesignator, category);
   const nextTier = nextRarityTier(rarityTier);
+  const viewBox = useTightAircraftShapeViewBox(shape);
 
   return (
     <div className={styles.aircraftRarityFrame} data-tier={rarityTier}>
@@ -108,7 +127,7 @@ export function PlaneCard({
           </div>
           <svg
             className={styles.shapeIcon}
-            viewBox={shape.viewBox}
+            viewBox={viewBox}
             aria-hidden="true"
             // shape.markup is sourced only from the vendored, license-attributed SVG files at build time (scripts/generate-aircraft-shapes-manifest.mjs), never from user/network input
             dangerouslySetInnerHTML={{ __html: shape.markup }}

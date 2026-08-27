@@ -200,9 +200,17 @@
   filter: drop-shadow(0 0 3px var(--rarity-glow));
 }
 
+/* Several vendored shapes (`aircraftShapes.ts`) are pure `fill:none` outline
+   strokes with no solid fill at all — confirmed by inspecting the source
+   files directly (e.g. the Cessna 172's silhouette) — which read as a bare
+   hairline even at this icon's full size. Force every path to a solid fill
+   in the tier's own color instead of trusting each of the 179 vendored
+   files' own styling to already have one. */
 .shapeIcon path {
   vector-effect: non-scaling-stroke;
   stroke-width: 2.5px !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
 }
 
 .statLabel {

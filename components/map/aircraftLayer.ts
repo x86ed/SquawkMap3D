@@ -63,7 +63,10 @@ export function buildAircraftLayers(params: {
     // sign flip needed.
     getAngle: (d) => d.track ?? 0,
     getColor: (d) => altitudeToColor(d.altitude ?? 0),
-    getSize: 28,
+    // Was 28 — with a solid-filled icon (see aircraftIcons.ts's atlas
+    // builder), that read as too small on the map to be legible against
+    // basemap clutter.
+    getSize: 40,
     sizeUnits: "pixels",
     // Selection picking (design.md Decision 2): the click handler itself
     // toggles off when re-clicking the already-selected hex, else selects

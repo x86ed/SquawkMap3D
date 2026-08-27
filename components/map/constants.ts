@@ -153,10 +153,11 @@ export const RANGE_OUTLINE_SWEEP_PERIOD_MS = 8_000;
 // unmapped), those fall through to the plain-marker fallback instead.
 // Selected-aircraft glow highlight (components/map/aircraftLayer.ts's
 // ScatterplotLayer, see design.md Decision 4) — radius comfortably larger
-// than the 28px icon size above so the glow reads as a highlight around the
-// icon rather than being fully hidden underneath it; alpha kept low (~47%)
-// so it doesn't obscure the icon or nearby traffic.
-export const AIRCRAFT_SELECTION_GLOW_RADIUS_PIXELS = 22;
+// than the 40px icon size in aircraftLayer.ts (kept at roughly the same
+// ~1.6x ratio as when the icon was 28px/glow was 22px) so the glow reads as
+// a highlight around the icon rather than being fully hidden underneath it;
+// alpha kept low (~47%) so it doesn't obscure the icon or nearby traffic.
+export const AIRCRAFT_SELECTION_GLOW_RADIUS_PIXELS = 32;
 export const AIRCRAFT_SELECTION_GLOW_ALPHA = 120;
 
 // "Follow selected aircraft" per-poll recenter duration (design.md Decision
