@@ -65,6 +65,10 @@ export interface SelectedAircraftInfo {
   highestAltitudeObserved?: number;
   xp?: number;
   xpProgressToNextTier?: number;
+  /** Link to this aircraft type's registrations list, mirroring adsb.win's
+   * card CTA — forward-plumbed alongside the stats above; `undefined` until
+   * a real per-type registrations API exists (design.md Decision 14). */
+  viewRegistrationsHref?: string;
 }
 
 export function buildSelectedAircraftInfo(
@@ -114,5 +118,6 @@ export function buildSelectedAircraftInfo(
     highestAltitudeObserved: undefined,
     xp: undefined,
     xpProgressToNextTier: undefined,
+    viewRegistrationsHref: undefined,
   };
 }

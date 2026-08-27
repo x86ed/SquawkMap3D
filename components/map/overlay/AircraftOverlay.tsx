@@ -62,6 +62,7 @@ export function AircraftOverlay({
                   highestAltitudeObserved={info.highestAltitudeObserved}
                   xp={info.xp}
                   xpProgressToNextTier={info.xpProgressToNextTier}
+                  viewRegistrationsHref={info.viewRegistrationsHref}
                 />
               </div>
               <div className={styles.flightInfo}>

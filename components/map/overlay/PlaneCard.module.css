@@ -271,6 +271,20 @@
   border-radius: 9999px;
 }
 
+.viewRegistrationsLink {
+  position: relative;
+  display: block;
+  margin-top: 20px;
+  font-size: 14px;
+  font-weight: 900;
+  color: rgb(103, 232, 249);
+  text-decoration: none;
+}
+
+.viewRegistrationsLink:hover {
+  text-decoration: underline;
+}
+
 .statsEmpty {
   margin-top: 16px;
   padding-top: 16px;

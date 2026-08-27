@@ -25,6 +25,12 @@ export interface PlaneCardProps {
   highestAltitudeObserved?: number;
   xp?: number;
   xpProgressToNextTier?: number;
+  /** Link to this aircraft type's registrations list — mirrors adsb.win's
+   * "View registrations →" card CTA. Forward-plumbed like the other stat
+   * props (design.md Decision 14): `undefined` until an API providing a
+   * real per-type registrations view exists, in which case this renders;
+   * otherwise omitted rather than linking nowhere. */
+  viewRegistrationsHref?: string;
 }
 
 /** `HH:MM` from a seconds count, for the (currently unreachable) "present" stat grid. */
@@ -58,12 +64,10 @@ function capitalize(tier: RarityTier): string {
  * XP/progress-bar row match adsb.win's real authenticated dashboard card
  * markup field-for-field (`dt`/`dd` labels, the "N% to {next tier}"
  * progress label — computed here from `rarityTier` via `nextRarityTier`,
- * which works today even though the stats themselves don't). One thing
- * intentionally NOT reproduced: adsb.win's card ends with a "View
- * registrations →" link into a per-model registrations list — this app has
- * no such view (it tracks live ADS-B instances, not a historical
- * per-type-model registrations database), so linking there would go
- * nowhere real; omitted rather than faked.
+ * which works today even though the stats themselves don't). The card also
+ * ends with a "View registrations →" CTA, matching adsb.win's own — like
+ * the stat fields, it's forward-plumbed via `viewRegistrationsHref` and
+ * only renders once a real per-type registrations API exists to link to.
  */
 export function PlaneCard({
   registration,
@@ -77,6 +81,7 @@ export function PlaneCard({
   highestAltitudeObserved,
   xp,
   xpProgressToNextTier,
+  viewRegistrationsHref,
 }: PlaneCardProps) {
   const statsPresent =
     uniqueRegistrationsCount !== undefined &&
@@ -149,6 +154,11 @@ export function PlaneCard({
                 />
               </div>
             </div>
+            {viewRegistrationsHref && (
+              <a className={styles.viewRegistrationsLink} href={viewRegistrationsHref}>
+                View registrations <span aria-hidden="true">→</span>
+              </a>
+            )}
           </>
         ) : (
           <p className={styles.statsEmpty}>Not tracked yet</p>
