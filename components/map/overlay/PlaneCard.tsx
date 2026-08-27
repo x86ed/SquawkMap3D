@@ -124,6 +124,10 @@ export function PlaneCard({
             <span className={styles.typeBadge}>{rarityTier}</span>
             <p className={styles.registrationLabel}>{registration ?? UNKNOWN}</p>
             <h3 className={styles.modelName}>{manufacturerModel ?? UNKNOWN}</h3>
+            {/* TEMP DEBUG — remove once the icon-mismatch report is diagnosed. */}
+            <p style={{ fontSize: 10, color: "#f87171", fontFamily: "monospace", marginTop: 4 }}>
+              DEBUG t={typeDesignator ?? "∅"} cat={category ?? "∅"}
+            </p>
           </div>
           <svg
             className={styles.shapeIcon}
