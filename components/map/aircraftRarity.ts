@@ -108,3 +108,29 @@ export function computeRarityTier(aircraft: Aircraft): RarityTier {
   if (value < t7) return "mythic";
   return "apex";
 }
+
+const RARITY_TIER_LADDER: RarityTier[] = [
+  "standard",
+  "prime",
+  "remarkable",
+  "exceptional",
+  "epic",
+  "legendary",
+  "mythic",
+  "apex",
+];
+
+/**
+ * The next tier up from `tier` on the 8-tier numeric ladder (`standard`
+ * through `apex`), for the "N% to {next tier}" progress label PlaneCard
+ * shows (mirroring adsb.win's own "0% to Carbon" label — that's their
+ * *material* tier ladder; this is the equivalent for the *rarity* ladder).
+ * Returns `null` when `tier` is already `apex` (the maximum — nothing to
+ * progress toward) or is `unidentified` (not a value on this ladder at all,
+ * see `computeRarityTier`).
+ */
+export function nextRarityTier(tier: RarityTier): RarityTier | null {
+  const index = RARITY_TIER_LADDER.indexOf(tier);
+  if (index === -1 || index === RARITY_TIER_LADDER.length - 1) return null;
+  return RARITY_TIER_LADDER[index + 1];
+}

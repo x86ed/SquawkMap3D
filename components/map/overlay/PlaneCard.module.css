@@ -204,43 +204,61 @@
   grid-column: span 2;
 }
 
-/* "Present" stat-grid layout (design.md Decision 14 task 8.4) — placeholder
-   spacing/typography following this codebase's existing spec-grid
-   convention (RecordPanelHero), NOT verified pixel-exact against adsb.win's
-   real authenticated dashboard card. Currently unreachable: every stat
-   field is undefined as of this change, so only .statsEmpty ever renders. */
+/* Fleet-wide stat grid + XP/progress row (design.md Decision 14) —
+   field-for-field match against adsb.win's real authenticated dashboard
+   card markup (labels, 2-col grid_x-gap-20/y-gap-16, mt-8/pt-5 divider,
+   text-2xl for the two count stats vs. default-size for the duration/
+   altitude stats, the "N% to {next tier}" progress label). Every field is
+   `undefined` today (no data source exists — design.md Decision 14), so
+   only .statsEmpty currently renders; this is the exact layout for when a
+   real source is wired up. */
 .statGrid {
-  margin-top: 16px;
-  padding-top: 16px;
+  margin-top: 32px;
+  padding-top: 20px;
   border-top: 1px solid oklab(0.999994 0.0000455678 0.0000200868 / 0.1);
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px 16px;
+  gap: 16px 20px;
 }
 
 .statCell {
   min-width: 0;
 }
 
-.statRowSpan2 {
-  grid-column: span 2;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px 16px;
+.statValueLarge {
+  margin-top: 4px;
+  font-size: 24px;
+  font-weight: 900;
+  color: rgb(241, 245, 249);
 }
 
-.xpRow {
-  grid-column: span 2;
+.xpBlock {
+  position: relative;
+  margin-top: auto;
+  padding-top: 24px;
 }
 
 .xpLabelRow {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.xpValue {
+  color: rgb(241, 245, 249);
+}
+
+.progressLabel {
+  color: oklch(0.554 0.046 257.417);
 }
 
 .progressTrack {
-  margin-top: 6px;
+  margin-top: 8px;
   height: 6px;
   border-radius: 9999px;
   background: rgba(255, 255, 255, 0.1);

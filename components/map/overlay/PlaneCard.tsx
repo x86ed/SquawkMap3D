@@ -1,5 +1,5 @@
 import styles from "./PlaneCard.module.css";
-import type { RarityTier } from "../aircraftRarity";
+import { nextRarityTier, type RarityTier } from "../aircraftRarity";
 import { getAircraftShape } from "../aircraftShapes";
 
 const UNKNOWN = "Unknown";
@@ -34,6 +34,10 @@ function formatDuration(totalSeconds: number): string {
   return `${hours}h ${minutes.toString().padStart(2, "0")}m`;
 }
 
+function capitalize(tier: RarityTier): string {
+  return tier.charAt(0).toUpperCase() + tier.slice(1);
+}
+
 /**
  * Identity card using adsb.win's own real, verified-exact two-layer
  * gradient-border-frame technique (design.md Decision 5): the outer frame's
@@ -46,16 +50,20 @@ function formatDuration(totalSeconds: number): string {
  * defaults, exactly like adsb.win's CSS) render via this one component; no
  * per-tier branching needed here.
  *
- * Fleet-wide stat fields (registrations/flights/observed time/highest
- * altitude/XP/progress) are forward-plumbed optional props (design.md
- * Decision 14) — always `undefined` today, since no data source for them
- * exists in this codebase or the feeder stack. The "present" stat-grid
- * layout below uses this codebase's own existing spec-grid conventions
- * (matching `RecordPanelHero`) as a documented placeholder — it is NOT
- * verified pixel-exact against adsb.win's real authenticated dashboard card
- * (unreachable during this amendment, see design.md Decision 14) and should
- * be confirmed by a developer with dashboard access before this branch ever
- * actually renders.
+ * Fleet-wide stat fields (unique registrations/flights captured/observed
+ * flight time/highest observed altitude/XP/progress-to-next-tier) are
+ * forward-plumbed optional props (design.md Decision 14) — always
+ * `undefined` today, since no data source for them exists in this codebase
+ * or the feeder stack. The "present" branch's field labels, 2-col grid, and
+ * XP/progress-bar row match adsb.win's real authenticated dashboard card
+ * markup field-for-field (`dt`/`dd` labels, the "N% to {next tier}"
+ * progress label — computed here from `rarityTier` via `nextRarityTier`,
+ * which works today even though the stats themselves don't). One thing
+ * intentionally NOT reproduced: adsb.win's card ends with a "View
+ * registrations →" link into a per-model registrations list — this app has
+ * no such view (it tracks live ADS-B instances, not a historical
+ * per-type-model registrations database), so linking there would go
+ * nowhere real; omitted rather than faked.
  */
 export function PlaneCard({
   registration,
@@ -79,6 +87,7 @@ export function PlaneCard({
     xpProgressToNextTier !== undefined;
 
   const shape = getAircraftShape(typeDesignator);
+  const nextTier = nextRarityTier(rarityTier);
 
   return (
     <div className={styles.aircraftRarityFrame} data-tier={rarityTier}>
@@ -105,29 +114,33 @@ export function PlaneCard({
           </div>
         </dl>
         {statsPresent ? (
-          <dl className={styles.statGrid}>
-            <div className={styles.statCell}>
-              <dt className={styles.statLabel}>Registrations</dt>
-              <dd className={styles.statValue}>{uniqueRegistrationsCount}</dd>
-            </div>
-            <div className={styles.statCell}>
-              <dt className={styles.statLabel}>Flights captured</dt>
-              <dd className={styles.statValue}>{flightsCapturedCount}</dd>
-            </div>
-            <div className={styles.statRowSpan2}>
+          <>
+            <dl className={styles.statGrid}>
+              <div className={styles.statCell}>
+                <dt className={styles.statLabel}>Unique registrations</dt>
+                <dd className={styles.statValueLarge}>{uniqueRegistrationsCount}</dd>
+              </div>
+              <div className={styles.statCell}>
+                <dt className={styles.statLabel}>Flights captured</dt>
+                <dd className={styles.statValueLarge}>{flightsCapturedCount}</dd>
+              </div>
               <div className={styles.statCell}>
                 <dt className={styles.statLabel}>Observed flight time</dt>
                 <dd className={styles.statValue}>{formatDuration(observedFlightTimeSeconds)}</dd>
               </div>
               <div className={styles.statCell}>
-                <dt className={styles.statLabel}>Highest altitude</dt>
-                <dd className={styles.statValue}>{highestAltitudeObserved} ft</dd>
+                <dt className={styles.statLabel}>Highest observed</dt>
+                <dd className={styles.statValue}>{highestAltitudeObserved.toLocaleString()} ft</dd>
               </div>
-            </div>
-            <div className={styles.xpRow}>
+            </dl>
+            <div className={styles.xpBlock}>
               <div className={styles.xpLabelRow}>
-                <dt className={styles.statLabel}>XP</dt>
-                <dd className={styles.statValue}>{xp}</dd>
+                <span className={styles.xpValue}>{xp} XP</span>
+                <span className={styles.progressLabel}>
+                  {nextTier
+                    ? `${Math.round(xpProgressToNextTier * 100)}% to ${capitalize(nextTier)}`
+                    : "Maximum tier"}
+                </span>
               </div>
               <div className={styles.progressTrack}>
                 <div
@@ -136,7 +149,7 @@ export function PlaneCard({
                 />
               </div>
             </div>
-          </dl>
+          </>
         ) : (
           <p className={styles.statsEmpty}>Not tracked yet</p>
         )}
