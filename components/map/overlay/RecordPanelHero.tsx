@@ -12,6 +12,18 @@ function computeAge(year: string | undefined): string {
   return age >= 0 ? `${age} yr` : UNKNOWN;
 }
 
+/** FAA registry lookup for a US tail number — the FAA's `NNumberResult`
+ * endpoint keys on the number with its leading "N" stripped. Returns
+ * `undefined` for registrations that aren't recognizably a US N-number, so
+ * the heading falls back to plain (non-link) text rather than linking to a
+ * lookup that can't resolve. */
+function faaRegistryHref(registration: string | undefined): string | undefined {
+  if (!registration) return undefined;
+  const match = /^N(\d[\dA-Z]{0,4})$/i.exec(registration.trim());
+  if (!match) return undefined;
+  return `https://registry.faa.gov/AircraftInquiry/Search/NNumberResult?nNumberTxt=${match[1].toUpperCase()}`;
+}
+
 /**
  * Square-corner panel: top-right "AIRFRAME / {hex}" tab, left image area,
  * right identity block (kicker, registration heading, callsign, hex, 2-col
@@ -70,13 +82,15 @@ export function RecordPanelHero({
     };
   }, [hex]);
 
+  const faaHref = faaRegistryHref(registration);
+
   return (
     <div
       ref={containerRef}
       className={styles.panel}
       data-orientation={landscape ? "landscape" : "portrait"}
     >
-      <div className={styles.tab}>AIRFRAME / {hex}</div>
+      <div className={styles.tab}>AIRFRAME</div>
       <div className={styles.body}>
         {photo ? (
           <a
@@ -98,11 +112,21 @@ export function RecordPanelHero({
         )}
         <div className={styles.identity}>
           <div className={styles.kicker}>Registration</div>
-          <div className={styles.heading}>{registration ?? UNKNOWN}</div>
-          <div className={styles.subline}>
-            <span>{callsign ?? UNKNOWN}</span>
-            <span>{hex.toUpperCase()}</span>
-          </div>
+          {faaHref ? (
+            <a
+              className={styles.heading}
+              href={faaHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Look up this tail number in the FAA registry"
+            >
+              {registration}
+            </a>
+          ) : (
+            <div className={styles.heading}>{registration ?? UNKNOWN}</div>
+          )}
+          <p className={styles.subline}>CALL // {callsign ?? UNKNOWN}</p>
+          <p className={styles.subline}>ICAO // {hex.toUpperCase()}</p>
           <div className={styles.specGrid}>
             <SpecCell label="Manufacturer" value={manufacturerModel ?? UNKNOWN} />
             <SpecCell label="Model" value={manufacturerModel ?? UNKNOWN} />

@@ -116,26 +116,55 @@
    what its own width can actually hold. Clamped to the same 24px this used
    to be hard-coded at on the low end. */
 .heading {
+  display: inline-block;
   font-size: clamp(24px, 11cqmin, 40px);
   font-weight: 900;
   letter-spacing: -0.01em;
   color: #f1f5f9;
   margin: 2px 0 4px;
+  /* Reset the default link look — this reads as a heading at rest, with a
+   * hover affordance (accent color + underline) as the only signal it's
+   * clickable through to the FAA registry. */
+  text-decoration: none;
 }
 
+a.heading:hover,
+a.heading:focus-visible {
+  color: #22d3ee;
+  text-decoration: underline;
+}
+
+/* CALL // {callsign} and ICAO // {hex}, adsb.win-style: small uppercase
+ * slate mono text sitting directly under the registration heading. */
 .subline {
-  display: flex;
-  gap: 12px;
-  font-size: 12px;
+  font-family: SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
   font-weight: 700;
-  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: #64748b;
+  margin: 4px 0 0;
+}
+
+.subline:last-of-type {
   margin-bottom: 12px;
 }
 
+/* Bordered table look: the grid's own top/left edge plus each cell's own
+ * right/bottom edge combine into a full rule around every cell. */
 .specGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px 16px;
+  margin-top: 4px;
+  border-top: 1px solid rgba(63, 63, 70, 0.42);
+  border-left: 1px solid rgba(63, 63, 70, 0.42);
+}
+
+.specCell {
+  min-width: 0;
+  padding: 8px 16px;
+  border-right: 1px solid rgba(63, 63, 70, 0.42);
+  border-bottom: 1px solid rgba(63, 63, 70, 0.42);
 }
 
 .specLabel {
