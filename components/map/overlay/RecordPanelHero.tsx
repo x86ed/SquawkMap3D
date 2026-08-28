@@ -25,9 +25,11 @@ function faaRegistryHref(registration: string | undefined): string | undefined {
 }
 
 /**
- * Square-corner panel: top-right "AIRFRAME / {hex}" tab, left image area,
- * right identity block (kicker, registration heading, callsign, hex, 2-col
- * spec grid). Reflows between portrait/landscape based on its own measured
+ * Square-corner panel: top-right "AIRFRAME" tab, left image area, right
+ * identity block (kicker, registration heading — clickable through to the
+ * FAA registry for recognizable US N-numbers, see `faaRegistryHref` —
+ * `CALL // {callsign}` / `ICAO // {hex}` sublines, bordered 2-col spec
+ * grid). Reflows between portrait/landscape based on its own measured
  * container aspect ratio via `ResizeObserver` — not a viewport media query
  * (aircraft-info-overlay spec's "Layout reflows by measured container
  * aspect, not viewport" scenario).
