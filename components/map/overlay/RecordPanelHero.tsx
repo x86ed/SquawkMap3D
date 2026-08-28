@@ -17,17 +17,33 @@ function computeAge(year: string | undefined): string {
  * `undefined` for registrations that aren't recognizably a US N-number, so
  * the heading falls back to plain (non-link) text rather than linking to a
  * lookup that can't resolve. */
-function faaRegistryHref(registration: string | undefined): string | undefined {
+/**
+ * Resolves a registration to its national civil-registry lookup, when the
+ * mark is recognizable as one we know how to link. Currently covers US
+ * N-numbers (FAA) and Canadian C-numbers (Transport Canada CCARCS) — other
+ * marks fall through to a plain, non-linked heading.
+ */
+function registryHref(registration: string | undefined): string | undefined {
   if (!registration) return undefined;
-  const match = /^N(\d[\dA-Z]{0,4})$/i.exec(registration.trim());
-  if (!match) return undefined;
-  return `https://registry.faa.gov/AircraftInquiry/Search/NNumberResult?nNumberTxt=${match[1].toUpperCase()}`;
+  const trimmed = registration.trim();
+
+  const us = /^N(\d[\dA-Z]{0,4})$/i.exec(trimmed);
+  if (us) {
+    return `https://registry.faa.gov/AircraftInquiry/Search/NNumberResult?nNumberTxt=${us[1].toUpperCase()}`;
+  }
+
+  const canada = /^C-([A-Z]{4})$/i.exec(trimmed);
+  if (canada) {
+    return `https://wwwapps.tc.gc.ca/Saf-Sec-Sur/2/CCARCS-RIACC/RchHsRes.aspx?mh=${canada[1].toUpperCase()}`;
+  }
+
+  return undefined;
 }
 
 /**
  * Square-corner panel: top-right "AIRFRAME" tab, left image area, right
  * identity block (kicker, registration heading — clickable through to the
- * FAA registry for recognizable US N-numbers, see `faaRegistryHref` —
+ * national civil registry for recognizable marks, see `registryHref` —
  * `CALL // {callsign}` / `ICAO // {hex}` sublines, bordered 2-col spec
  * grid). Reflows between portrait/landscape based on its own measured
  * container aspect ratio via `ResizeObserver` — not a viewport media query
@@ -84,7 +100,7 @@ export function RecordPanelHero({
     };
   }, [hex]);
 
-  const faaHref = faaRegistryHref(registration);
+  const registryLookupHref = registryHref(registration);
 
   return (
     <div
@@ -114,13 +130,13 @@ export function RecordPanelHero({
         )}
         <div className={styles.identity}>
           <div className={styles.kicker}>Registration</div>
-          {faaHref ? (
+          {registryLookupHref ? (
             <a
               className={styles.heading}
-              href={faaHref}
+              href={registryLookupHref}
               target="_blank"
               rel="noopener noreferrer"
-              title="Look up this tail number in the FAA registry"
+              title="Look up this tail number in the national civil aircraft registry"
             >
               {registration}
             </a>
