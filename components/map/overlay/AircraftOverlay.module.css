@@ -1,0 +1,180 @@
+/* Dark gradient card chrome matching adsb.win's dashboard aircraft cards —
+ * same palette as app/globals.css's `.airport-popup` rules. */
+.drawer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  height: 45vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 20px 20px;
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #f1f5f9;
+  background: linear-gradient(180deg, #29292d, #111216 62%, #1b1c21);
+  border-top: 1px solid rgba(63, 63, 70, 0.42);
+  box-shadow:
+    0 -10px 15px -3px rgba(2, 6, 23, 0.35),
+    0 -4px 6px -4px rgba(2, 6, 23, 0.35);
+  transform: translateY(100%);
+  transition: transform 220ms ease;
+}
+
+.drawer[data-open="true"] {
+  transform: translateY(0);
+}
+
+/* Doubles as the drawer's close control — the visual grip bar is just
+ * `.dragHandleGrip`; this wrapping button owns the full-width tap target
+ * and padding so it's an easy target, not just the thin 4px bar itself. */
+.dragHandle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 6px 0 12px;
+  margin: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.dragHandle:hover .dragHandleGrip,
+.dragHandle:focus-visible .dragHandleGrip {
+  background: rgba(226, 232, 240, 0.6);
+}
+
+.dragHandleGrip {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(148, 163, 184, 0.35);
+  transition: background 150ms ease;
+}
+
+/* Always exactly fills the drawer's remaining height below the handle
+   (flex:1) — .grid, inside it, is scaled down (never scrolled) if its
+   content still doesn't fit at that size; see AircraftOverlay.tsx's
+   ResizeObserver. */
+.scaleViewport {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1.4fr 1fr;
+  /* Row 1 (card/hero/flightInfo) claims all height not needed by the
+     marquee's own compact, fixed-height ticker strip — rather than a fixed
+     80/20 split, the card and flight-info graph get proportionally larger
+     as the drawer itself gets taller, since the marquee no longer eats a
+     fixed share of it. */
+  grid-template-rows: 1fr 44px;
+  grid-template-areas:
+    "card hero flightInfo"
+    "marquee marquee marquee";
+  gap: 16px;
+  /* Scaled down (never scrolled) from the drawer's own ResizeObserver when
+     content still doesn't fit at 1:1 — see AircraftOverlay.tsx. Centered so
+     any resulting letterboxing is symmetric rather than offset. */
+  transform-origin: center center;
+}
+
+/* card/hero/flightInfo float above the marquee's bleed (z-index:2 vs. the
+   marquee's z-index:1) so it can tuck up underneath their bottom edge. */
+/* container-type: size on card/hero/flightInfo (not marquee, which stays a
+   fixed 44px strip regardless of drawer height) lets each panel's own CSS
+   size its headline text/icons off `cqh` — the cell's actual rendered
+   height — rather than a fixed px value. Because the marquee never claims
+   more than its fixed row, any extra height the drawer has to give (a
+   taller viewport, or the single-column mobile layout's `1fr` flightInfo
+   row) flows entirely into this row, and these three panels now visibly
+   grow into it instead of just gaining dead padding. */
+.hero {
+  grid-area: hero;
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+  container-name: overlay-hero;
+  /* Sits a touch higher than its row-mates — a deliberate layered-panel
+     offset, not a misalignment. */
+  margin-top: -6px;
+}
+
+.card {
+  grid-area: card;
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+  container-name: overlay-card;
+}
+
+.flightInfo {
+  grid-area: flightInfo;
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+  container-name: overlay-flight-info;
+}
+
+/* Bleeds past the drawer's own side padding and tucks up underneath row
+   1's bottom edge (negative margin-top beyond the grid's 16px row gap,
+   z-index:1 under card/hero/flightInfo's z-index:2) rather than sitting in
+   its own clean, fully-separate strip. */
+.marquee {
+  grid-area: marquee;
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  min-height: 0;
+  margin: -24px -20px 0;
+  /* Lets the marquee's own font-size/spacing scale off `cqw` — the strip's
+     actual rendered width — so it reads as adaptive on a narrow drawer
+     instead of staying pinned to its desktop-width font size. */
+  container-type: inline-size;
+  container-name: overlay-marquee;
+}
+
+/* Narrow/portrait viewports (aircraft-info-overlay spec's "Narrow viewport
+ * stacks to a single column" scenario): airframe as its own full-width top
+ * layer, card and flight-info graph sharing a row beneath it (so neither
+ * one alone can balloon to fill all the leftover vertical space — the
+ * flightInfo graph "taking over the view" when it had a whole 1fr row to
+ * itself), marquee pinned to its usual fixed-height strip at the bottom. */
+@media (max-width: 760px) {
+  .drawer {
+    height: 80vh;
+  }
+
+  .grid {
+    grid-template-columns: 1fr 1fr;
+    /* Hero gets a fixed row height rather than `auto` — an auto-sized grid
+       track doesn't give RecordPanelHero's own `height: 100%` internals
+       anything definite to resolve against, so it was collapsing to
+       ~content-min-height (i.e. barely rendering). */
+    grid-template-rows: 140px minmax(160px, 1fr) 44px;
+    grid-template-areas:
+      "hero hero"
+      "card flightInfo"
+      "marquee marquee";
+  }
+
+  /* The desktop layered-offset only makes sense sitting between its two
+     row-mates; here it's its own full-width top row. */
+  .hero {
+    margin-top: 0;
+  }
+}

@@ -1,0 +1,114 @@
+.pane {
+  height: 100%;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(63, 63, 70, 0.42);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sparklineBlock {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sparklineLegend {
+  display: flex;
+  gap: 12px;
+}
+
+/* Grows with the flightInfo cell's own measured size (`container-type:
+   size` in AircraftOverlay.module.css) — the plot itself already fills the
+   cell via flex:1/height:100% on .sparklineSvg, so it's the labels around
+   it that need this to read as proportionally bigger, not just spread over
+   a taller box. `cqmin` (bounded by whichever of the cell's width/height is
+   smaller), not `cqh` alone, so a narrow-but-tall cell — e.g. the portrait
+   layout's card/flightInfo row — can't blow the labels up past what its own
+   width can actually hold. */
+.sparklineLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: clamp(10px, 3.4cqmin, 14px);
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.sparklineSwatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.sparklineRow {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.axisColumn {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex-shrink: 0;
+  font-size: clamp(9px, 3cqmin, 12px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.axisColumn:first-child {
+  text-align: right;
+}
+
+.axisColumn:last-child {
+  text-align: left;
+}
+
+.sparklineSvg {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.noDataState {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  font-style: italic;
+}
+
+.routeBand {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgba(63, 63, 70, 0.42);
+}
+
+.routeEndpoints {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #f1f5f9;
+}
+
+.routeArrow {
+  color: #64748b;
+}
+
+.routeTimeline {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+}

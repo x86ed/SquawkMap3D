@@ -1,10 +1,13 @@
 import type { Layer } from "@deck.gl/core";
-import { IconLayer, PathLayer } from "@deck.gl/layers";
+import { IconLayer, PathLayer, ScatterplotLayer } from "@deck.gl/layers";
 import type { Aircraft, TrackPoint } from "./aircraft";
 import { altitudeToColor, resolveIconKey, type IconAtlas } from "./aircraftIcons";
+import { computeRarityTier, RARITY_TIER_STYLES } from "./aircraftRarity";
+import { AIRCRAFT_SELECTION_GLOW_ALPHA, AIRCRAFT_SELECTION_GLOW_RADIUS_PIXELS } from "./constants";
 
 export const AIRCRAFT_ICON_LAYER_ID = "aircraft-icons";
 export const AIRCRAFT_TRACK_LAYER_ID = "aircraft-tracks";
+export const AIRCRAFT_SELECTION_GLOW_LAYER_ID = "aircraft-selection-glow";
 
 // Exported so other real-altitude-positioned deck.gl layers (radarSweep.ts's
 // aircraft dots) reuse the exact same conversion rather than a copy that
@@ -35,8 +38,10 @@ export function buildAircraftLayers(params: {
   aircraft: Aircraft[];
   tracks: ReadonlyMap<string, TrackPoint[]>;
   iconAtlas: IconAtlas | null;
+  selectedHex: string | null;
+  onAircraftClick: (hex: string | null) => void;
 }): Layer[] {
-  const { aircraft, tracks, iconAtlas } = params;
+  const { aircraft, tracks, iconAtlas, selectedHex, onAircraftClick } = params;
   if (!iconAtlas) return [];
 
   const positioned = aircraft.filter(
@@ -53,13 +58,48 @@ export function buildAircraftLayers(params: {
     getPosition: (d) => [d.lon, d.lat, (d.altitude ?? 0) * FEET_TO_METERS],
     // Icon SVGs are drawn nose-up in the atlas (verified per-asset; two
     // pw-silhouettes exceptions corrected in aircraftIcons.ts's atlas
-    // builder). deck.gl's IconLayer rotates clockwise for positive `angle`
-    // (icon-layer-vertex.glsl.js), matching compass track directly — no
-    // sign flip needed.
-    getAngle: (d) => d.track ?? 0,
+    // builder). deck.gl's IconLayer actually rotates *counter-clockwise*
+    // for positive `angle` — confirmed empirically (a standalone IconLayer
+    // test: angle=90 pointed a nose-up icon west, not east) — while compass
+    // track increases *clockwise* from north. Negating the track is what
+    // makes a nose-up icon point the right way (track=90/east needs
+    // angle=-90, i.e. 90° clockwise from the icon's own CCW-positive axis).
+    getAngle: (d) => -(d.track ?? 0),
     getColor: (d) => altitudeToColor(d.altitude ?? 0),
-    getSize: 28,
+    // Was 28 — with a solid-filled icon (see aircraftIcons.ts's atlas
+    // builder), that read as too small on the map to be legible against
+    // basemap clutter.
+    getSize: 40,
     sizeUnits: "pixels",
+    // Selection picking (design.md Decision 2): the click handler itself
+    // toggles off when re-clicking the already-selected hex, else selects
+    // the clicked one; a miss (empty map area) reports `null` here, but the
+    // real "clicked elsewhere" deselect path is MapLibre's own unscoped
+    // `map.on("click", ...)` in MapView.tsx (Decision 3) since this only
+    // fires on an actual pick hit.
+    pickable: true,
+    onClick: (info) => onAircraftClick(info.object ? info.object.hex : null),
+  });
+
+  const selectedAircraft = selectedHex
+    ? positioned.find((a) => a.hex === selectedHex)
+    : undefined;
+
+  // Glow highlight (design.md Decision 4): a second, larger, semi-transparent
+  // ScatterplotLayer circle rendered underneath the icon at the same
+  // position, colored by the selected aircraft's computed rarity tier. Only
+  // ever zero or one element — no highlight when nothing is selected or the
+  // selected aircraft has dropped out of the current positioned set.
+  const glowLayer = new ScatterplotLayer<Aircraft & { lat: number; lon: number }>({
+    id: AIRCRAFT_SELECTION_GLOW_LAYER_ID,
+    data: selectedAircraft ? [selectedAircraft] : [],
+    getPosition: (d) => [d.lon, d.lat, (d.altitude ?? 0) * FEET_TO_METERS],
+    getFillColor: (d) => {
+      const [r, g, b] = hexColorToRgb(RARITY_TIER_STYLES[computeRarityTier(d)].color);
+      return [r, g, b, AIRCRAFT_SELECTION_GLOW_ALPHA];
+    },
+    getRadius: AIRCRAFT_SELECTION_GLOW_RADIUS_PIXELS,
+    radiusUnits: "pixels",
     pickable: false,
   });
 
@@ -88,6 +128,13 @@ export function buildAircraftLayers(params: {
     pickable: false,
   });
 
-  // Trail beneath, icons on top.
-  return [trackLayer, iconLayer];
+  // Glow beneath the trail/icons (design.md Decision 4), trail beneath
+  // icons, icons on top.
+  return [glowLayer, trackLayer, iconLayer];
+}
+
+/** Parses a `#rrggbb` hex color string into an `[r, g, b]` 0-255 triple. */
+function hexColorToRgb(hex: string): [number, number, number] {
+  const value = parseInt(hex.slice(1), 16);
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
 }

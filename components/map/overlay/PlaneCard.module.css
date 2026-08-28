@@ -1,0 +1,351 @@
+/* Two-layer gradient-border-frame technique, adsb.win's own real, verified-
+   exact 9-tier taxonomy CSS (design.md Decision 5, source:
+   https://adsb.win/assets/tailwind-255296c3.css, fetched and diffed
+   byte-for-byte). The outer frame's own `background` IS the border color;
+   the inner card sits on top, covering all but a ~2px ring plus a 22px
+   strip at the bottom where the floating tier badge sits. `unidentified`
+   gets no `[data-tier="unidentified"]` rule at all — it inherits this base
+   rule's own defaults verbatim, exactly like adsb.win's own CSS. */
+
+.aircraftRarityFrame {
+  --rarity-color: #64748b;
+  --rarity-highlight: #cbd5e1;
+  --rarity-glow: #64748b33;
+  background: linear-gradient(135deg, var(--rarity-highlight), var(--rarity-color) 35%, var(--rarity-color));
+  border-radius: 1.65rem; /* 26.4px */
+  padding: 2px 2px 22px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 14px 32px #02061747, 0 0 22px var(--rarity-glow);
+  transition: transform 0.16s ease-out, box-shadow 0.2s;
+  height: 100%;
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .aircraftRarityFrame {
+    background: linear-gradient(
+      135deg,
+      var(--rarity-highlight),
+      color-mix(in srgb, var(--rarity-color) 30%, #070b14) 35%,
+      var(--rarity-color)
+    );
+  }
+}
+
+.aircraftRarityFrame:hover {
+  box-shadow: 0 22px 44px #02061761, 0 0 34px var(--rarity-glow);
+}
+
+.aircraftTierCard {
+  border-radius: 1.5rem; /* 24px */
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  overflow: hidden;
+  background: linear-gradient(145deg, rgb(16, 23, 32), rgb(8, 11, 16) 62%, rgb(17, 24, 39));
+}
+
+/* Per-tier custom-property overrides — literal values matching
+   RARITY_TIER_STYLES in aircraftRarity.ts exactly. */
+.aircraftRarityFrame[data-tier="standard"] {
+  --rarity-color: #64748b;
+  --rarity-highlight: #cbd5e1;
+  --rarity-glow: #94a3b83d;
+}
+.aircraftRarityFrame[data-tier="prime"] {
+  --rarity-color: #0891b2;
+  --rarity-highlight: #67e8f9;
+  --rarity-glow: #06b6d46b;
+}
+.aircraftRarityFrame[data-tier="remarkable"] {
+  --rarity-color: #2563eb;
+  --rarity-highlight: #93c5fd;
+  --rarity-glow: #3b82f675;
+}
+.aircraftRarityFrame[data-tier="exceptional"] {
+  --rarity-color: #7c3aed;
+  --rarity-highlight: #c4b5fd;
+  --rarity-glow: #8b5cf680;
+}
+.aircraftRarityFrame[data-tier="epic"] {
+  --rarity-color: #db2777;
+  --rarity-highlight: #f9a8d4;
+  --rarity-glow: #ec489985;
+}
+.aircraftRarityFrame[data-tier="legendary"] {
+  --rarity-color: #d97706;
+  --rarity-highlight: #fde68a;
+  --rarity-glow: #f59e0b8f;
+}
+/* mythic and apex additionally override `background` (and apex overrides
+   `box-shadow`) directly instead of using the shared linear-gradient
+   formula above. */
+.aircraftRarityFrame[data-tier="mythic"] {
+  --rarity-color: #db2777;
+  --rarity-highlight: #f0abfc;
+  --rarity-glow: #d946ef9e;
+  background: conic-gradient(from 210deg, #22d3ee, #8b5cf6, #ec4899, #f59e0b, #22d3ee);
+}
+.aircraftRarityFrame[data-tier="apex"] {
+  --rarity-color: #bae6fd;
+  --rarity-highlight: #fff;
+  --rarity-glow: #cffafed1;
+  box-shadow: 0 14px 32px #02061747, 0 0 14px #ffffffb8, 0 0 34px var(--rarity-glow);
+  background: linear-gradient(120deg, #fff, #ecfeff 18%, #bae6fd 46%, #e0e7ff 72%, #fff);
+}
+
+.glowOrb {
+  position: absolute;
+  top: -48px;
+  right: -48px;
+  width: 160px;
+  height: 160px;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--rarity-color) 30%, transparent);
+  filter: blur(64px);
+  pointer-events: none;
+}
+
+.headerRow {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Below ~200px of card width (the portrait layout's card/flightInfo row,
+   where the card only gets half the drawer's width) there isn't room for
+   the identity text and the shape icon side by side without squeezing
+   .modelName down to a near-zero column that wraps letter-by-letter —
+   stack the icon above the identity block instead. */
+@container overlay-card (max-width: 200px) {
+  .headerRow {
+    flex-direction: column;
+  }
+
+  .shapeIcon {
+    align-self: flex-end;
+  }
+}
+
+.identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.typeBadge {
+  align-self: flex-start;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-family: var(--font-geist-mono, monospace);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 16px;
+  color: rgb(7, 16, 29);
+  background: var(--rarity-highlight);
+  text-transform: uppercase;
+}
+
+.registrationLabel {
+  margin-top: 16px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: oklch(0.554 0.046 257.417);
+}
+
+/* Grows with the card cell's own measured size (`container-type: size` on
+   .card in AircraftOverlay.module.css) instead of a fixed px value, so the
+   card's headline model name gets visibly larger when the drawer gives the
+   card more room — not just more surrounding whitespace. `cqmin` (bounded
+   by whichever of the cell's width/height is smaller), not `cqh` alone, so
+   a narrow-but-tall cell — e.g. the portrait layout's card/flightInfo row —
+   can't blow the heading up past what its own width can actually hold. */
+.modelName {
+  margin-top: 4px;
+  font-size: clamp(20px, 9cqmin, 32px);
+  font-weight: 900;
+  line-height: 1.2;
+  color: rgb(241, 245, 249);
+  overflow-wrap: anywhere;
+}
+
+/* Top-view aircraft silhouette (vendored from RexKramer1/AircraftShapesSVG,
+   GPL-3.0 — see public/aircraft-shapes/LICENSE), rendered as an inlined SVG
+   (not `<img>`) so it can be colored with a plain CSS `color`, exactly
+   matching the tier's accent — every vendored file's paths were rewritten
+   to `stroke:currentColor`/`fill:currentColor` at generation time (see
+   scripts/generate-aircraft-shapes-manifest.mjs). Each source drawing is a
+   thin outline stroke, not a filled silhouette, so `vector-effect:
+   non-scaling-stroke` plus a boosted `stroke-width` keep it visible (a
+   crisp constant pixel width regardless of the icon's own render size)
+   rather than the near-invisible hairline the files' own original
+   mm-scaled stroke width would produce at this size. The `drop-shadow`
+   glow mirrors adsb.win's own aircraft-icon treatment. */
+/* Same container-size-driven growth as .modelName, same `cqmin` cap — the
+   type silhouette is this card's "graph"-equivalent visual, so it scales
+   with the cell rather than sitting fixed at 48px while headroom opens up
+   around it. */
+.shapeIcon {
+  flex-shrink: 0;
+  width: clamp(48px, 20cqmin, 88px);
+  height: clamp(48px, 20cqmin, 88px);
+  color: var(--rarity-color);
+  filter: drop-shadow(0 0 3px var(--rarity-glow));
+}
+
+/* Several vendored shapes (`aircraftShapes.ts`) are pure `fill:none` outline
+   strokes with no solid fill at all — confirmed by inspecting the source
+   files directly (e.g. the Cessna 172's silhouette) — which read as a bare
+   hairline even at this icon's full size. Force every path to a solid fill
+   in the tier's own color instead of trusting each of the 179 vendored
+   files' own styling to already have one. */
+.shapeIcon path {
+  vector-effect: non-scaling-stroke;
+  stroke-width: 2.5px !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.statLabel {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: oklch(0.554 0.046 257.417);
+}
+
+.statValue {
+  margin-top: 4px;
+  font-size: 16px;
+  font-weight: 900;
+  color: rgb(241, 245, 249);
+}
+
+/* Fleet-wide stat grid + XP/progress row (design.md Decision 14) —
+   field-for-field match against adsb.win's real authenticated dashboard
+   card markup (labels, 2-col grid_x-gap-20/y-gap-16, mt-8/pt-5 divider,
+   text-2xl for the two count stats vs. default-size for the duration/
+   altitude stats, the "N% to {next tier}" progress label). Every field is
+   `undefined` today (no data source exists — design.md Decision 14), so
+   only .statsEmpty currently renders; this is the exact layout for when a
+   real source is wired up. */
+.statGrid {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid oklab(0.999994 0.0000455678 0.0000200868 / 0.1);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 20px;
+}
+
+.statCell {
+  min-width: 0;
+}
+
+.statValueLarge {
+  margin-top: 4px;
+  font-size: 24px;
+  font-weight: 900;
+  color: rgb(241, 245, 249);
+}
+
+.xpBlock {
+  position: relative;
+  margin-top: auto;
+  padding-top: 24px;
+}
+
+.xpLabelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.xpValue {
+  color: rgb(241, 245, 249);
+}
+
+.progressLabel {
+  color: oklch(0.554 0.046 257.417);
+}
+
+.progressTrack {
+  margin-top: 8px;
+  height: 6px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: var(--rarity-color);
+  border-radius: 9999px;
+}
+
+.viewRegistrationsLink {
+  position: relative;
+  display: block;
+  margin-top: 20px;
+  font-size: 14px;
+  font-weight: 900;
+  color: rgb(103, 232, 249);
+  text-decoration: none;
+}
+
+.viewRegistrationsLink:hover {
+  text-decoration: underline;
+}
+
+.statsEmpty {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid oklab(0.999994 0.0000455678 0.0000200868 / 0.1);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: oklch(0.554 0.046 257.417);
+  text-align: center;
+}
+
+.badgeRow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+}
+
+.rarityBadge {
+  padding: 7px 12px;
+  border-radius: 9999px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1.08px;
+  text-transform: uppercase;
+  color: var(--rarity-highlight);
+  /* Verified against adsb.win's live `.aircraft-rarity__badge` computed
+     background for all of standard/prime/remarkable/exceptional/epic/
+     legendary — matches to 5-6 decimal places, so used uniformly for
+     mythic/apex/unidentified too rather than needing a per-tier literal. */
+  background: color-mix(in srgb, var(--rarity-color) 24%, #060a13);
+}
+
+.rarityBadge::before {
+  content: "◆";
+  margin-right: 6.4px;
+}

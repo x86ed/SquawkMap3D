@@ -2,5 +2,9 @@
   "add-airspace-boundaries-layer": {
     "version": "v0.7.0",
     "initialized_at": "2026-08-23T15:00:13Z"
+  },
+  "aircraft-info-overlay": {
+    "version": "v0.11.0",
+    "initialized_at": "2026-08-25T18:24:05Z"
   }
 }

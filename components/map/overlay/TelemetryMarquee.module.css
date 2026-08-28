@@ -1,0 +1,87 @@
+.marquee {
+  position: relative;
+  height: 100%;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  padding: 8px 0;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-weight: 600;
+  color: #cbd5e1;
+  /* Fade-masked left/right edges. */
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 5%,
+    #000 95%,
+    transparent
+  );
+  mask-image: linear-gradient(90deg, transparent, #000 5%, #000 95%, transparent);
+}
+
+.track {
+  display: inline-flex;
+  width: max-content;
+  animation: scroll 26s linear infinite;
+  /* Scales off `cqw` — the strip's own rendered width (`container-type:
+     inline-size`, set on the ancestor `.marquee` in
+     AircraftOverlay.module.css) — instead of a fixed 13px, so it actually
+     shrinks on a narrow/portrait drawer rather than staying pinned at its
+     desktop size. Set here on a descendant of the query container, not on
+     `.marquee` itself, since `cqw` doesn't resolve reliably on the
+     container element's own box. .pair/.dot spacing below is `em`-based so
+     it scales down right along with this. */
+  font-size: clamp(11px, 2.4cqw, 13px);
+  /* `--marquee-shift` (set inline by TelemetryMarquee.tsx, `100% /
+     <copy count>` of the *track's own* width) is one repeated `.segment`'s
+     width — however many copies it took to cover the marquee at least
+     twice over. Defaults to 50% (the two-copy case) so it's still correct
+     before the mount effect's first measurement runs. */
+  --marquee-shift: 50%;
+}
+
+.marquee:hover .track,
+.marquee:focus-within .track {
+  animation-play-state: paused;
+}
+
+.segment {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+/* Dimmed key label / bright value, dot-separated — a structured pair
+ * instead of one flat joined string, so the key reads as a label and the
+ * value as the actual data point. */
+.pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0 1.05em;
+}
+
+.k {
+  color: #64748b;
+  letter-spacing: 0.06em;
+}
+
+.v {
+  color: #f1f5f9;
+  font-weight: 700;
+}
+
+.dot {
+  color: #06b6d4;
+  margin-left: 1.05em;
+}
+
+@keyframes scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-1 * var(--marquee-shift)));
+  }
+}

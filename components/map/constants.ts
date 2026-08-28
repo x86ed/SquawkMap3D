@@ -151,6 +151,28 @@ export const RANGE_OUTLINE_SWEEP_PERIOD_MS = 8_000;
 // scripts/vendor-aircraft-icons.mjs for the source of each entry) — not
 // every category has a pw-silhouettes generic (e.g. B5, C3-C7 are
 // unmapped), those fall through to the plain-marker fallback instead.
+// Selected-aircraft glow highlight (components/map/aircraftLayer.ts's
+// ScatterplotLayer, see design.md Decision 4) — radius comfortably larger
+// than the 40px icon size in aircraftLayer.ts (kept at roughly the same
+// ~1.6x ratio as when the icon was 28px/glow was 22px) so the glow reads as
+// a highlight around the icon rather than being fully hidden underneath it;
+// alpha kept low (~47%) so it doesn't obscure the icon or nearby traffic.
+export const AIRCRAFT_SELECTION_GLOW_RADIUS_PIXELS = 32;
+export const AIRCRAFT_SELECTION_GLOW_ALPHA = 120;
+
+// "Follow selected aircraft" per-poll recenter duration (design.md Decision
+// 13) — short enough to track a ~1s-polled aircraft without visibly lagging
+// behind it, long enough to still read as an eased pan rather than a jump.
+export const FOLLOW_SELECTED_AIRCRAFT_EASE_MS = 800;
+
+// Guard window (design.md Decision 3) between an aircraft `IconLayer` click
+// (deck.gl) and MapLibre's own unscoped `map.on("click", ...)` handler
+// firing for the same pointer event — both fire for a click that lands on
+// an aircraft icon, since deck.gl overlays the same canvas MapLibre owns.
+// Small enough to never mistake a genuinely separate, deliberate second
+// click as the same event.
+export const AIRCRAFT_DESELECT_CLICK_GUARD_MS = 50;
+
 export const AIRCRAFT_CATEGORY_FALLBACK_ICON: Record<string, string> = {
   A1: "/aircraft-silhouettes/A1.svg", // light
   A2: "/aircraft-silhouettes/A2.svg", // medium 1 (7,000-34,000 kg)

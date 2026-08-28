@@ -21,11 +21,18 @@ import {
   fetchAircraft,
   updateTracks,
   getAllTracks,
+  getTrack,
   clearTracks,
   type Aircraft,
 } from "./aircraft";
 import { buildAircraftIconAtlas, type IconAtlas } from "./aircraftIcons";
 import { buildAircraftLayers } from "./aircraftLayer";
+import { getFlightRoute, type FlightRoute } from "./flightRoute";
+import {
+  buildSelectedAircraftInfo,
+  type SelectedAircraftInfo,
+} from "./overlay/selectedAircraftInfo";
+import { AircraftOverlay } from "./overlay/AircraftOverlay";
 import {
   addCustomLayers,
   AIRPORTS_LAYER_ID,
@@ -76,9 +83,11 @@ import {
 import { getCurrentLocation, type GeoCoords } from "./geolocation";
 import { getFeederLocation } from "./feederLocation";
 import {
+  AIRCRAFT_DESELECT_CLICK_GUARD_MS,
   AIRCRAFT_FEED_REFRESH_INTERVAL_MS,
   AIRSPACE_BOUNDARIES_REFRESH_INTERVAL_MS,
   DEFAULT_VIEW,
+  FOLLOW_SELECTED_AIRCRAFT_EASE_MS,
   INITIAL_BEARING,
   INITIAL_PITCH,
   MAX_PITCH,
@@ -146,6 +155,20 @@ export default function MapView() {
   const deckOverlayRef = useRef<MapboxOverlay | null>(null);
   const aircraftIconAtlasRef = useRef<IconAtlas | null>(null);
 
+  // Selection state (design.md Decision 1) — state for render, ref for the
+  // mount-effect's stable closures, same pairing every other piece of this
+  // file's interaction state already uses.
+  const selectedAircraftHexRef = useRef<string | null>(null);
+  // Timestamp guard (design.md Decision 3) distinguishing a real
+  // "click elsewhere" from MapLibre's own unscoped click handler re-firing
+  // for the same pointer event the aircraft IconLayer's own onClick already
+  // handled.
+  const lastAircraftClickAtRef = useRef(0);
+  const followSelectedAircraftRef = useRef(true);
+  // callsign+hex-keyed, cleared on deselect — avoids re-fetching the same
+  // aircraft's route every ~1s poll while it stays selected (tasks.md 6.2).
+  const routeCacheRef = useRef<Map<string, FlightRoute | null>>(new Map());
+
   // Second, dedicated overlay (design.md Decision 4) — kept separate from
   // `deckOverlayRef` above so this layer's ~60fps rAF loop never couples to
   // the aircraft overlay's ~1Hz poll-driven `setProps` calls.
@@ -184,11 +207,59 @@ export default function MapView() {
   const [dwdRadolanVisible, setDwdRadolanVisible] = useState(true);
   const [aircraftVisible, setAircraftVisible] = useState(true);
   const [userLocationVisible, setUserLocationVisible] = useState(true);
+  const [selectedAircraftHex, setSelectedAircraftHex] = useState<string | null>(null);
+  const [selectedAircraftInfo, setSelectedAircraftInfo] = useState<SelectedAircraftInfo | null>(
+    null,
+  );
+  const [followSelectedAircraft, setFollowSelectedAircraft] = useState(true);
   const [error, setError] = useState<string | null>(() =>
     getMapTilerKey()
       ? null
       : "Map unavailable: NEXT_PUBLIC_MAPTILER_KEY is not set. Add a MapTiler API key to .env.local to load the map.",
   );
+
+  // Toggles/selects the clicked aircraft (design.md Decisions 1-3): the
+  // already-selected hex clicked again deselects; any other hex replaces
+  // the current selection. `picked`, when available (the deck.gl pick's
+  // `info.object`, looked up by the `refreshAircraft` call site below since
+  // `buildAircraftLayers`'s own `onAircraftClick` only forwards a hex — see
+  // aircraftLayer.ts), lets a fresh selection recenter the camera
+  // immediately rather than waiting for the next poll (design.md Decision
+  // 13's "Camera centers on the aircraft immediately upon selection").
+  const handleAircraftClick = (hex: string | null, picked?: Aircraft) => {
+    // react-hooks/purity flags this `Date.now()` conservatively: its static
+    // reachability analysis can't prove `handleAircraftClick` is only ever
+    // invoked from user interaction (the aircraft IconLayer's onClick, the
+    // map's click/Escape listeners, and the overlay's close button — never
+    // during render). Same documented-exception pattern as the
+    // exhaustive-deps disable below in this file's mount effect.
+    // eslint-disable-next-line react-hooks/purity
+    lastAircraftClickAtRef.current = Date.now();
+    const next = hex && hex === selectedAircraftHexRef.current ? null : hex;
+    selectedAircraftHexRef.current = next;
+    setSelectedAircraftHex(next);
+
+    if (next === null) {
+      setSelectedAircraftInfo(null);
+      routeCacheRef.current.clear();
+    } else if (
+      followSelectedAircraftRef.current &&
+      picked?.lat !== undefined &&
+      picked?.lon !== undefined &&
+      mapRef.current
+    ) {
+      mapRef.current.easeTo({
+        center: [picked.lon, picked.lat],
+        duration: FOLLOW_SELECTED_AIRCRAFT_EASE_MS,
+      });
+    }
+
+    // Rebuild layers immediately (clearing/showing the glow highlight)
+    // rather than waiting up to ~1s for the next scheduled poll, on both
+    // selection and deselection — same "don't wait for the next tick"
+    // reasoning as the camera recenter above.
+    void refreshAircraft();
+  };
 
   const refreshAircraft = async () => {
     if (!deckOverlayRef.current) return;
@@ -198,12 +269,63 @@ export default function MapView() {
     }
     const aircraft = await fetchAircraft();
     updateTracks(aircraft);
+
+    // Deselect-on-drop-out (aircraft-tracks-layer spec's "Selected aircraft
+    // drops out of the feed" scenario).
+    if (
+      selectedAircraftHexRef.current &&
+      !aircraft.some((a) => a.hex === selectedAircraftHexRef.current)
+    ) {
+      selectedAircraftHexRef.current = null;
+      setSelectedAircraftHex(null);
+      setSelectedAircraftInfo(null);
+      routeCacheRef.current.clear();
+    }
+
     const layers = buildAircraftLayers({
       aircraft,
       tracks: getAllTracks(),
       iconAtlas: aircraftIconAtlasRef.current,
+      selectedHex: selectedAircraftHexRef.current,
+      onAircraftClick: (hex) =>
+        handleAircraftClick(hex, hex ? aircraft.find((a) => a.hex === hex) : undefined),
     });
     deckOverlayRef.current.setProps({ layers });
+
+    const selected = selectedAircraftHexRef.current
+      ? aircraft.find((a) => a.hex === selectedAircraftHexRef.current)
+      : undefined;
+    if (!selected) return;
+
+    // Follow: recenter on every subsequent poll while locked (design.md
+    // Decision 13's "Map recenters on every refresh while following") — in
+    // addition to handleAircraftClick's own immediate recenter on selection.
+    if (
+      followSelectedAircraftRef.current &&
+      mapRef.current &&
+      selected.lat !== undefined &&
+      selected.lon !== undefined
+    ) {
+      mapRef.current.easeTo({
+        center: [selected.lon, selected.lat],
+        duration: FOLLOW_SELECTED_AIRCRAFT_EASE_MS,
+      });
+    }
+
+    let route: FlightRoute | null = null;
+    if (selected.callsign && selected.lat !== undefined && selected.lon !== undefined) {
+      const cacheKey = `${selected.hex}:${selected.callsign}`;
+      if (routeCacheRef.current.has(cacheKey)) {
+        route = routeCacheRef.current.get(cacheKey) ?? null;
+      } else {
+        route = await getFlightRoute(selected.callsign, selected.lat, selected.lon);
+        routeCacheRef.current.set(cacheKey, route);
+      }
+    }
+
+    setSelectedAircraftInfo(
+      buildSelectedAircraftInfo(selected, getTrack(selected.hex), userLocationRef.current, route),
+    );
   };
 
   // Own poll of fetchAircraft(), separate from `refreshAircraft` above —
@@ -489,6 +611,28 @@ export default function MapView() {
         }
       });
     });
+
+    // Deselect-on-click-elsewhere (design.md Decision 3): unscoped (not
+    // layer-id-scoped), so it fires for every click on the map, including
+    // ones that already hit the aircraft IconLayer's own onClick (deck.gl
+    // overlays the same canvas MapLibre owns) — the timestamp guard below
+    // skips this handler when that just happened, so a genuine aircraft
+    // click doesn't immediately deselect what it just selected.
+    map.on("click", () => {
+      if (!selectedAircraftHexRef.current) return;
+      if (Date.now() - lastAircraftClickAtRef.current < AIRCRAFT_DESELECT_CLICK_GUARD_MS) return;
+      handleAircraftClick(null);
+    });
+
+    // Escape key deselects (design.md Decision 3), same lifecycle as the
+    // other map.on(...) listeners above (removed on unmount below).
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && selectedAircraftHexRef.current) {
+        handleAircraftClick(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+
     resolveUserLocation().then((coords) => {
       handleLocationResolved(coords);
       if (!coords || !mapRef.current) return;
@@ -552,6 +696,7 @@ export default function MapView() {
       clearInterval(rangeOutlineIntervalId);
       clearInterval(aircraftIntervalId);
       clearInterval(rangeOutlineAircraftIntervalId);
+      window.removeEventListener("keydown", handleKeyDown);
       stopRangeOutlineSweep();
       map.remove();
       mapRef.current = null;
@@ -736,6 +881,16 @@ export default function MapView() {
     });
   };
 
+  // Toggle + click-to-lock are the same mechanism (design.md Decision 13) —
+  // this handler only flips the flag the click/poll recenter logic above
+  // already reads; it doesn't itself recenter (no surprise camera snap from
+  // toggling alone).
+  const handleFollowSelectedAircraftToggle = () => {
+    const next = !followSelectedAircraft;
+    followSelectedAircraftRef.current = next;
+    setFollowSelectedAircraft(next);
+  };
+
   if (error) {
     return (
       <div className={styles.error}>
@@ -883,6 +1038,14 @@ export default function MapView() {
         <button
           type="button"
           className={styles.controlButton}
+          data-active={followSelectedAircraft}
+          onClick={handleFollowSelectedAircraftToggle}
+        >
+          Follow selected aircraft
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
           onClick={handleJumpToLocation}
         >
           My location
@@ -896,6 +1059,7 @@ export default function MapView() {
           {userLocationVisible ? "Hide my location" : "Show my location"}
         </button>
       </div>
+      <AircraftOverlay info={selectedAircraftInfo} onClose={() => handleAircraftClick(null)} />
     </div>
   );
 }

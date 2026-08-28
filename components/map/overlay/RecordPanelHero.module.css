@@ -1,0 +1,183 @@
+.panel {
+  position: relative;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(63, 63, 70, 0.42);
+  /* Deliberately square corners — distinct from PlaneCard's rounded sticker
+   * look. */
+  border-radius: 0;
+  overflow: hidden;
+}
+
+.tab {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 1px solid rgba(63, 63, 70, 0.42);
+  border-bottom: 1px solid rgba(63, 63, 70, 0.42);
+}
+
+.body {
+  display: flex;
+  height: 100%;
+}
+
+/* Landscape (measured width >= height, the default): the image bleeds to
+ * the panel's top/left/bottom edges and takes ~60% of the width, identity
+ * block fills the rest. Portrait: stacked, image on top at a fixed share of
+ * the height instead of the width. Driven entirely by the
+ * `data-orientation` attribute this component sets from its own
+ * ResizeObserver measurement — not a viewport media query. */
+.iconBlock,
+.photoBlock {
+  flex: 0 0 60%;
+  min-width: 0;
+  border-right: 1px solid rgba(63, 63, 70, 0.42);
+}
+
+.iconBlock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Same container-size-driven growth as .heading, same `cqmin` cap. */
+  font-size: clamp(48px, 26cqmin, 112px);
+  color: #64748b;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.photoBlock {
+  position: relative;
+  display: block;
+  overflow: hidden;
+}
+
+.photoImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.photoCaption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #f8fafc;
+  background: rgba(2, 6, 23, 0.75);
+  backdrop-filter: blur(6px);
+}
+
+.panel[data-orientation="portrait"] .body {
+  flex-direction: column;
+}
+
+.panel[data-orientation="portrait"] .iconBlock,
+.panel[data-orientation="portrait"] .photoBlock {
+  flex: 0 0 40%;
+  border-right: none;
+  border-bottom: 1px solid rgba(63, 63, 70, 0.42);
+}
+
+.identity {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px 20px;
+  overflow-y: auto;
+}
+
+.kicker {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+/* Grows with the hero cell's own measured size (`container-type: size` on
+   .hero in AircraftOverlay.module.css) rather than a fixed px value — when
+   the marquee's fixed-height row leaves this panel more room, the
+   registration heading grows into it instead of just floating in more
+   whitespace. `cqmin` (bounded by whichever of the cell's width/height is
+   smaller) instead of `cqh` alone, so a narrow-but-tall cell — e.g. the
+   portrait layout's card/flightInfo row — can't blow the heading up past
+   what its own width can actually hold. Clamped to the same 24px this used
+   to be hard-coded at on the low end. */
+.heading {
+  display: inline-block;
+  font-size: clamp(24px, 11cqmin, 40px);
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  color: #f1f5f9;
+  margin: 2px 0 4px;
+  /* Reset the default link look — this reads as a heading at rest, with a
+   * hover affordance (accent color + underline) as the only signal it's
+   * clickable through to the FAA registry. */
+  text-decoration: none;
+}
+
+a.heading:hover,
+a.heading:focus-visible {
+  color: #22d3ee;
+  text-decoration: underline;
+}
+
+/* CALL // {callsign} and ICAO // {hex}, adsb.win-style: small uppercase
+ * slate mono text sitting directly under the registration heading. */
+.subline {
+  font-family: SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: #64748b;
+  margin: 4px 0 0;
+}
+
+.subline:last-of-type {
+  margin-bottom: 12px;
+}
+
+/* Bordered table look: the grid's own top/left edge plus each cell's own
+ * right/bottom edge combine into a full rule around every cell. */
+.specGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 4px;
+  border-top: 1px solid rgba(63, 63, 70, 0.42);
+  border-left: 1px solid rgba(63, 63, 70, 0.42);
+}
+
+.specCell {
+  min-width: 0;
+  padding: 8px 16px;
+  border-right: 1px solid rgba(63, 63, 70, 0.42);
+  border-bottom: 1px solid rgba(63, 63, 70, 0.42);
+}
+
+.specLabel {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.specValue {
+  font-size: 14px;
+  font-weight: 800;
+  color: #f1f5f9;
+  margin-top: 2px;
+}
