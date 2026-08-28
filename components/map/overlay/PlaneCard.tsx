@@ -121,13 +121,11 @@ export function PlaneCard({
         <div className={styles.glowOrb} aria-hidden="true" />
         <div className={styles.headerRow}>
           <div className={styles.identity}>
-            <span className={styles.typeBadge}>{rarityTier}</span>
+            {/* ICAO type designator, not the rarity tier — that's shown on
+             * `.rarityBadge` at the card's bottom edge already. */}
+            <span className={styles.typeBadge}>{typeDesignator?.toUpperCase() ?? UNKNOWN}</span>
             <p className={styles.registrationLabel}>{registration ?? UNKNOWN}</p>
             <h3 className={styles.modelName}>{manufacturerModel ?? UNKNOWN}</h3>
-            {/* TEMP DEBUG — remove once the icon-mismatch report is diagnosed. */}
-            <p style={{ fontSize: 10, color: "#f87171", fontFamily: "monospace", marginTop: 4 }}>
-              DEBUG t={typeDesignator ?? "∅"} cat={category ?? "∅"}
-            </p>
           </div>
           <svg
             className={styles.shapeIcon}
