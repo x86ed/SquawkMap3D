@@ -13,28 +13,76 @@
  * resolves routes by POSTing `{ planes: [{ callsign, lat, lng }, ...] }`
  * directly from the browser to a public third-party API —
  * `https://adsb.im/api/0/routeset` by default (alternative:
- * `https://api.adsb.lol/api/0/routeset`) — which this app's design
- * explicitly scoped as a Non-Goal to avoid introducing
- * (openspec/changes/aircraft-info-overlay/design.md Decision 12: "no new
- * third-party service ... is needed or used").
+ * `https://api.adsb.lol/api/0/routeset`).
  *
- * There is therefore no confirmed same-origin endpoint for
- * `scripts/squawkmap3d.nginx.conf` to proxy. Rather than fabricate one or
- * unilaterally wire up the third-party API the design explicitly avoided,
- * this stays a documented no-op: always resolves `null` (never rejects,
- * mirroring `feederLocation.ts`'s `getFeederLocation()` contract exactly),
- * so `FlightInfoPane` renders its legitimate "no route data available"
- * empty state for every aircraft until this is revisited with an explicit
- * decision on whether to call the third-party API directly (like
- * `rainviewer.ts`/`openAip` already do for other third-party feeds) or
- * accept the permanent empty state.
+ * design.md Decision 12 originally scoped calling that third-party API as a
+ * Non-Goal; revisited and reversed per explicit user request (there's no
+ * feeder-local alternative — see above). Calls `adsb.im` directly from the
+ * browser, matching what every real tar1090 install does.
+ *
+ * **Endpoint choice — `adsb.im`, not `api.adsb.lol`:** confirmed directly
+ * against both live APIs before picking one. `api.adsb.lol/api/0/routeset`
+ * silently no-ops for any request whose `Origin`/`Referer` isn't
+ * `adsb.lol` itself (any other origin, or none at all, gets a fake
+ * `201`/empty-body "success" rather than a real error) — that would make it
+ * silently never work when called from this app's own origin. `adsb.im`
+ * has no such restriction (`access-control-allow-origin: *`, verified with
+ * an arbitrary `Origin` header), matches this file's own original research
+ * into tar1090's actual default, and is what every real self-hosted
+ * tar1090 instance in the world already calls cross-origin.
  */
 export interface FlightRoute {
   origin?: string;
   destination?: string;
 }
 
-export async function getFlightRoute(callsign: string): Promise<FlightRoute | null> {
-  void callsign; // kept in the signature per design.md Decision 12's contract — unused until the open item above is resolved
-  return null;
+const ROUTESET_API_URL = "https://adsb.im/api/0/routeset";
+
+interface RoutesetAirport {
+  iata?: string;
+  icao?: string;
+}
+
+interface RoutesetResult {
+  _airports?: RoutesetAirport[];
+  plausible?: boolean;
+}
+
+/**
+ * Looks up `callsign`'s route via `adsb.im`'s public routeset API, which
+ * also wants the aircraft's current position (`lat`/`lon`) to disambiguate
+ * callsigns that could plausibly match more than one real-world route.
+ * Never rejects — a network failure, a non-2xx response, or a callsign the
+ * API has no match for all resolve `null` (mirroring
+ * `feederLocation.ts`'s `getFeederLocation()` contract), so callers always
+ * get `FlightInfoPane`'s legitimate "no route data available" empty state
+ * rather than an unhandled rejection.
+ */
+export async function getFlightRoute(
+  callsign: string,
+  lat: number,
+  lon: number,
+): Promise<FlightRoute | null> {
+  try {
+    const response = await fetch(ROUTESET_API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ planes: [{ callsign, lat, lng: lon }] }),
+    });
+    if (!response.ok) return null;
+
+    const results = (await response.json()) as RoutesetResult[];
+    const match = results[0];
+    const airports = match?._airports;
+    if (!match || !airports || airports.length < 2) return null;
+
+    const [originAirport, destinationAirport] = airports;
+    const origin = originAirport.iata || originAirport.icao;
+    const destination = destinationAirport.iata || destinationAirport.icao;
+    if (!origin && !destination) return null;
+
+    return { origin, destination };
+  } catch {
+    return null;
+  }
 }
