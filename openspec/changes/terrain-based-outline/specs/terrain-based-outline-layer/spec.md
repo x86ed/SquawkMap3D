@@ -1,37 +1,37 @@
 ## ADDED Requirements
 
-### Requirement: Terrain-based outline configured via a HeyWhatsThat panorama ID
-The map SHALL derive its terrain-based outline data from a HeyWhatsThat panorama ID, configured via a build-time environment variable, accepted either as a bare panorama ID (e.g. `CG4B3P7M`) or a full panorama URL containing a `view=` parameter (e.g. `https://www.heywhatsthat.com/?view=CG4B3P7M`).
+### Requirement: Terrain-based outline sourced from the running feeder's own HeyWhatsThat data
+The map SHALL derive its terrain-based outline data from the running adsb.im/`ultrafeeder` instance's own server-generated `upintheair.json` (produced by that instance's existing HeyWhatsThat integration, configured through adsb.im's own setup UI — not through any SquawkMap3D-specific configuration), fetched through a same-origin proxy path the same way `actual-range-outline-layer`'s `outline.json` already is, gated on whether a feeder is configured at all.
 
-#### Scenario: Panorama ID configured as a bare ID
-- **WHEN** the configured value is a bare HeyWhatsThat panorama ID (no URL structure)
-- **THEN** that value is used directly as the panorama ID when querying HeyWhatsThat's API
+#### Scenario: Feeder configured and HeyWhatsThat data available
+- **WHEN** a feeder is configured (the same configuration `actual-range-outline-layer` already requires) and the feeder's own `upintheair.json` is available
+- **THEN** the map fetches that data through a same-origin proxy request (no direct cross-origin request to any third-party terrain service)
 
-#### Scenario: Panorama ID configured as a full panorama URL
-- **WHEN** the configured value is a full HeyWhatsThat panorama URL containing `view=<id>`
-- **THEN** the `<id>` portion is extracted and used as the panorama ID when querying HeyWhatsThat's API
+#### Scenario: No feeder configured
+- **WHEN** the terrain-based outline layer is enabled but no feeder is configured
+- **THEN** the map does not error or break other layers; the terrain-based outline layer renders no rings, and no request is made for terrain outline data
 
-#### Scenario: No panorama ID configured
-- **WHEN** the terrain-based outline layer is enabled but no panorama ID is configured
-- **THEN** the map does not error or break other layers; the terrain-based outline layer renders no rings, and no request is made to HeyWhatsThat's API
+#### Scenario: Feeder configured but no HeyWhatsThat panorama set up on the feeder
+- **WHEN** a feeder is configured but the deployer has not configured a HeyWhatsThat panorama on that feeder (its own server-generated `upintheair.json` is unavailable or the request for it fails)
+- **THEN** the map does not error or break other layers; the terrain-based outline layer renders no rings
 
-### Requirement: Terrain-based range rings loaded from HeyWhatsThat's upintheair API
-The map SHALL fetch per-altitude theoretical line-of-sight range rings directly from HeyWhatsThat's public `upintheair.json` API for the configured panorama ID and a fixed set of altitudes, and render each returned ring as outline geometry.
+### Requirement: Terrain-based range rings parsed from the feeder's upintheair data
+The map SHALL parse per-altitude theoretical line-of-sight range rings from the feeder's `upintheair.json`-shaped data and render each returned ring as outline geometry.
 
 #### Scenario: Rings load successfully
-- **WHEN** the terrain-based outline layer is enabled, a panorama ID is configured, and HeyWhatsThat's API responds successfully with one or more entries in its `rings` array
+- **WHEN** the terrain-based outline layer is enabled, a feeder is configured, and the feeder's `upintheair.json` data contains one or more entries in its `rings` array
 - **THEN** each ring is parsed into closed outline geometry, tagged with that ring's altitude, and rendered as part of the terrain-based outline layer
 
 #### Scenario: Ring geometry is closed
-- **WHEN** a ring returned by HeyWhatsThat's API does not already end with the same point it starts with
+- **WHEN** a ring in the fetched data does not already end with the same point it starts with
 - **THEN** the rendered outline geometry for that ring is closed by repeating its first point as its last point
 
 #### Scenario: Fetched once, not polled
 - **WHEN** the terrain-based outline layer has been visible for an extended period with no map style reload
-- **THEN** the map does not repeatedly refetch HeyWhatsThat's API on a timer; the previously-fetched rings remain displayed
+- **THEN** the map does not repeatedly refetch the terrain outline data on a timer; the previously-fetched rings remain displayed
 
-#### Scenario: Invalid panorama ID or unreachable API
-- **WHEN** the terrain-based outline layer is enabled, a panorama ID is configured, and HeyWhatsThat's API request fails, times out, or returns an empty or unparseable response body (including a successful HTTP response with an empty body, which HeyWhatsThat returns for an unknown or invalid panorama ID)
+#### Scenario: Unavailable or unparseable data
+- **WHEN** the terrain-based outline layer is enabled, a feeder is configured, and the request for the feeder's `upintheair.json` data fails, times out, or returns an empty or unparseable response body
 - **THEN** the map does not error or break other layers; the terrain-based outline layer renders no rings
 
 ### Requirement: Terrain-based outline rendered as unfilled, altitude-colored strokes
