@@ -1,9 +1,20 @@
 import type { Layer } from "@deck.gl/core";
 import { IconLayer, PathLayer, ScatterplotLayer } from "@deck.gl/layers";
 import type { Aircraft, TrackPoint } from "./aircraft";
-import { altitudeToColor, resolveIconKey, type IconAtlas } from "./aircraftIcons";
+import {
+  type ColorMode,
+  hexColorToRgb,
+  resolveAircraftColor,
+  resolveIconKey,
+  resolveTrackPointColor,
+  type IconAtlas,
+} from "./aircraftIcons";
 import { computeRarityTier, RARITY_TIER_STYLES } from "./aircraftRarity";
-import { AIRCRAFT_SELECTION_GLOW_ALPHA, AIRCRAFT_SELECTION_GLOW_RADIUS_PIXELS } from "./constants";
+import {
+  AIRCRAFT_SELECTION_GLOW_ALPHA,
+  AIRCRAFT_SELECTION_GLOW_RADIUS_PIXELS,
+  TERRAIN_EXAGGERATION,
+} from "./constants";
 
 export const AIRCRAFT_ICON_LAYER_ID = "aircraft-icons";
 export const AIRCRAFT_TRACK_LAYER_ID = "aircraft-tracks";
@@ -13,6 +24,21 @@ export const AIRCRAFT_SELECTION_GLOW_LAYER_ID = "aircraft-selection-glow";
 // aircraft dots) reuse the exact same conversion rather than a copy that
 // could drift.
 export const FEET_TO_METERS = 0.3048;
+
+/**
+ * Converts a reported altitude (feet) to the deck.gl world-space meters used
+ * to position aircraft, scaled by the map's terrain exaggeration factor
+ * (design.md Decision 6) so an aircraft's rendered height stays visually
+ * consistent with the equally-stretched terrain mesh beneath it — MapLibre's
+ * `exaggeration` only scales the terrain mesh itself, not deck.gl's own
+ * world-space z units, so this multiplier has to be applied here explicitly.
+ * Exported so every real-altitude-positioned deck.gl layer (this file's icon/
+ * glow/track layers, and radarSweep.ts's aircraft dots) shares one
+ * conversion rather than copies that could drift apart.
+ */
+export function altitudeToRenderMeters(altitudeFt: number | undefined): number {
+  return (altitudeFt ?? 0) * FEET_TO_METERS * TERRAIN_EXAGGERATION;
+}
 
 interface TrackSegment {
   path: [[number, number, number], [number, number, number]];
@@ -39,9 +65,16 @@ export function buildAircraftLayers(params: {
   tracks: ReadonlyMap<string, TrackPoint[]>;
   iconAtlas: IconAtlas | null;
   selectedHex: string | null;
+  colorMode: ColorMode;
   onAircraftClick: (hex: string | null) => void;
+  onAircraftHover: (
+    aircraft: (Aircraft & { lat: number; lon: number }) | null,
+    x: number,
+    y: number,
+  ) => void;
 }): Layer[] {
-  const { aircraft, tracks, iconAtlas, selectedHex, onAircraftClick } = params;
+  const { aircraft, tracks, iconAtlas, selectedHex, colorMode, onAircraftClick, onAircraftHover } =
+    params;
   if (!iconAtlas) return [];
 
   const positioned = aircraft.filter(
@@ -55,7 +88,7 @@ export function buildAircraftLayers(params: {
     iconAtlas: iconAtlas.image,
     iconMapping: iconAtlas.mapping,
     getIcon: (d) => resolveIconKey(d).key,
-    getPosition: (d) => [d.lon, d.lat, (d.altitude ?? 0) * FEET_TO_METERS],
+    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
     // Icon SVGs are drawn nose-up in the atlas (verified per-asset; two
     // pw-silhouettes exceptions corrected in aircraftIcons.ts's atlas
     // builder). deck.gl's IconLayer actually rotates *counter-clockwise*
@@ -65,12 +98,19 @@ export function buildAircraftLayers(params: {
     // makes a nose-up icon point the right way (track=90/east needs
     // angle=-90, i.e. 90° clockwise from the icon's own CCW-positive axis).
     getAngle: (d) => -(d.track ?? 0),
-    getColor: (d) => altitudeToColor(d.altitude ?? 0),
+    getColor: (d) => resolveAircraftColor(d, colorMode),
     // Was 28 — with a solid-filled icon (see aircraftIcons.ts's atlas
     // builder), that read as too small on the map to be legible against
     // basemap clutter.
     getSize: 40,
     sizeUnits: "pixels",
+    // design.md Decision 7: laying the icon flat in its own ground plane
+    // (rotated by getAngle above) rather than always billboarding to face
+    // the camera lets ordinary 3D perspective foreshorten it as the map
+    // camera pitches — a cheap "tilts along its flight path" cue with no
+    // custom geometry, deferring true 3D aircraft tilt to the separate
+    // follow-up 3D-aircraft-models change (see proposal.md).
+    billboard: false,
     // Selection picking (design.md Decision 2): the click handler itself
     // toggles off when re-clicking the already-selected hex, else selects
     // the clicked one; a miss (empty map area) reports `null` here, but the
@@ -79,6 +119,10 @@ export function buildAircraftLayers(params: {
     // fires on an actual pick hit.
     pickable: true,
     onClick: (info) => onAircraftClick(info.object ? info.object.hex : null),
+    // Hover tooltip (design.md Decision 10) — independent of onClick above;
+    // `info.object` is `undefined`/`null` when the pointer leaves every
+    // icon, which is exactly the "hide tooltip" signal the caller needs.
+    onHover: (info) => onAircraftHover(info.object ?? null, info.x, info.y),
   });
 
   const selectedAircraft = selectedHex
@@ -93,7 +137,7 @@ export function buildAircraftLayers(params: {
   const glowLayer = new ScatterplotLayer<Aircraft & { lat: number; lon: number }>({
     id: AIRCRAFT_SELECTION_GLOW_LAYER_ID,
     data: selectedAircraft ? [selectedAircraft] : [],
-    getPosition: (d) => [d.lon, d.lat, (d.altitude ?? 0) * FEET_TO_METERS],
+    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
     getFillColor: (d) => {
       const [r, g, b] = hexColorToRgb(RARITY_TIER_STYLES[computeRarityTier(d)].color);
       return [r, g, b, AIRCRAFT_SELECTION_GLOW_ALPHA];
@@ -103,17 +147,23 @@ export function buildAircraftLayers(params: {
     pickable: false,
   });
 
+  // Rarity mode needs each track point's owning aircraft's typeDesignator
+  // (see aircraftIcons.ts's rarityToColorByTypeDesignator doc comment) —
+  // TrackPoint itself carries no type info, only what was true at that poll.
+  const aircraftByHex = new Map(aircraft.map((a) => [a.hex, a]));
+
   const segments: TrackSegment[] = [];
-  for (const points of tracks.values()) {
+  for (const [hex, points] of tracks) {
+    const typeDesignator = aircraftByHex.get(hex)?.typeDesignator;
     for (let i = 1; i < points.length; i++) {
       const a = points[i - 1];
       const b = points[i];
       segments.push({
         path: [
-          [a.lon, a.lat, a.altitude * FEET_TO_METERS],
-          [b.lon, b.lat, b.altitude * FEET_TO_METERS],
+          [a.lon, a.lat, altitudeToRenderMeters(a.altitude)],
+          [b.lon, b.lat, altitudeToRenderMeters(b.altitude)],
         ],
-        color: altitudeToColor(b.altitude),
+        color: resolveTrackPointColor(b, colorMode, typeDesignator),
       });
     }
   }
@@ -131,10 +181,4 @@ export function buildAircraftLayers(params: {
   // Glow beneath the trail/icons (design.md Decision 4), trail beneath
   // icons, icons on top.
   return [glowLayer, trackLayer, iconLayer];
-}
-
-/** Parses a `#rrggbb` hex color string into an `[r, g, b]` 0-255 triple. */
-function hexColorToRgb(hex: string): [number, number, number] {
-  const value = parseInt(hex.slice(1), 16);
-  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
 }

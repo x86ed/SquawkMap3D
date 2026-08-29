@@ -1,0 +1,24 @@
+.dock {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  transition: bottom 220ms ease;
+}
+
+/* Rides above the AircraftOverlay drawer's top-left edge while it's open —
+   45vh is that drawer's own default height (AircraftOverlay.module.css),
+   matched here so the two never overlap. */
+.dock[data-drawer-open="true"] {
+  bottom: calc(45vh + 12px);
+}
+
+@media (max-width: 760px) {
+  .dock[data-drawer-open="true"] {
+    bottom: calc(80vh + 12px);
+  }
+}

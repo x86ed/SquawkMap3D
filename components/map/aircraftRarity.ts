@@ -109,6 +109,21 @@ export function computeRarityTier(aircraft: Aircraft): RarityTier {
   return "apex";
 }
 
+/** All 9 real tiers in their low-to-high order, `unidentified` first — for
+ * UI that renders every tier at once (e.g. `ColorModeLegend`'s rarity-mode
+ * card row), rather than each caller re-deriving/duplicating this order. */
+export const ALL_RARITY_TIERS: RarityTier[] = [
+  "unidentified",
+  "standard",
+  "prime",
+  "remarkable",
+  "exceptional",
+  "epic",
+  "legendary",
+  "mythic",
+  "apex",
+];
+
 const RARITY_TIER_LADDER: RarityTier[] = [
   "standard",
   "prime",

@@ -3,7 +3,7 @@ import { ScatterplotLayer, SolidPolygonLayer, TextLayer } from "@deck.gl/layers"
 import * as turf from "@turf/turf";
 import type { Feature, FeatureCollection, MultiLineString, MultiPolygon, Polygon } from "geojson";
 import type { Aircraft } from "./aircraft";
-import { FEET_TO_METERS } from "./aircraftLayer";
+import { altitudeToRenderMeters } from "./aircraftLayer";
 import { METERS_PER_NM } from "./constants";
 import type { GeoCoords } from "./geolocation";
 
@@ -303,7 +303,7 @@ export function buildRangeOutlineSweepLayers(params: {
   const dotLayer = new ScatterplotLayer<PositionedAircraft>({
     id: RANGE_OUTLINE_AIRCRAFT_DOT_LAYER_ID,
     data: positioned,
-    getPosition: (d) => [d.lon, d.lat, (d.altitude ?? 0) * FEET_TO_METERS],
+    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
     getFillColor: (d) => (isFlashing(d.hex, now) ? AIRCRAFT_DOT_FLASH_COLOR : AIRCRAFT_DOT_COLOR),
     getRadius: (d) =>
       isFlashing(d.hex, now) ? AIRCRAFT_DOT_FLASH_RADIUS_PIXELS : AIRCRAFT_DOT_RADIUS_PIXELS,
@@ -314,7 +314,7 @@ export function buildRangeOutlineSweepLayers(params: {
   const labelLayer = new TextLayer<PositionedAircraft>({
     id: RANGE_OUTLINE_AIRCRAFT_LABEL_LAYER_ID,
     data: positioned,
-    getPosition: (d) => [d.lon, d.lat, (d.altitude ?? 0) * FEET_TO_METERS],
+    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
     getText: (d) => d.hex,
     getColor: (d) =>
       isFlashing(d.hex, now) ? AIRCRAFT_LABEL_FLASH_COLOR : AIRCRAFT_LABEL_COLOR,
