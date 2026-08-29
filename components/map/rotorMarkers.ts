@@ -43,6 +43,11 @@ function createRotorElement(): HTMLDivElement {
  * lon/lat but isn't lifted to its actual altitude in the sky. Acceptable for
  * a small decorative accent on typically low-flying rotorcraft; revisit if
  * this proves visually distracting at altitude.
+ *
+ * The marker's rotation is kept in sync with the aircraft's reported track
+ * on every update (`Marker.setRotation`, `rotationAlignment: "map"`) so the
+ * rotor visually matches the aircraft's actual heading/orientation instead
+ * of a fixed or camera-relative angle.
  */
 export function updateRotorMarkers(map: MapLibreMap, aircraft: Aircraft[]): void {
   const current = new Set<string>();
@@ -55,12 +60,22 @@ export function updateRotorMarkers(map: MapLibreMap, aircraft: Aircraft[]): void
 
     const existing = markers.get(a.hex);
     if (existing) {
-      existing.setLngLat([a.lon, a.lat]);
+      existing.setLngLat([a.lon, a.lat]).setRotation(a.track ?? 0);
     } else {
-      const marker = new Marker({ element: createRotorElement(), anchor: "center" }).setLngLat([
-        a.lon,
-        a.lat,
-      ]);
+      // rotationAlignment/pitchAlignment "map" (not the Marker default
+      // "viewport") ties the rotor's rotation to true compass bearing and
+      // lies it in the map's ground plane, matching how the deck.gl icon's
+      // own getAngle is a real heading rather than a screen-relative spin —
+      // without this the rotor would rotate with the *camera* as the user
+      // pans/tilts instead of tracking the aircraft's actual track.
+      const marker = new Marker({
+        element: createRotorElement(),
+        anchor: "center",
+        rotationAlignment: "map",
+        pitchAlignment: "map",
+      })
+        .setLngLat([a.lon, a.lat])
+        .setRotation(a.track ?? 0);
       marker.addTo(map);
       markers.set(a.hex, marker);
     }
