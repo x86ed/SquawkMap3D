@@ -33,6 +33,8 @@ import { fetchTfrs } from "./tfr";
 import { fetchSpecialUseAirspace } from "./specialUseAirspace";
 import { fetchAirspaceBoundaries } from "./airspaceBoundaries";
 import { fetchRangeOutline } from "./rangeOutline";
+import { fetchTerrainOutline } from "./terrainOutline";
+import { ALTITUDE_COLOR_STOPS } from "./aircraftIcons";
 
 export const AIRPORTS_SOURCE_ID = "airports";
 export const AIRPORTS_LAYER_ID = "airports-circle";
@@ -65,6 +67,9 @@ export const RANGE_OUTLINE_SOURCE_ID = "range-outline";
 export const RANGE_OUTLINE_FILL_LAYER_ID = "range-outline-fill";
 export const RANGE_OUTLINE_LINE_LAYER_ID = "range-outline-line";
 
+export const TERRAIN_OUTLINE_SOURCE_ID = "terrain-outline";
+export const TERRAIN_OUTLINE_LINE_LAYER_ID = "terrain-outline-line";
+
 export const NEXRAD_SOURCE_ID = "nexrad";
 export const NEXRAD_LAYER_ID = "nexrad-raster";
 
@@ -91,6 +96,7 @@ const CUSTOM_LAYER_IDS = [
   AIRSPACE_BOUNDARIES_LINE_LAYER_ID,
   RANGE_OUTLINE_FILL_LAYER_ID,
   RANGE_OUTLINE_LINE_LAYER_ID,
+  TERRAIN_OUTLINE_LINE_LAYER_ID,
   NEXRAD_LAYER_ID,
   NOAA_INFRARED_LAYER_ID,
   NOAA_RADAR_LAYER_ID,
