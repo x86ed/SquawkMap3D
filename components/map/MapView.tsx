@@ -45,6 +45,7 @@ import {
   refreshRainViewer,
   refreshRangeOutline,
   refreshSpecialUseAirspace,
+  refreshTerrainOutline,
   refreshTfrs,
   setAirportsVisibility,
   setAirspaceBoundariesVisibility,
@@ -58,6 +59,7 @@ import {
   setRainViewerVisibility,
   setRangeOutlineVisibility,
   setSpecialUseAirspaceVisibility,
+  setTerrainOutlineVisibility,
   setTfrVisibility,
 } from "./layers";
 import {
