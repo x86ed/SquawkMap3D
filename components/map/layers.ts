@@ -501,6 +501,30 @@ export function addCustomLayers(
     );
   }
 
+  if (!map.getSource(TERRAIN_OUTLINE_SOURCE_ID)) {
+    map.addSource(TERRAIN_OUTLINE_SOURCE_ID, {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
+  }
+  // Plain line layer, no corresponding fill layer (design.md Decision 3):
+  // multiple concentric altitude rings are mostly nested inside one another,
+  // so a solid fill would bury every inner ring under the outer rings' fill.
+  if (!map.getLayer(TERRAIN_OUTLINE_LINE_LAYER_ID)) {
+    map.addLayer({
+      id: TERRAIN_OUTLINE_LINE_LAYER_ID,
+      type: "line",
+      source: TERRAIN_OUTLINE_SOURCE_ID,
+      layout: {
+        visibility: (visibility.terrainOutline ?? true) ? "visible" : "none",
+      },
+      paint: {
+        "line-color": buildAltitudeColorLineExpression(),
+        "line-width": TERRAIN_OUTLINE_LINE_WIDTH,
+      },
+    });
+  }
+
   if (!map.getSource(NEXRAD_SOURCE_ID)) {
     map.addSource(NEXRAD_SOURCE_ID, {
       type: "raster",
@@ -836,6 +860,27 @@ export async function refreshRangeOutline(
   const source = map.getSource(RANGE_OUTLINE_SOURCE_ID) as GeoJSONSource | undefined;
   source?.setData(data);
   return data;
+}
+
+/** Shows/hides the terrain-based outline layer. */
+export function setTerrainOutlineVisibility(map: MapLibreMap, visible: boolean): void {
+  if (map.getLayer(TERRAIN_OUTLINE_LINE_LAYER_ID)) {
+    map.setLayoutProperty(
+      TERRAIN_OUTLINE_LINE_LAYER_ID,
+      "visibility",
+      visible ? "visible" : "none",
+    );
+  }
+}
+
+/** Refetches the feeder's terrain-based (HeyWhatsThat) outline rings and
+ * updates the source in place. No-ops if the source doesn't exist yet (e.g.
+ * a refresh mid-style-swap). Not polled (design.md Non-Goals) — called only
+ * on initial load and on every style reload. */
+export async function refreshTerrainOutline(map: MapLibreMap): Promise<void> {
+  const data = await fetchTerrainOutline();
+  const source = map.getSource(TERRAIN_OUTLINE_SOURCE_ID) as GeoJSONSource | undefined;
+  source?.setData(data);
 }
 
 /** Shows/hides the NEXRAD layer. */
