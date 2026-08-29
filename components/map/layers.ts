@@ -1,5 +1,6 @@
 import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
+import type { DataDrivenPropertyValueSpecification } from "@maplibre/maplibre-gl-style-spec";
 import type { MapTheme } from "./mapStyles";
 import {
   AIRPORT_ICON_PIXEL_RATIO,
