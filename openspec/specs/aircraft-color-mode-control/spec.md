@@ -44,7 +44,7 @@ When the altitude color mode is active, an aircraft's icon and track color SHALL
 - **THEN** its icon and track color is linearly interpolated between those two control points' colors
 
 ### Requirement: Airspeed color mode uses a fixed speedometer-style gradient
-When the airspeed color mode is active, an aircraft's icon and track color SHALL be computed from its ground speed using these fixed bands: grey when stopped or ground speed is unavailable, green below 100 knots, yellow from 100 to 200 knots, orange from 200 to 400 knots, red from 400 to 500 knots, magenta above 500 knots, and hot pink above an approximate Mach 1 ground-speed threshold.
+When the airspeed color mode is active, an aircraft's icon and track color SHALL be computed from its ground speed using these fixed bands: grey when stopped or ground speed is unavailable, green below 100 knots, yellow from 100 to 200 knots, orange from 200 to 400 knots, red from 400 to 500 knots, magenta above 500 knots, and a darker purple (matching the map's airport-icon accent color) above an approximate Mach 1 ground-speed threshold.
 
 #### Scenario: Stopped or unknown speed renders grey
 - **WHEN** airspeed color mode is active and an aircraft has no ground speed or a ground speed of 0 knots
@@ -54,9 +54,9 @@ When the airspeed color mode is active, an aircraft's icon and track color SHALL
 - **WHEN** airspeed color mode is active and an aircraft's ground speed falls within one of the defined knot bands (green/yellow/orange/red/magenta)
 - **THEN** its icon and track render that band's assigned color
 
-#### Scenario: Supersonic ground speed renders hot pink
+#### Scenario: Supersonic ground speed renders the airport-icon accent color
 - **WHEN** airspeed color mode is active and an aircraft's ground speed exceeds the configured approximate Mach 1 threshold
-- **THEN** its icon and track render hot pink
+- **THEN** its icon and track render the same darker-purple accent color used for airport icons
 
 ### Requirement: Bottom-left two-button map control provides recenter and color-mode selection
 The map SHALL provide a two-button ("2-gang") control docked to the bottom-left of the map. The first button SHALL show a recenter/arrow icon and, when activated, recenter the map view. The second button SHALL show a plane icon and, when activated, open a popup containing exactly three toggle buttons — one per color mode (rarity, altitude, airspeed) — allowing the user to select the active color mode.

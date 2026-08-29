@@ -2,6 +2,7 @@ import type { Aircraft } from "./aircraft";
 import { computeRarityTier, RARITY_TIER_STYLES } from "./aircraftRarity";
 import { CATEGORY_FALLBACK_KEY } from "./aircraftShapes";
 import { AIRCRAFT_CATEGORY_FALLBACK_ICON, MACH1_APPROX_KTS } from "./constants";
+import { AIRPORT_FILL_COLOR } from "./layers";
 import { computeTightViewBox } from "./svgBBox";
 
 export type IconSource = "type" | "category-type" | "category" | "generic";
@@ -348,9 +349,9 @@ export function altitudeToColor(altitudeFt: number): [number, number, number] {
 
 /**
  * "Speedometer" airspeed gradient (design.md Decision 3): grey when stopped
- * or unknown, then fixed knot bands green→yellow→orange→red→magenta, then
- * hot pink above `MACH1_APPROX_KTS`. Ground speed is the only speed value
- * this app has (no true airspeed/OAT from the feeder), so the "Mach 1"
+ * or unknown, then fixed knot bands green→yellow→orange→red→magenta, then a
+ * darker purple above `MACH1_APPROX_KTS`. Ground speed is the only speed
+ * value this app has (no true airspeed/OAT from the feeder), so the "Mach 1"
  * threshold is a fixed-knots approximation, not a real Mach computation.
  */
 const AIRSPEED_COLOR_STOPPED: [number, number, number] = [148, 148, 148]; // grey
@@ -359,11 +360,14 @@ const AIRSPEED_COLOR_YELLOW: [number, number, number] = [234, 179, 8];
 const AIRSPEED_COLOR_ORANGE: [number, number, number] = [249, 115, 22];
 const AIRSPEED_COLOR_RED: [number, number, number] = [220, 38, 38];
 const AIRSPEED_COLOR_MAGENTA: [number, number, number] = [217, 70, 239];
-const AIRSPEED_COLOR_HOT_PINK: [number, number, number] = [255, 20, 147];
+// Reuses `layers.ts`'s own airport-icon accent color (light-theme variant —
+// a deep violet, not the brighter dark-theme neon) rather than a separate
+// pinned hex, so the two stay in sync if that color ever changes.
+const AIRSPEED_COLOR_SUPERSONIC: [number, number, number] = hexColorToRgb(AIRPORT_FILL_COLOR.light);
 
 export function airspeedToColor(groundSpeedKt: number | undefined): [number, number, number] {
   if (groundSpeedKt === undefined || groundSpeedKt <= 0) return AIRSPEED_COLOR_STOPPED;
-  if (groundSpeedKt > MACH1_APPROX_KTS) return AIRSPEED_COLOR_HOT_PINK;
+  if (groundSpeedKt > MACH1_APPROX_KTS) return AIRSPEED_COLOR_SUPERSONIC;
   if (groundSpeedKt > 500) return AIRSPEED_COLOR_MAGENTA;
   if (groundSpeedKt > 400) return AIRSPEED_COLOR_RED;
   if (groundSpeedKt > 200) return AIRSPEED_COLOR_ORANGE;

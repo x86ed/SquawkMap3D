@@ -10,6 +10,7 @@ import {
   resolveTrackPointColor,
 } from "../components/map/aircraftIcons";
 import { MACH1_APPROX_KTS } from "../components/map/constants";
+import { AIRPORT_FILL_COLOR } from "../components/map/layers";
 import type { Aircraft } from "../components/map/aircraft";
 import { RARITY_TIER_STYLES } from "../components/map/aircraftRarity";
 
@@ -51,8 +52,8 @@ test("airspeedToColor buckets each knot band to its assigned color", () => {
   assert.deepEqual(airspeedToColor(550), [217, 70, 239]); // magenta, >500
 });
 
-test("airspeedToColor renders hot pink above the approximate Mach 1 threshold", () => {
-  assert.deepEqual(airspeedToColor(MACH1_APPROX_KTS + 1), [255, 20, 147]);
+test("airspeedToColor renders the airport-icon accent color above the approximate Mach 1 threshold", () => {
+  assert.deepEqual(airspeedToColor(MACH1_APPROX_KTS + 1), hexColorToRgb(AIRPORT_FILL_COLOR.light));
 });
 
 test("hexColorToRgb parses a #rrggbb hex string", () => {

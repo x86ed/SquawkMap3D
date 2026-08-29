@@ -1,8 +1,9 @@
 import styles from "./ColorModeLegend.module.css";
 import { ALL_RARITY_TIERS, rarityTierGradient } from "../aircraftRarity";
-import { ALTITUDE_COLOR_STOPS } from "../aircraftIcons";
+import { ALTITUDE_COLOR_STOPS, hexColorToRgb } from "../aircraftIcons";
 import type { ColorMode } from "../aircraftIcons";
 import { MACH1_APPROX_KTS } from "../constants";
+import { AIRPORT_FILL_COLOR } from "../layers";
 
 /**
  * Mirrors `aircraftIcons.ts`'s `airspeedToColor` band thresholds (design.md
@@ -21,7 +22,10 @@ const AIRSPEED_COLOR_STOPS: Array<{ kt: number; rgb: [number, number, number]; l
   { kt: 400, rgb: [249, 115, 22], label: "400" },
   { kt: 500, rgb: [220, 38, 38], label: "500" },
   { kt: MACH1_APPROX_KTS, rgb: [217, 70, 239], label: "M1" },
-  { kt: MACH1_APPROX_KTS + 140, rgb: [255, 20, 147], label: ">M1" },
+  // Same airport-icon accent color aircraftIcons.ts's `airspeedToColor`
+  // reuses for its supersonic band — kept in sync via the same source
+  // rather than a second pinned hex.
+  { kt: MACH1_APPROX_KTS + 140, rgb: hexColorToRgb(AIRPORT_FILL_COLOR.light), label: ">M1" },
 ];
 
 function rgbCss([r, g, b]: [number, number, number]): string {
