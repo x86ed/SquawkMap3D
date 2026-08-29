@@ -62,6 +62,15 @@ export interface IconAtlasEntry {
   height: number;
   anchorX: number;
   anchorY: number;
+  // Without this, deck.gl's IconLayer renders the atlas texture's own baked
+  // pixel color verbatim and ignores `getColor` entirely (its fragment
+  // shader does `mix(texColor.rgb, vColor.rgb, vColorMode)`, where
+  // `vColorMode` comes straight from this `mask` flag — 0/false uses the
+  // texture color as-is, 1/true treats the texture as an alpha-only mask
+  // tinted by `getColor`). Every shape here is deliberately baked solid
+  // white (see `loadShapeImage`/`drawGenericMarker`) specifically so this
+  // mask mode can recolor it — `mask: true` is what actually turns that on.
+  mask: true;
 }
 
 export interface IconAtlas {
@@ -243,6 +252,7 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
       height: CELL_SIZE,
       anchorX: CELL_SIZE / 2,
       anchorY: CELL_SIZE / 2,
+      mask: true,
     };
   });
 
