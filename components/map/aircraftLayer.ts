@@ -104,13 +104,17 @@ export function buildAircraftLayers(params: {
     // basemap clutter.
     getSize: 40,
     sizeUnits: "pixels",
-    // design.md Decision 7: laying the icon flat in its own ground plane
-    // (rotated by getAngle above) rather than always billboarding to face
-    // the camera lets ordinary 3D perspective foreshorten it as the map
-    // camera pitches — a cheap "tilts along its flight path" cue with no
-    // custom geometry, deferring true 3D aircraft tilt to the separate
-    // follow-up 3D-aircraft-models change (see proposal.md).
-    billboard: false,
+    // design.md Decision 7 (reverted): billboard:false laid the icon flat in
+    // its own ground plane so ordinary 3D perspective would foreshorten it
+    // as the camera pitches. In practice, at this app's default/typical
+    // pitch (60-85°), that foreshortening crushes most icons down to a
+    // near-edge-on sliver depending on their track relative to the camera
+    // bearing — the tint color is still technically applied, but the
+    // foreshortened, anti-aliased sliver reads as washed-out/uncolored for
+    // most aircraft. Icon legibility/color visibility wins over the cheap
+    // tilt cue; true 3D aircraft orientation is deferred to the separate
+    // follow-up 3D-aircraft-models change (see proposal.md). Left at
+    // deck.gl's default (billboard: true — always faces the camera).
     // Selection picking (design.md Decision 2): the click handler itself
     // toggles off when re-clicking the already-selected hex, else selects
     // the clicked one; a miss (empty map area) reports `null` here, but the

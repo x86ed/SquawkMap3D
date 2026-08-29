@@ -36,17 +36,6 @@ The map SHALL accumulate and render a recent flight-track trail for each visible
 
 ## ADDED Requirements
 
-### Requirement: Aircraft icon tilts to reflect camera pitch along its flight path
-As the map camera's pitch changes, each rendered aircraft icon SHALL visually tilt along the aircraft's own track/flight-path axis to suggest a 3D orientation, rather than remaining a flat, always-upright 2D sprite regardless of camera angle.
-
-#### Scenario: Icon tilts as camera pitch increases
-- **WHEN** the user tilts the map camera to a non-zero pitch
-- **THEN** rendered aircraft icons visibly tilt along their track axis to reflect that pitch, rather than staying flat
-
-#### Scenario: Icon returns flat at zero pitch
-- **WHEN** the map camera pitch is 0 degrees (top-down view)
-- **THEN** rendered aircraft icons render without the tilt effect applied
-
 ### Requirement: Rotorcraft icons render animated rotor blades
 Aircraft reporting the rotorcraft ADS-B emitter category SHALL render with a rotor-blade element that continuously animates (spins), visually distinguishing them from fixed-wing aircraft, independent of the aircraft's own track/heading updates.
 
