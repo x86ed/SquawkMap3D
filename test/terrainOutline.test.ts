@@ -45,7 +45,7 @@ test("fetchTerrainOutline parses well-formed rings into closed LineString featur
         ],
       }),
     };
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
 
   try {
     const result = await fetchTerrainOutline();
@@ -80,7 +80,7 @@ test("fetchTerrainOutline returns an empty FeatureCollection and makes no reques
   globalThis.fetch = (async () => {
     called = true;
     throw new Error("should not be called");
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
 
   try {
     const result = await fetchTerrainOutline();
@@ -99,7 +99,7 @@ test("fetchTerrainOutline returns an empty FeatureCollection on a non-OK (404) r
     json: async () => {
       throw new Error("should not be parsed");
     },
-  })) as typeof fetch;
+  })) as unknown as typeof fetch;
 
   try {
     const result = await fetchTerrainOutline();
@@ -116,7 +116,7 @@ test("fetchTerrainOutline returns an empty FeatureCollection on an unparseable r
     json: async () => {
       throw new SyntaxError("Unexpected end of JSON input");
     },
-  })) as typeof fetch;
+  })) as unknown as typeof fetch;
 
   try {
     const result = await fetchTerrainOutline();
@@ -131,7 +131,7 @@ test("fetchTerrainOutline returns an empty FeatureCollection when rings is missi
   globalThis.fetch = (async () => ({
     ok: true,
     json: async () => ({}),
-  })) as typeof fetch;
+  })) as unknown as typeof fetch;
 
   try {
     const result = await fetchTerrainOutline();
@@ -157,7 +157,7 @@ test("fetchTerrainOutline skips rings with fewer than 2 source points", async ()
         },
       ],
     }),
-  })) as typeof fetch;
+  })) as unknown as typeof fetch;
 
   try {
     const result = await fetchTerrainOutline();
