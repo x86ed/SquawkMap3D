@@ -500,6 +500,19 @@ export default function MapView() {
     // cause is patched, since it would restore proper depth-sorting against
     // the 3D terrain mesh (an aircraft icon currently isn't occluded by a
     // mountain in front of it) — not re-tested here, left as a follow-up.
+    // Dedicated overlay for the actual-range-outline's radar sweep (design.md
+    // Decision 4) — mounted once here, not re-added on `style.load` (not
+    // part of the MapLibre style). Added *before* the aircraft overlay below:
+    // for two separate non-interleaved `MapboxOverlay` canvases, whichever is
+    // added later ends up later in the DOM and paints on top — so the sweep
+    // has to go first for aircraft icons to render above it, not the other
+    // way around (previously backwards here, which put the sweep wedge on
+    // top of the aircraft; see tasks.md 6.6's original, incorrect ordering
+    // rationale).
+    const rangeOutlineOverlay = new MapboxOverlay({ interleaved: false, layers: [] });
+    rangeOutlineOverlayRef.current = rangeOutlineOverlay;
+    map.addControl(rangeOutlineOverlay);
+
     const deckOverlay = new MapboxOverlay({
       interleaved: false,
       layers: [],
@@ -510,15 +523,6 @@ export default function MapView() {
     });
     deckOverlayRef.current = deckOverlay;
     map.addControl(deckOverlay);
-
-    // Second, dedicated overlay for the actual-range-outline's radar sweep
-    // (design.md Decision 4) — mounted once here alongside the aircraft
-    // overlay above, not re-added on `style.load` (not part of the MapLibre
-    // style). Added *after* the aircraft overlay so aircraft icons paint on
-    // top of the sweep wedge rather than underneath it (tasks.md 6.6).
-    const rangeOutlineOverlay = new MapboxOverlay({ interleaved: false, layers: [] });
-    rangeOutlineOverlayRef.current = rangeOutlineOverlay;
-    map.addControl(rangeOutlineOverlay);
 
     // Built once (rasterizing every vendored SVG into a single canvas atlas
     // — see aircraftIcons.ts) rather than per-poll; the first refresh is
