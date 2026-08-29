@@ -1,5 +1,6 @@
 import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
+import type { DataDrivenPropertyValueSpecification } from "@maplibre/maplibre-gl-style-spec";
 import type { MapTheme } from "./mapStyles";
 import {
   AIRPORT_ICON_PIXEL_RATIO,
@@ -33,6 +34,8 @@ import { fetchTfrs } from "./tfr";
 import { fetchSpecialUseAirspace } from "./specialUseAirspace";
 import { fetchAirspaceBoundaries } from "./airspaceBoundaries";
 import { fetchRangeOutline } from "./rangeOutline";
+import { fetchTerrainOutline } from "./terrainOutline";
+import { ALTITUDE_COLOR_STOPS } from "./aircraftIcons";
 
 export const AIRPORTS_SOURCE_ID = "airports";
 export const AIRPORTS_LAYER_ID = "airports-circle";
@@ -65,6 +68,9 @@ export const RANGE_OUTLINE_SOURCE_ID = "range-outline";
 export const RANGE_OUTLINE_FILL_LAYER_ID = "range-outline-fill";
 export const RANGE_OUTLINE_LINE_LAYER_ID = "range-outline-line";
 
+export const TERRAIN_OUTLINE_SOURCE_ID = "terrain-outline";
+export const TERRAIN_OUTLINE_LINE_LAYER_ID = "terrain-outline-line";
+
 export const NEXRAD_SOURCE_ID = "nexrad";
 export const NEXRAD_LAYER_ID = "nexrad-raster";
 
@@ -91,6 +97,7 @@ const CUSTOM_LAYER_IDS = [
   AIRSPACE_BOUNDARIES_LINE_LAYER_ID,
   RANGE_OUTLINE_FILL_LAYER_ID,
   RANGE_OUTLINE_LINE_LAYER_ID,
+  TERRAIN_OUTLINE_LINE_LAYER_ID,
   NEXRAD_LAYER_ID,
   NOAA_INFRARED_LAYER_ID,
   NOAA_RADAR_LAYER_ID,
@@ -147,6 +154,33 @@ const RANGE_OUTLINE_LINE_WIDTH = 2;
 // pair reads as a dotted/dashed perimeter rather than a solid stroke.
 const RANGE_OUTLINE_LINE_DASHARRAY: [number, number] = [2, 2];
 
+// Matches TFR_LINE_LAYER_ID's width — a plain, undashed stroke (unlike the
+// actual-range-outline layer's dashed perimeter above), since this layer has
+// no corresponding fill layer to be additive to (design.md Decision 3).
+const TERRAIN_OUTLINE_LINE_WIDTH = 2;
+
+/**
+ * Builds a MapLibre `["interpolate", ["linear"], ["get", "altitudeFt"], ...]`
+ * expression directly from `aircraftIcons.ts`'s own `ALTITUDE_COLOR_STOPS`
+ * table (design.md Decision 4), rather than duplicating a second altitude
+ * color ramp — ties this layer's ring colors to the same gradient already
+ * used for altitude-colored aircraft icons/tracks. Built purely from that
+ * table's own stops, independent of which altitudes the feeder's response
+ * actually contains.
+ */
+function buildAltitudeColorLineExpression(): DataDrivenPropertyValueSpecification<string> {
+  const stopArgs = ALTITUDE_COLOR_STOPS.flatMap(({ ft, rgb }) => [
+    ft,
+    `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`,
+  ]);
+  return [
+    "interpolate",
+    ["linear"],
+    ["get", "altitudeFt"],
+    ...stopArgs,
+  ] as unknown as DataDrivenPropertyValueSpecification<string>;
+}
+
 // Zoom -> icon-size stops for the airports symbol layer, and the single
 // source of truth for `getAirportIconDisplayHeight` below (which popup
 // placement uses to offset by half the icon's on-screen height) — both
@@ -195,6 +229,7 @@ export interface CustomLayerVisibility {
   specialUseAirspace?: boolean;
   airspaceBoundaries?: boolean;
   rangeOutline?: boolean;
+  terrainOutline?: boolean;
   nexrad?: boolean;
   noaaInfrared?: boolean;
   noaaRadar?: boolean;
@@ -465,6 +500,30 @@ export function addCustomLayers(
       },
       AIRPORTS_LAYER_ID,
     );
+  }
+
+  if (!map.getSource(TERRAIN_OUTLINE_SOURCE_ID)) {
+    map.addSource(TERRAIN_OUTLINE_SOURCE_ID, {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
+  }
+  // Plain line layer, no corresponding fill layer (design.md Decision 3):
+  // multiple concentric altitude rings are mostly nested inside one another,
+  // so a solid fill would bury every inner ring under the outer rings' fill.
+  if (!map.getLayer(TERRAIN_OUTLINE_LINE_LAYER_ID)) {
+    map.addLayer({
+      id: TERRAIN_OUTLINE_LINE_LAYER_ID,
+      type: "line",
+      source: TERRAIN_OUTLINE_SOURCE_ID,
+      layout: {
+        visibility: (visibility.terrainOutline ?? true) ? "visible" : "none",
+      },
+      paint: {
+        "line-color": buildAltitudeColorLineExpression(),
+        "line-width": TERRAIN_OUTLINE_LINE_WIDTH,
+      },
+    });
   }
 
   if (!map.getSource(NEXRAD_SOURCE_ID)) {
@@ -802,6 +861,27 @@ export async function refreshRangeOutline(
   const source = map.getSource(RANGE_OUTLINE_SOURCE_ID) as GeoJSONSource | undefined;
   source?.setData(data);
   return data;
+}
+
+/** Shows/hides the terrain-based outline layer. */
+export function setTerrainOutlineVisibility(map: MapLibreMap, visible: boolean): void {
+  if (map.getLayer(TERRAIN_OUTLINE_LINE_LAYER_ID)) {
+    map.setLayoutProperty(
+      TERRAIN_OUTLINE_LINE_LAYER_ID,
+      "visibility",
+      visible ? "visible" : "none",
+    );
+  }
+}
+
+/** Refetches the feeder's terrain-based (HeyWhatsThat) outline rings and
+ * updates the source in place. No-ops if the source doesn't exist yet (e.g.
+ * a refresh mid-style-swap). Not polled (design.md Non-Goals) — called only
+ * on initial load and on every style reload. */
+export async function refreshTerrainOutline(map: MapLibreMap): Promise<void> {
+  const data = await fetchTerrainOutline();
+  const source = map.getSource(TERRAIN_OUTLINE_SOURCE_ID) as GeoJSONSource | undefined;
+  source?.setData(data);
 }
 
 /** Shows/hides the NEXRAD layer. */

@@ -48,8 +48,13 @@ function extractRings(data: RawOutlineJson): LatLonPair[][] {
  * Converts one `[lat, lon]` ring to a closed GeoJSON `[lon, lat]` ring
  * (first coordinate repeated at the end), matching tar1090's own
  * `j < points[p].length + 1` closing loop.
+ *
+ * Exported so `terrainOutline.ts` can reuse this exact transform for
+ * `upintheair.json`'s rings instead of duplicating an equivalent function
+ * (see terrain-based-outline's design.md Decision 5) — no behavior change
+ * here.
  */
-function toClosedLngLatRing(ring: LatLonPair[]): [number, number][] {
+export function toClosedLngLatRing(ring: LatLonPair[]): [number, number][] {
   const converted: [number, number][] = ring.map(([lat, lon]) => [lon, lat]);
   if (converted.length === 0) return converted;
   const [firstLon, firstLat] = converted[0];

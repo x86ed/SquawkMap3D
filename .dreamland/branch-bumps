@@ -1,4 +1,8 @@
 {
+  "28-add-hey-whats-that-functionality": {
+    "version": "v0.14.0",
+    "initialized_at": "2026-08-29T22:15:37Z"
+  },
   "3-install-maplibre": {
     "version": "v0.2.0",
     "initialized_at": "2026-08-22T05:43:38Z"

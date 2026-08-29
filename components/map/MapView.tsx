@@ -45,6 +45,7 @@ import {
   refreshRainViewer,
   refreshRangeOutline,
   refreshSpecialUseAirspace,
+  refreshTerrainOutline,
   refreshTfrs,
   setAirportsVisibility,
   setAirspaceBoundariesVisibility,
@@ -58,6 +59,7 @@ import {
   setRainViewerVisibility,
   setRangeOutlineVisibility,
   setSpecialUseAirspaceVisibility,
+  setTerrainOutlineVisibility,
   setTfrVisibility,
 } from "./layers";
 import {
@@ -147,6 +149,7 @@ export default function MapView() {
   const suaVisibleRef = useRef(true);
   const airspaceBoundariesVisibleRef = useRef(true);
   const rangeOutlineVisibleRef = useRef(true);
+  const terrainOutlineVisibleRef = useRef(true);
   const nexradVisibleRef = useRef(true);
   const noaaInfraredVisibleRef = useRef(true);
   const noaaRadarVisibleRef = useRef(true);
@@ -207,6 +210,7 @@ export default function MapView() {
   const [suaVisible, setSuaVisible] = useState(true);
   const [airspaceBoundariesVisible, setAirspaceBoundariesVisible] = useState(true);
   const [rangeOutlineVisible, setRangeOutlineVisible] = useState(true);
+  const [terrainOutlineVisible, setTerrainOutlineVisible] = useState(true);
   const [nexradVisible, setNexradVisible] = useState(true);
   const [noaaInfraredVisible, setNoaaInfraredVisible] = useState(true);
   const [noaaRadarVisible, setNoaaRadarVisible] = useState(true);
@@ -558,6 +562,7 @@ export default function MapView() {
         specialUseAirspace: suaVisibleRef.current,
         airspaceBoundaries: airspaceBoundariesVisibleRef.current,
         rangeOutline: rangeOutlineVisibleRef.current,
+        terrainOutline: terrainOutlineVisibleRef.current,
         nexrad: nexradVisibleRef.current,
         noaaInfrared: noaaInfraredVisibleRef.current,
         noaaRadar: noaaRadarVisibleRef.current,
@@ -567,6 +572,7 @@ export default function MapView() {
       void refreshSpecialUseAirspace(map);
       if (airspaceBoundariesVisibleRef.current) void refreshAirspaceBoundaries(map);
       void refreshRangeOutlineData();
+      void refreshTerrainOutline(map);
       setPilotModeVisibility(map, pilotModeRef.current);
       addUserLocationLayers(map, userLocationRef.current, AIRPORTS_LAYER_ID);
       setUserLocationVisibility(map, userLocationVisibleRef.current);
@@ -851,6 +857,16 @@ export default function MapView() {
     }
   };
 
+  const handleTerrainOutlineToggle = () => {
+    const next = !terrainOutlineVisible;
+    terrainOutlineVisibleRef.current = next;
+    setTerrainOutlineVisible(next);
+    if (mapRef.current) {
+      setTerrainOutlineVisibility(mapRef.current, next);
+      if (next) void refreshTerrainOutline(mapRef.current);
+    }
+  };
+
   const handleNexradToggle = () => {
     const next = !nexradVisible;
     nexradVisibleRef.current = next;
@@ -1029,6 +1045,16 @@ export default function MapView() {
           {rangeOutlineVisible
             ? "Hide actual range outline"
             : "Show actual range outline"}
+        </button>
+        <button
+          type="button"
+          className={styles.controlButton}
+          data-active={terrainOutlineVisible}
+          onClick={handleTerrainOutlineToggle}
+        >
+          {terrainOutlineVisible
+            ? "Hide terrain-based outline"
+            : "Show terrain-based outline"}
         </button>
         <button
           type="button"
