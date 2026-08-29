@@ -1,16 +1,27 @@
 import styles from "./ColorModeLegend.module.css";
-import { ALL_RARITY_TIERS, RARITY_TIER_STYLES } from "../aircraftRarity";
+import { ALL_RARITY_TIERS, rarityTierGradient } from "../aircraftRarity";
 import { ALTITUDE_COLOR_STOPS } from "../aircraftIcons";
 import type { ColorMode } from "../aircraftIcons";
+import { MACH1_APPROX_KTS } from "../constants";
 
-const AIRSPEED_STOPS: Array<{ label: string; color: string }> = [
-  { label: "Stopped", color: "rgb(148, 148, 148)" },
-  { label: "<100kt", color: "rgb(34, 197, 94)" },
-  { label: "100-200kt", color: "rgb(234, 179, 8)" },
-  { label: "200-400kt", color: "rgb(249, 115, 22)" },
-  { label: "400-500kt", color: "rgb(220, 38, 38)" },
-  { label: ">500kt", color: "rgb(217, 70, 239)" },
-  { label: ">Mach 1", color: "rgb(255, 20, 147)" },
+/**
+ * Mirrors `aircraftIcons.ts`'s `airspeedToColor` band thresholds (design.md
+ * Decision 3) as explicit knot boundary points — like `ALTITUDE_COLOR_STOPS`,
+ * each point is both a gradient color stop and a tick label, positioned
+ * proportionally to its real knot value rather than evenly spaced, so the
+ * bar reads as an actual scale. Labels are kept short (bare numbers/"kt")
+ * — the previous range-text labels ("100-200kt", "400-500kt", …) were wider
+ * than their `flex:1` column in a 260px bar and overlapped illegibly under
+ * `white-space: nowrap`.
+ */
+const AIRSPEED_COLOR_STOPS: Array<{ kt: number; rgb: [number, number, number]; label: string }> = [
+  { kt: 0, rgb: [148, 148, 148], label: "0" },
+  { kt: 100, rgb: [34, 197, 94], label: "100" },
+  { kt: 200, rgb: [234, 179, 8], label: "200" },
+  { kt: 400, rgb: [249, 115, 22], label: "400" },
+  { kt: 500, rgb: [220, 38, 38], label: "500" },
+  { kt: MACH1_APPROX_KTS, rgb: [217, 70, 239], label: "M1" },
+  { kt: MACH1_APPROX_KTS + 140, rgb: [255, 20, 147], label: ">M1" },
 ];
 
 function rgbCss([r, g, b]: [number, number, number]): string {
@@ -39,7 +50,7 @@ export function ColorModeLegend({ mode }: { mode: ColorMode }) {
             <div
               key={tier}
               className={styles.rarityCard}
-              style={{ background: RARITY_TIER_STYLES[tier].color }}
+              style={{ background: rarityTierGradient(tier) }}
               title={capitalize(tier)}
             >
               {capitalize(tier)}
@@ -73,8 +84,9 @@ export function ColorModeLegend({ mode }: { mode: ColorMode }) {
   }
 
   // airspeed
-  const gradient = AIRSPEED_STOPS.map(
-    (stop, i) => `${stop.color} ${(i / (AIRSPEED_STOPS.length - 1)) * 100}%`,
+  const airspeedMaxKt = AIRSPEED_COLOR_STOPS[AIRSPEED_COLOR_STOPS.length - 1].kt;
+  const gradient = AIRSPEED_COLOR_STOPS.map(
+    (stop) => `${rgbCss(stop.rgb)} ${(stop.kt / airspeedMaxKt) * 100}%`,
   ).join(", ");
   return (
     <div className={styles.legend} aria-label="Airspeed color legend">
@@ -83,8 +95,8 @@ export function ColorModeLegend({ mode }: { mode: ColorMode }) {
         style={{ background: `linear-gradient(90deg, ${gradient})` }}
       />
       <div className={styles.tickRow}>
-        {AIRSPEED_STOPS.map((stop) => (
-          <span key={stop.label} className={styles.tick}>
+        {AIRSPEED_COLOR_STOPS.map((stop) => (
+          <span key={stop.kt} className={styles.tick}>
             {stop.label}
           </span>
         ))}
