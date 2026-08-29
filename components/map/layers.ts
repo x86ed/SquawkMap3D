@@ -153,6 +153,33 @@ const RANGE_OUTLINE_LINE_WIDTH = 2;
 // pair reads as a dotted/dashed perimeter rather than a solid stroke.
 const RANGE_OUTLINE_LINE_DASHARRAY: [number, number] = [2, 2];
 
+// Matches TFR_LINE_LAYER_ID's width — a plain, undashed stroke (unlike the
+// actual-range-outline layer's dashed perimeter above), since this layer has
+// no corresponding fill layer to be additive to (design.md Decision 3).
+const TERRAIN_OUTLINE_LINE_WIDTH = 2;
+
+/**
+ * Builds a MapLibre `["interpolate", ["linear"], ["get", "altitudeFt"], ...]`
+ * expression directly from `aircraftIcons.ts`'s own `ALTITUDE_COLOR_STOPS`
+ * table (design.md Decision 4), rather than duplicating a second altitude
+ * color ramp — ties this layer's ring colors to the same gradient already
+ * used for altitude-colored aircraft icons/tracks. Built purely from that
+ * table's own stops, independent of which altitudes the feeder's response
+ * actually contains.
+ */
+function buildAltitudeColorLineExpression(): DataDrivenPropertyValueSpecification<string> {
+  const stopArgs = ALTITUDE_COLOR_STOPS.flatMap(({ ft, rgb }) => [
+    ft,
+    `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`,
+  ]);
+  return [
+    "interpolate",
+    ["linear"],
+    ["get", "altitudeFt"],
+    ...stopArgs,
+  ] as unknown as DataDrivenPropertyValueSpecification<string>;
+}
+
 // Zoom -> icon-size stops for the airports symbol layer, and the single
 // source of truth for `getAirportIconDisplayHeight` below (which popup
 // placement uses to offset by half the icon's on-screen height) — both
@@ -201,6 +228,7 @@ export interface CustomLayerVisibility {
   specialUseAirspace?: boolean;
   airspaceBoundaries?: boolean;
   rangeOutline?: boolean;
+  terrainOutline?: boolean;
   nexrad?: boolean;
   noaaInfrared?: boolean;
   noaaRadar?: boolean;
