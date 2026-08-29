@@ -1,0 +1,27 @@
+/* `right: 210px`, not 12px: MapView.tsx's own top-right toggle-button
+   sidebar (`.controls` in MapView.module.css) is tall enough on a typical
+   viewport height to reach all the way down near this dock's own bottom
+   position, and its rendered width (~186px, driven by its longest button's
+   text — "Hide special use airspace"/"Hide airspace boundaries" — not by
+   viewport width) is effectively constant. This offset clears it with a
+   12px gap; revisit if that sidebar's longest label changes meaningfully. */
+.dock {
+  position: fixed;
+  right: 210px;
+  bottom: 12px;
+  z-index: 4;
+  transition: bottom 220ms ease, right 220ms ease;
+}
+
+/* Rides above the AircraftOverlay drawer's top-right edge while it's open —
+   45vh is that drawer's own default height (AircraftOverlay.module.css),
+   matched here so the two never overlap. */
+.dock[data-drawer-open="true"] {
+  bottom: calc(45vh + 12px);
+}
+
+@media (max-width: 760px) {
+  .dock[data-drawer-open="true"] {
+    bottom: calc(80vh + 12px);
+  }
+}

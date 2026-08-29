@@ -173,6 +173,13 @@ export const FOLLOW_SELECTED_AIRCRAFT_EASE_MS = 800;
 // click as the same event.
 export const AIRCRAFT_DESELECT_CLICK_GUARD_MS = 50;
 
+// Airspeed color mode's "hot pink above Mach 1" threshold (aircraftIcons.ts's
+// airspeedToColor) — approximated as a fixed sea-level speed-of-sound knots
+// value, NOT a real Mach computation. True Mach depends on true airspeed,
+// altitude, and outside air temperature, none of which this feeder's
+// aircraft.json exposes (only ADS-B ground speed).
+export const MACH1_APPROX_KTS = 660;
+
 export const AIRCRAFT_CATEGORY_FALLBACK_ICON: Record<string, string> = {
   A1: "/aircraft-silhouettes/A1.svg", // light
   A2: "/aircraft-silhouettes/A2.svg", // medium 1 (7,000-34,000 kg)

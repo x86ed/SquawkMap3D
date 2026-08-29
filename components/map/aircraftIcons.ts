@@ -1,6 +1,8 @@
 import type { Aircraft } from "./aircraft";
+import { computeRarityTier, RARITY_TIER_STYLES } from "./aircraftRarity";
 import { CATEGORY_FALLBACK_KEY } from "./aircraftShapes";
-import { AIRCRAFT_CATEGORY_FALLBACK_ICON } from "./constants";
+import { AIRCRAFT_CATEGORY_FALLBACK_ICON, MACH1_APPROX_KTS } from "./constants";
+import { AIRPORT_FILL_COLOR } from "./layers";
 import { computeTightViewBox } from "./svgBBox";
 
 export type IconSource = "type" | "category-type" | "category" | "generic";
@@ -61,6 +63,15 @@ export interface IconAtlasEntry {
   height: number;
   anchorX: number;
   anchorY: number;
+  // Without this, deck.gl's IconLayer renders the atlas texture's own baked
+  // pixel color verbatim and ignores `getColor` entirely (its fragment
+  // shader does `mix(texColor.rgb, vColor.rgb, vColorMode)`, where
+  // `vColorMode` comes straight from this `mask` flag — 0/false uses the
+  // texture color as-is, 1/true treats the texture as an alpha-only mask
+  // tinted by `getColor`). Every shape here is deliberately baked solid
+  // white (see `loadShapeImage`/`drawGenericMarker`) specifically so this
+  // mask mode can recolor it — `mask: true` is what actually turns that on.
+  mask: true;
 }
 
 export interface IconAtlas {
@@ -173,6 +184,39 @@ function drawGenericMarker(ctx: CanvasRenderingContext2D, cx: number, cy: number
   ctx.stroke();
 }
 
+/** Atlas key for the rotorcraft rotor-disc accent (see `ROTOR_ACCENT_KEY`'s
+ * doc comment on `resolveIconKey`'s sibling usage in `aircraftLayer.ts`). */
+export const ROTOR_ACCENT_KEY = "ROTOR_ACCENT";
+
+/**
+ * A rotor-disc glyph (a cross through a center hub), drawn solid white so
+ * `getColor` can tint it like every other atlas entry (design.md's `mask:
+ * true` fix). Rendered as its own small deck.gl `IconLayer` positioned at
+ * the exact same real-world altitude as the aircraft's own icon — unlike
+ * the previous MapLibre-`Marker`-based approach (`rotorMarkers.ts`, now
+ * removed), which had no altitude/pitch awareness at all and always
+ * projected onto the ground plane regardless of the aircraft's actual
+ * height or the camera's tilt.
+ */
+function drawRotorAccent(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number): void {
+  const half = size / 2;
+  ctx.save();
+  ctx.strokeStyle = "#ffffff";
+  ctx.fillStyle = "#ffffff";
+  ctx.lineWidth = Math.max(2, size * 0.08);
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - half);
+  ctx.lineTo(cx, cy + half);
+  ctx.moveTo(cx - half, cy);
+  ctx.lineTo(cx + half, cy);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy, Math.max(2, size * 0.08), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 /**
  * Builds a single combined icon atlas (canvas image + deck.gl `iconMapping`)
  * from every vendored type shape, every category fallback silhouette, and
@@ -191,6 +235,7 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
     ...typeDesignators.map((t) => ({ key: t, url: TYPE_SHAPE_URL(t) })),
     ...categoryKeys.map((c) => ({ key: c, url: AIRCRAFT_CATEGORY_FALLBACK_ICON[c] })),
     { key: GENERIC_ICON_KEY, url: null },
+    { key: ROTOR_ACCENT_KEY, url: null },
   ];
 
   const columns = Math.max(1, Math.ceil(Math.sqrt(entries.length)));
@@ -231,6 +276,8 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
       } else {
         ctx.drawImage(image, cx - w / 2, cy - h / 2, w, h);
       }
+    } else if (entry.key === ROTOR_ACCENT_KEY) {
+      drawRotorAccent(ctx, cx, cy, drawable);
     } else {
       drawGenericMarker(ctx, cx, cy, drawable);
     }
@@ -242,6 +289,7 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
       height: CELL_SIZE,
       anchorX: CELL_SIZE / 2,
       anchorY: CELL_SIZE / 2,
+      mask: true,
     };
   });
 
@@ -250,27 +298,153 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
   return { image: canvas.toDataURL("image/png"), mapping };
 }
 
-// Altitude range used for both the icon tint and the track-trail color —
-// aeris's "low altitude glows cyan, high altitude shifts to gold" read,
-// interpolated across a fixed 0-45,000ft band (above FL450 is rare for
-// anything but the highest-flying traffic, so colors saturate rather than
-// keep shifting).
-const ALTITUDE_COLOR_MIN_FT = 0;
-const ALTITUDE_COLOR_MAX_FT = 45_000;
-const ALTITUDE_COLOR_LOW: [number, number, number] = [34, 211, 238]; // cyan
-const ALTITUDE_COLOR_HIGH: [number, number, number] = [250, 204, 21]; // gold
+/**
+ * Multi-stop "color by altitude" gradient (design.md Decision 2) — control
+ * points and RGB values pixel-sampled directly from the acceptance
+ * criteria's reference legend image (a tar1090-style orange→yellow→green→
+ * cyan→blue→magenta ramp), not an invented/approximated 2-color lerp. Both
+ * `altitudeToColor` below and `ColorModeLegend`'s altitude gradient bar
+ * share this exact table so the legend can never drift from the live icon
+ * colors.
+ */
+export const ALTITUDE_COLOR_STOPS: Array<{ ft: number; rgb: [number, number, number] }> = [
+  { ft: 0, rgb: [225, 112, 50] },
+  { ft: 500, rgb: [225, 113, 50] },
+  { ft: 1_000, rgb: [226, 127, 55] },
+  { ft: 2_000, rgb: [229, 156, 64] },
+  { ft: 4_000, rgb: [225, 184, 66] },
+  { ft: 6_000, rgb: [193, 195, 65] },
+  { ft: 8_000, rgb: [120, 194, 61] },
+  { ft: 10_000, rgb: [92, 189, 74] },
+  { ft: 20_000, rgb: [81, 178, 190] },
+  { ft: 30_000, rgb: [56, 69, 231] },
+  { ft: 40_000, rgb: [186, 54, 200] },
+];
 
-/** Interpolates an aircraft's altitude (feet) into an RGB color between the
- * low-altitude cyan and high-altitude gold, clamped to the configured
- * range. Returns a deck.gl-style `[r, g, b]` triplet (0-255 each). */
+/** Interpolates an aircraft's altitude (feet) along `ALTITUDE_COLOR_STOPS`,
+ * clamped below the first and at/above the last stop. Returns a deck.gl-style
+ * `[r, g, b]` triplet (0-255 each). */
 export function altitudeToColor(altitudeFt: number): [number, number, number] {
-  const t = Math.min(
-    1,
-    Math.max(0, (altitudeFt - ALTITUDE_COLOR_MIN_FT) / (ALTITUDE_COLOR_MAX_FT - ALTITUDE_COLOR_MIN_FT)),
-  );
+  const stops = ALTITUDE_COLOR_STOPS;
+  if (altitudeFt <= stops[0].ft) return stops[0].rgb;
+  if (altitudeFt >= stops[stops.length - 1].ft) return stops[stops.length - 1].rgb;
+
+  let lower = stops[0];
+  let upper = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (altitudeFt >= stops[i].ft && altitudeFt <= stops[i + 1].ft) {
+      lower = stops[i];
+      upper = stops[i + 1];
+      break;
+    }
+  }
+
+  const t = (altitudeFt - lower.ft) / (upper.ft - lower.ft);
   return [
-    Math.round(ALTITUDE_COLOR_LOW[0] + (ALTITUDE_COLOR_HIGH[0] - ALTITUDE_COLOR_LOW[0]) * t),
-    Math.round(ALTITUDE_COLOR_LOW[1] + (ALTITUDE_COLOR_HIGH[1] - ALTITUDE_COLOR_LOW[1]) * t),
-    Math.round(ALTITUDE_COLOR_LOW[2] + (ALTITUDE_COLOR_HIGH[2] - ALTITUDE_COLOR_LOW[2]) * t),
+    Math.round(lower.rgb[0] + (upper.rgb[0] - lower.rgb[0]) * t),
+    Math.round(lower.rgb[1] + (upper.rgb[1] - lower.rgb[1]) * t),
+    Math.round(lower.rgb[2] + (upper.rgb[2] - lower.rgb[2]) * t),
   ];
+}
+
+/**
+ * "Speedometer" airspeed gradient (design.md Decision 3): grey when stopped
+ * or unknown, then fixed knot bands green→yellow→orange→red→magenta, then a
+ * darker purple above `MACH1_APPROX_KTS`. Ground speed is the only speed
+ * value this app has (no true airspeed/OAT from the feeder), so the "Mach 1"
+ * threshold is a fixed-knots approximation, not a real Mach computation.
+ */
+const AIRSPEED_COLOR_STOPPED: [number, number, number] = [148, 148, 148]; // grey
+const AIRSPEED_COLOR_GREEN: [number, number, number] = [34, 197, 94];
+const AIRSPEED_COLOR_YELLOW: [number, number, number] = [234, 179, 8];
+const AIRSPEED_COLOR_ORANGE: [number, number, number] = [249, 115, 22];
+const AIRSPEED_COLOR_RED: [number, number, number] = [220, 38, 38];
+const AIRSPEED_COLOR_MAGENTA: [number, number, number] = [217, 70, 239];
+// Reuses `layers.ts`'s own airport-icon accent color (light-theme variant —
+// a deep violet, not the brighter dark-theme neon) rather than a separate
+// pinned hex, so the two stay in sync if that color ever changes.
+const AIRSPEED_COLOR_SUPERSONIC: [number, number, number] = hexColorToRgb(AIRPORT_FILL_COLOR.light);
+
+export function airspeedToColor(groundSpeedKt: number | undefined): [number, number, number] {
+  if (groundSpeedKt === undefined || groundSpeedKt <= 0) return AIRSPEED_COLOR_STOPPED;
+  if (groundSpeedKt > MACH1_APPROX_KTS) return AIRSPEED_COLOR_SUPERSONIC;
+  if (groundSpeedKt > 500) return AIRSPEED_COLOR_MAGENTA;
+  if (groundSpeedKt > 400) return AIRSPEED_COLOR_RED;
+  if (groundSpeedKt > 200) return AIRSPEED_COLOR_ORANGE;
+  if (groundSpeedKt > 100) return AIRSPEED_COLOR_YELLOW;
+  return AIRSPEED_COLOR_GREEN;
+}
+
+/** Parses a `#rrggbb` hex color string into an `[r, g, b]` 0-255 triple.
+ * Shared by `rarityToColor` below and `aircraftLayer.ts`'s selection-glow
+ * highlight, which both need to turn a `RARITY_TIER_STYLES` hex value into a
+ * deck.gl-style RGB triplet. */
+export function hexColorToRgb(hex: string): [number, number, number] {
+  const value = parseInt(hex.slice(1), 16);
+  return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
+}
+
+/**
+ * A rarity tier's accent color, resolved directly from a type designator
+ * rather than a full `Aircraft` object — `computeRarityTier`/
+ * `computeRarityValue` only ever read `typeDesignator`, and track-trail
+ * segments (`TrackPoint`, in `aircraft.ts`) don't carry a full `Aircraft`,
+ * only whatever position/speed fields were recorded at that point in time.
+ * `aircraftLayer.ts`'s track-coloring code looks the owning aircraft's
+ * current `typeDesignator` up by hex and passes it here.
+ */
+export function rarityToColorByTypeDesignator(
+  typeDesignator: string | undefined,
+): [number, number, number] {
+  return hexColorToRgb(RARITY_TIER_STYLES[computeRarityTier({ hex: "", typeDesignator })].color);
+}
+
+/** An aircraft's computed rarity tier's accent color (see `aircraftRarity.ts`),
+ * as a deck.gl-style RGB triplet — the same color `PlaneCard` renders for
+ * that tier, so the map layer and the details drawer never disagree. */
+export function rarityToColor(aircraft: Aircraft): [number, number, number] {
+  return rarityToColorByTypeDesignator(aircraft.typeDesignator);
+}
+
+export type ColorMode = "rarity" | "altitude" | "airspeed";
+
+/**
+ * Same dispatch as `resolveAircraftColor`, for a track-trail point instead
+ * of a full `Aircraft` (see `rarityToColorByTypeDesignator`'s doc comment
+ * for why rarity mode needs the owning aircraft's `typeDesignator` passed in
+ * separately rather than reading it off the point itself).
+ */
+export function resolveTrackPointColor(
+  point: { altitude: number; groundSpeed?: number },
+  mode: ColorMode,
+  typeDesignator: string | undefined,
+): [number, number, number] {
+  switch (mode) {
+    case "rarity":
+      return rarityToColorByTypeDesignator(typeDesignator);
+    case "airspeed":
+      return airspeedToColor(point.groundSpeed);
+    case "altitude":
+    default:
+      return altitudeToColor(point.altitude);
+  }
+}
+
+/** Dispatches an aircraft to its color under the currently active
+ * `ColorMode` (design.md Decision 1) — the single call site
+ * `aircraftLayer.ts`'s icon/track `getColor` use, so every mode's color
+ * logic lives in exactly one place. */
+export function resolveAircraftColor(
+  aircraft: Aircraft,
+  mode: ColorMode,
+): [number, number, number] {
+  switch (mode) {
+    case "rarity":
+      return rarityToColor(aircraft);
+    case "airspeed":
+      return airspeedToColor(aircraft.groundSpeed);
+    case "altitude":
+    default:
+      return altitudeToColor(aircraft.altitude ?? 0);
+  }
 }

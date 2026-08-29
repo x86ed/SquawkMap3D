@@ -25,8 +25,11 @@ import {
   clearTracks,
   type Aircraft,
 } from "./aircraft";
-import { buildAircraftIconAtlas, type IconAtlas } from "./aircraftIcons";
+import { buildAircraftIconAtlas, type ColorMode, type IconAtlas } from "./aircraftIcons";
 import { buildAircraftLayers } from "./aircraftLayer";
+import { AircraftColorDock } from "./controls/AircraftColorDock";
+import { AircraftHoverTooltip } from "./overlay/AircraftHoverTooltip";
+import { ColorModeLegendDock } from "./overlay/ColorModeLegendDock";
 import { getFlightRoute, type FlightRoute } from "./flightRoute";
 import {
   buildSelectedAircraftInfo,
@@ -165,6 +168,9 @@ export default function MapView() {
   // handled.
   const lastAircraftClickAtRef = useRef(0);
   const followSelectedAircraftRef = useRef(true);
+  // Aircraft color mode (design.md Decision 1) — default "altitude" is
+  // closest to this layer's prior always-on-altitude-tint behavior.
+  const colorModeRef = useRef<ColorMode>("altitude");
   // callsign+hex-keyed, cleared on deselect — avoids re-fetching the same
   // aircraft's route every ~1s poll while it stays selected (tasks.md 6.2).
   const routeCacheRef = useRef<Map<string, FlightRoute | null>>(new Map());
@@ -212,6 +218,13 @@ export default function MapView() {
     null,
   );
   const [followSelectedAircraft, setFollowSelectedAircraft] = useState(true);
+  const [colorMode, setColorMode] = useState<ColorMode>("altitude");
+  // Hover tooltip state (design.md Decision 10) — deliberately separate from
+  // selection state above; hovering never opens `AircraftOverlay`.
+  const [hoveredAircraft, setHoveredAircraft] = useState<
+    (Aircraft & { lat: number; lon: number }) | null
+  >(null);
+  const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
   const [error, setError] = useState<string | null>(() =>
     getMapTilerKey()
       ? null
@@ -287,8 +300,13 @@ export default function MapView() {
       tracks: getAllTracks(),
       iconAtlas: aircraftIconAtlasRef.current,
       selectedHex: selectedAircraftHexRef.current,
+      colorMode: colorModeRef.current,
       onAircraftClick: (hex) =>
         handleAircraftClick(hex, hex ? aircraft.find((a) => a.hex === hex) : undefined),
+      onAircraftHover: (hovered, x, y) => {
+        setHoveredAircraft(hovered);
+        if (hovered) setHoverPosition({ x, y });
+      },
     });
     deckOverlayRef.current.setProps({ layers });
 
@@ -479,18 +497,29 @@ export default function MapView() {
     // cause is patched, since it would restore proper depth-sorting against
     // the 3D terrain mesh (an aircraft icon currently isn't occluded by a
     // mountain in front of it) — not re-tested here, left as a follow-up.
-    const deckOverlay = new MapboxOverlay({ interleaved: false, layers: [] });
-    deckOverlayRef.current = deckOverlay;
-    map.addControl(deckOverlay);
-
-    // Second, dedicated overlay for the actual-range-outline's radar sweep
-    // (design.md Decision 4) — mounted once here alongside the aircraft
-    // overlay above, not re-added on `style.load` (not part of the MapLibre
-    // style). Added *after* the aircraft overlay so aircraft icons paint on
-    // top of the sweep wedge rather than underneath it (tasks.md 6.6).
+    // Dedicated overlay for the actual-range-outline's radar sweep (design.md
+    // Decision 4) — mounted once here, not re-added on `style.load` (not
+    // part of the MapLibre style). Added *before* the aircraft overlay below:
+    // for two separate non-interleaved `MapboxOverlay` canvases, whichever is
+    // added later ends up later in the DOM and paints on top — so the sweep
+    // has to go first for aircraft icons to render above it, not the other
+    // way around (previously backwards here, which put the sweep wedge on
+    // top of the aircraft; see tasks.md 6.6's original, incorrect ordering
+    // rationale).
     const rangeOutlineOverlay = new MapboxOverlay({ interleaved: false, layers: [] });
     rangeOutlineOverlayRef.current = rangeOutlineOverlay;
     map.addControl(rangeOutlineOverlay);
+
+    const deckOverlay = new MapboxOverlay({
+      interleaved: false,
+      layers: [],
+      // design.md Decision 9: a bigger effective click radius than deck.gl's
+      // default (0px, i.e. pixel-exact) so small/distant aircraft icons are
+      // easier to select without requiring a pixel-precise click.
+      pickingRadius: 12,
+    });
+    deckOverlayRef.current = deckOverlay;
+    map.addControl(deckOverlay);
 
     // Built once (rasterizing every vendored SVG into a single canvas atlas
     // — see aircraftIcons.ts) rather than per-poll; the first refresh is
@@ -885,6 +914,12 @@ export default function MapView() {
   // this handler only flips the flag the click/poll recenter logic above
   // already reads; it doesn't itself recenter (no surprise camera snap from
   // toggling alone).
+  const handleColorModeChange = (mode: ColorMode) => {
+    colorModeRef.current = mode;
+    setColorMode(mode);
+    void refreshAircraft();
+  };
+
   const handleFollowSelectedAircraftToggle = () => {
     const next = !followSelectedAircraft;
     followSelectedAircraftRef.current = next;
@@ -1060,6 +1095,20 @@ export default function MapView() {
         </button>
       </div>
       <AircraftOverlay info={selectedAircraftInfo} onClose={() => handleAircraftClick(null)} />
+      <AircraftColorDock
+        colorMode={colorMode}
+        onColorModeChange={handleColorModeChange}
+        onRecenter={handleJumpToLocation}
+        drawerOpen={selectedAircraftInfo !== null}
+      />
+      <ColorModeLegendDock colorMode={colorMode} drawerOpen={selectedAircraftInfo !== null} />
+      {hoveredAircraft && (
+        <AircraftHoverTooltip
+          aircraft={hoveredAircraft}
+          x={hoverPosition.x}
+          y={hoverPosition.y}
+        />
+      )}
     </div>
   );
 }

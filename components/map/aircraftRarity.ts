@@ -109,6 +109,45 @@ export function computeRarityTier(aircraft: Aircraft): RarityTier {
   return "apex";
 }
 
+/**
+ * The exact per-tier `background` gradient `PlaneCard.module.css`'s
+ * `.aircraftRarityFrame[data-tier]` rules use (design.md Decision 5),
+ * reproduced here so any other UI that needs a tier's real card gradient —
+ * not just its flat accent color — can compute it from `RARITY_TIER_STYLES`
+ * without duplicating a second hardcoded hex table (`ColorModeLegend`'s
+ * rarity-mode swatches, see aircraft-color-mode-control's "should use the
+ * gradients from the cards" fix). `mythic` and `apex` override with their
+ * own distinct formulas in the source CSS (a conic sweep and a
+ * white-forward linear ramp, respectively) — reproduced verbatim, not
+ * derived from `color`/`highlight`, to stay byte-for-byte in sync with
+ * `PlaneCard.module.css`. Keep both in sync if either changes.
+ */
+export function rarityTierGradient(tier: RarityTier): string {
+  if (tier === "mythic") {
+    return "conic-gradient(from 210deg, #22d3ee, #8b5cf6, #ec4899, #f59e0b, #22d3ee)";
+  }
+  if (tier === "apex") {
+    return "linear-gradient(120deg, #fff, #ecfeff 18%, #bae6fd 46%, #e0e7ff 72%, #fff)";
+  }
+  const { color, highlight } = RARITY_TIER_STYLES[tier];
+  return `linear-gradient(135deg, ${highlight}, color-mix(in srgb, ${color} 30%, #070b14) 35%, ${color})`;
+}
+
+/** All 9 real tiers in their low-to-high order, `unidentified` first — for
+ * UI that renders every tier at once (e.g. `ColorModeLegend`'s rarity-mode
+ * card row), rather than each caller re-deriving/duplicating this order. */
+export const ALL_RARITY_TIERS: RarityTier[] = [
+  "unidentified",
+  "standard",
+  "prime",
+  "remarkable",
+  "exceptional",
+  "epic",
+  "legendary",
+  "mythic",
+  "apex",
+];
+
 const RARITY_TIER_LADDER: RarityTier[] = [
   "standard",
   "prime",
