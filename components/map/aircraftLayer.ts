@@ -7,6 +7,7 @@ import {
   resolveAircraftColor,
   resolveIconKey,
   resolveTrackPointColor,
+  ROTOR_ACCENT_KEY,
   type IconAtlas,
 } from "./aircraftIcons";
 import { computeRarityTier, RARITY_TIER_STYLES } from "./aircraftRarity";
@@ -19,6 +20,11 @@ import {
 export const AIRCRAFT_ICON_LAYER_ID = "aircraft-icons";
 export const AIRCRAFT_TRACK_LAYER_ID = "aircraft-tracks";
 export const AIRCRAFT_SELECTION_GLOW_LAYER_ID = "aircraft-selection-glow";
+export const AIRCRAFT_ROTOR_ACCENT_LAYER_ID = "aircraft-rotor-accent";
+
+const ROTORCRAFT_CATEGORY = "A7";
+const ROTOR_ACCENT_SIZE_PIXELS = 22;
+const ROTOR_ACCENT_COLOR: [number, number, number] = [229, 229, 229];
 
 // Exported so other real-altitude-positioned deck.gl layers (radarSweep.ts's
 // aircraft dots) reuse the exact same conversion rather than a copy that
@@ -66,9 +72,6 @@ export function buildAircraftLayers(params: {
   iconAtlas: IconAtlas | null;
   selectedHex: string | null;
   colorMode: ColorMode;
-  // Current map camera bearing (degrees, clockwise from north) — see
-  // `getAngle` below for why the icon layer needs this at all.
-  bearingDeg: number;
   onAircraftClick: (hex: string | null) => void;
   onAircraftHover: (
     aircraft: (Aircraft & { lat: number; lon: number }) | null,
@@ -76,16 +79,8 @@ export function buildAircraftLayers(params: {
     y: number,
   ) => void;
 }): Layer[] {
-  const {
-    aircraft,
-    tracks,
-    iconAtlas,
-    selectedHex,
-    colorMode,
-    bearingDeg,
-    onAircraftClick,
-    onAircraftHover,
-  } = params;
+  const { aircraft, tracks, iconAtlas, selectedHex, colorMode, onAircraftClick, onAircraftHover } =
+    params;
   if (!iconAtlas) return [];
 
   const positioned = aircraft.filter(
@@ -107,34 +102,30 @@ export function buildAircraftLayers(params: {
     // test: angle=90 pointed a nose-up icon west, not east) — while compass
     // track increases *clockwise* from north. Negating the track is what
     // makes a nose-up icon point the right way (track=90/east needs
-    // angle=-90, i.e. 90° clockwise from the icon's own CCW-positive axis)
-    // — but only holds while the camera's bearing is 0 (screen-up = true
-    // north). With `billboard: true`, deck.gl rotates the icon in pure
-    // screen-pixel space (icon-layer-vertex.glsl.ts's `rotate_by_angle`,
-    // applied directly to clip-space) — unlike world-space geometry (the
-    // track `PathLayer`), it never passes through the view's own
-    // bearing-rotation matrix, so it doesn't automatically follow the
-    // camera when the user rotates/tilts the map. Adding `bearingDeg` here
-    // re-derives the correct screen angle for any camera bearing: at
-    // bearing 0 this reduces to exactly the original `-(track)` formula.
-    getAngle: (d) => bearingDeg - (d.track ?? 0),
+    // angle=-90, i.e. 90° clockwise from the icon's own CCW-positive axis).
+    getAngle: (d) => -(d.track ?? 0),
     getColor: (d) => resolveAircraftColor(d, colorMode),
     // Was 28 — with a solid-filled icon (see aircraftIcons.ts's atlas
     // builder), that read as too small on the map to be legible against
     // basemap clutter.
     getSize: 40,
     sizeUnits: "pixels",
-    // design.md Decision 7 (reverted): billboard:false laid the icon flat in
-    // its own ground plane so ordinary 3D perspective would foreshorten it
-    // as the camera pitches. In practice, at this app's default/typical
-    // pitch (60-85°), that foreshortening crushes most icons down to a
-    // near-edge-on sliver depending on their track relative to the camera
-    // bearing — the tint color is still technically applied, but the
-    // foreshortened, anti-aliased sliver reads as washed-out/uncolored for
-    // most aircraft. Icon legibility/color visibility wins over the cheap
-    // tilt cue; true 3D aircraft orientation is deferred to the separate
-    // follow-up 3D-aircraft-models change (see proposal.md). Left at
-    // deck.gl's default (billboard: true — always faces the camera).
+    // design.md Decision 7: laying the icon flat in its own ground plane
+    // (rotated by getAngle above) rather than always billboarding to face
+    // the camera lets ordinary 3D perspective foreshorten/tilt it as the
+    // map camera pitches, so the icon's orientation actually matches the
+    // 3D view instead of reading as a flat sticker pasted on screen. An
+    // earlier attempt reverted this after live testing seemed to show it
+    // washing out icon color at typical pitch — that turned out to be a
+    // false diagnosis: the real cause was a separate atlas-mapping bug
+    // (missing `mask: true`, see aircraftIcons.ts) that made every icon
+    // render its baked-white texture color regardless of `billboard`. With
+    // that fixed, `billboard: false` is back — colors and orientation both
+    // now read correctly at pitch. Since geometry here is in the aircraft's
+    // own world-space ground plane, its rotation already follows the
+    // camera's bearing automatically (no manual bearing compensation
+    // needed, unlike the screen-space rotation `billboard: true` requires).
+    billboard: false,
     // Selection picking (design.md Decision 2): the click handler itself
     // toggles off when re-clicking the already-selected hex, else selects
     // the clicked one; a miss (empty map area) reports `null` here, but the
@@ -202,7 +193,39 @@ export function buildAircraftLayers(params: {
     pickable: false,
   });
 
+  // Rotorcraft rotor-disc accent (design.md Decision 8, revised): a second,
+  // smaller `IconLayer` for category-A7 aircraft only, positioned at the
+  // exact same real-world altitude as the aircraft's own icon (unlike the
+  // previous MapLibre-`Marker`-based version, which had no altitude/pitch
+  // awareness — see aircraftIcons.ts's `drawRotorAccent` doc comment).
+  // `billboard: false` matches the main icon layer so the accent tilts with
+  // the same 3D ground-plane orientation rather than floating flat-on
+  // relative to the tilted fuselage beneath it. The "spin" is a per-poll
+  // wall-clock-derived angle (not a continuous per-frame animation, unlike
+  // the CSS version) — consistent with this app's aircraft themselves only
+  // moving once per poll (~1s), not smoothly interpolated, so a
+  // continuously-animated rotor would visually mismatch its own
+  // "teleporting" parent anyway; the large per-poll step (~143°/s) still
+  // reads as spinning rather than static.
+  const rotorcraft = positioned.filter((a) => a.category === ROTORCRAFT_CATEGORY);
+  const rotorSpinAngleDeg = (Date.now() / 7) % 360;
+  const rotorLayer = new IconLayer<Aircraft & { lat: number; lon: number }>({
+    id: AIRCRAFT_ROTOR_ACCENT_LAYER_ID,
+    data: rotorcraft,
+    iconAtlas: iconAtlas.image,
+    iconMapping: iconAtlas.mapping,
+    getIcon: () => ROTOR_ACCENT_KEY,
+    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
+    getAngle: () => rotorSpinAngleDeg,
+    getColor: ROTOR_ACCENT_COLOR,
+    getSize: ROTOR_ACCENT_SIZE_PIXELS,
+    sizeUnits: "pixels",
+    billboard: false,
+    pickable: false,
+  });
+
   // Glow beneath the trail/icons (design.md Decision 4), trail beneath
-  // icons, icons on top.
-  return [glowLayer, trackLayer, iconLayer];
+  // icons, rotor accent and icons on top (rotor drawn just before the icon
+  // so the fuselage silhouette isn't hidden underneath it).
+  return [glowLayer, trackLayer, rotorLayer, iconLayer];
 }

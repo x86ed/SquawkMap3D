@@ -36,8 +36,19 @@ The map SHALL accumulate and render a recent flight-track trail for each visible
 
 ## ADDED Requirements
 
-### Requirement: Rotorcraft icons render animated rotor blades
-Aircraft reporting the rotorcraft ADS-B emitter category SHALL render with a rotor-blade element that continuously animates (spins), visually distinguishing them from fixed-wing aircraft, independent of the aircraft's own track/heading updates.
+### Requirement: Aircraft icon tilts to reflect camera pitch along its flight path
+As the map camera's pitch changes, each rendered aircraft icon SHALL visually tilt along the aircraft's own track/flight-path axis to suggest a 3D orientation, rather than remaining a flat, always-upright 2D sprite regardless of camera angle.
+
+#### Scenario: Icon tilts as camera pitch increases
+- **WHEN** the user tilts the map camera to a non-zero pitch
+- **THEN** rendered aircraft icons visibly tilt along their track axis to reflect that pitch, rather than staying flat
+
+#### Scenario: Icon returns flat at zero pitch
+- **WHEN** the map camera pitch is 0 degrees (top-down view)
+- **THEN** rendered aircraft icons render without the tilt effect applied
+
+### Requirement: Rotorcraft icons render animated rotor blades at the aircraft's real altitude
+Aircraft reporting the rotorcraft ADS-B emitter category SHALL render with a rotor-blade element that continuously animates (spins), visually distinguishing them from fixed-wing aircraft, independent of the aircraft's own track/heading updates. The rotor element SHALL be positioned at the same real-world altitude as the aircraft's own icon, so it stays visually attached to the fuselage at any altitude or camera pitch rather than projecting onto the ground plane beneath it.
 
 #### Scenario: Rotorcraft renders a spinning rotor
 - **WHEN** an aircraft reports the rotorcraft emitter category
@@ -46,6 +57,10 @@ Aircraft reporting the rotorcraft ADS-B emitter category SHALL render with a rot
 #### Scenario: Fixed-wing aircraft has no rotor animation
 - **WHEN** an aircraft reports a non-rotorcraft emitter category (or no category)
 - **THEN** its rendered icon does not include a rotating rotor-blade element
+
+#### Scenario: Rotor tracks the aircraft's altitude
+- **WHEN** a rotorcraft is rendered at a non-zero altitude and the camera is pitched
+- **THEN** the rotor element renders at that same altitude, visually coincident with the aircraft's own icon rather than offset toward the ground
 
 ### Requirement: Aircraft icon click/hover hit target is enlarged for easier selection
 The clickable/hoverable area around each rendered aircraft icon SHALL extend beyond the icon's own visually-drawn pixel bounds, so small, distant, or low-zoom aircraft icons can be selected without requiring pixel-precise clicks directly on the icon artwork.

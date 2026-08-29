@@ -30,7 +30,6 @@ import { buildAircraftLayers } from "./aircraftLayer";
 import { AircraftColorDock } from "./controls/AircraftColorDock";
 import { AircraftHoverTooltip } from "./overlay/AircraftHoverTooltip";
 import { ColorModeLegendDock } from "./overlay/ColorModeLegendDock";
-import { clearRotorMarkers, updateRotorMarkers } from "./rotorMarkers";
 import { getFlightRoute, type FlightRoute } from "./flightRoute";
 import {
   buildSelectedAircraftInfo,
@@ -279,7 +278,6 @@ export default function MapView() {
     if (!deckOverlayRef.current) return;
     if (!aircraftVisibleRef.current) {
       deckOverlayRef.current.setProps({ layers: [] });
-      clearRotorMarkers();
       return;
     }
     const aircraft = await fetchAircraft();
@@ -303,12 +301,6 @@ export default function MapView() {
       iconAtlas: aircraftIconAtlasRef.current,
       selectedHex: selectedAircraftHexRef.current,
       colorMode: colorModeRef.current,
-      // See aircraftLayer.ts's getAngle doc comment: billboard icons rotate
-      // in screen-pixel space, not world space, so they don't automatically
-      // follow the camera's own bearing the way track lines do — the icon
-      // layer needs the current bearing explicitly to keep pointing the
-      // right way once the user has rotated/tilted the view.
-      bearingDeg: mapRef.current?.getBearing() ?? 0,
       onAircraftClick: (hex) =>
         handleAircraftClick(hex, hex ? aircraft.find((a) => a.hex === hex) : undefined),
       onAircraftHover: (hovered, x, y) => {
@@ -317,8 +309,6 @@ export default function MapView() {
       },
     });
     deckOverlayRef.current.setProps({ layers });
-
-    if (mapRef.current) updateRotorMarkers(mapRef.current, aircraft);
 
     const selected = selectedAircraftHexRef.current
       ? aircraft.find((a) => a.hex === selectedAircraftHexRef.current)
@@ -737,7 +727,6 @@ export default function MapView() {
       clearInterval(rangeOutlineAircraftIntervalId);
       window.removeEventListener("keydown", handleKeyDown);
       stopRangeOutlineSweep();
-      clearRotorMarkers();
       map.remove();
       mapRef.current = null;
     };

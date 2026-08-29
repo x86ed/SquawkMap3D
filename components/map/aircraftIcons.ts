@@ -183,6 +183,39 @@ function drawGenericMarker(ctx: CanvasRenderingContext2D, cx: number, cy: number
   ctx.stroke();
 }
 
+/** Atlas key for the rotorcraft rotor-disc accent (see `ROTOR_ACCENT_KEY`'s
+ * doc comment on `resolveIconKey`'s sibling usage in `aircraftLayer.ts`). */
+export const ROTOR_ACCENT_KEY = "ROTOR_ACCENT";
+
+/**
+ * A rotor-disc glyph (a cross through a center hub), drawn solid white so
+ * `getColor` can tint it like every other atlas entry (design.md's `mask:
+ * true` fix). Rendered as its own small deck.gl `IconLayer` positioned at
+ * the exact same real-world altitude as the aircraft's own icon — unlike
+ * the previous MapLibre-`Marker`-based approach (`rotorMarkers.ts`, now
+ * removed), which had no altitude/pitch awareness at all and always
+ * projected onto the ground plane regardless of the aircraft's actual
+ * height or the camera's tilt.
+ */
+function drawRotorAccent(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number): void {
+  const half = size / 2;
+  ctx.save();
+  ctx.strokeStyle = "#ffffff";
+  ctx.fillStyle = "#ffffff";
+  ctx.lineWidth = Math.max(2, size * 0.08);
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - half);
+  ctx.lineTo(cx, cy + half);
+  ctx.moveTo(cx - half, cy);
+  ctx.lineTo(cx + half, cy);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy, Math.max(2, size * 0.08), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 /**
  * Builds a single combined icon atlas (canvas image + deck.gl `iconMapping`)
  * from every vendored type shape, every category fallback silhouette, and
@@ -201,6 +234,7 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
     ...typeDesignators.map((t) => ({ key: t, url: TYPE_SHAPE_URL(t) })),
     ...categoryKeys.map((c) => ({ key: c, url: AIRCRAFT_CATEGORY_FALLBACK_ICON[c] })),
     { key: GENERIC_ICON_KEY, url: null },
+    { key: ROTOR_ACCENT_KEY, url: null },
   ];
 
   const columns = Math.max(1, Math.ceil(Math.sqrt(entries.length)));
@@ -241,6 +275,8 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
       } else {
         ctx.drawImage(image, cx - w / 2, cy - h / 2, w, h);
       }
+    } else if (entry.key === ROTOR_ACCENT_KEY) {
+      drawRotorAccent(ctx, cx, cy, drawable);
     } else {
       drawGenericMarker(ctx, cx, cy, drawable);
     }
