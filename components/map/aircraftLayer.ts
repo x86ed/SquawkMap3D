@@ -66,6 +66,9 @@ export function buildAircraftLayers(params: {
   iconAtlas: IconAtlas | null;
   selectedHex: string | null;
   colorMode: ColorMode;
+  // Current map camera bearing (degrees, clockwise from north) — see
+  // `getAngle` below for why the icon layer needs this at all.
+  bearingDeg: number;
   onAircraftClick: (hex: string | null) => void;
   onAircraftHover: (
     aircraft: (Aircraft & { lat: number; lon: number }) | null,
@@ -73,8 +76,16 @@ export function buildAircraftLayers(params: {
     y: number,
   ) => void;
 }): Layer[] {
-  const { aircraft, tracks, iconAtlas, selectedHex, colorMode, onAircraftClick, onAircraftHover } =
-    params;
+  const {
+    aircraft,
+    tracks,
+    iconAtlas,
+    selectedHex,
+    colorMode,
+    bearingDeg,
+    onAircraftClick,
+    onAircraftHover,
+  } = params;
   if (!iconAtlas) return [];
 
   const positioned = aircraft.filter(
@@ -96,8 +107,17 @@ export function buildAircraftLayers(params: {
     // test: angle=90 pointed a nose-up icon west, not east) — while compass
     // track increases *clockwise* from north. Negating the track is what
     // makes a nose-up icon point the right way (track=90/east needs
-    // angle=-90, i.e. 90° clockwise from the icon's own CCW-positive axis).
-    getAngle: (d) => -(d.track ?? 0),
+    // angle=-90, i.e. 90° clockwise from the icon's own CCW-positive axis)
+    // — but only holds while the camera's bearing is 0 (screen-up = true
+    // north). With `billboard: true`, deck.gl rotates the icon in pure
+    // screen-pixel space (icon-layer-vertex.glsl.ts's `rotate_by_angle`,
+    // applied directly to clip-space) — unlike world-space geometry (the
+    // track `PathLayer`), it never passes through the view's own
+    // bearing-rotation matrix, so it doesn't automatically follow the
+    // camera when the user rotates/tilts the map. Adding `bearingDeg` here
+    // re-derives the correct screen angle for any camera bearing: at
+    // bearing 0 this reduces to exactly the original `-(track)` formula.
+    getAngle: (d) => bearingDeg - (d.track ?? 0),
     getColor: (d) => resolveAircraftColor(d, colorMode),
     // Was 28 — with a solid-filled icon (see aircraftIcons.ts's atlas
     // builder), that read as too small on the map to be legible against

@@ -302,6 +302,12 @@ export default function MapView() {
       iconAtlas: aircraftIconAtlasRef.current,
       selectedHex: selectedAircraftHexRef.current,
       colorMode: colorModeRef.current,
+      // See aircraftLayer.ts's getAngle doc comment: billboard icons rotate
+      // in screen-pixel space, not world space, so they don't automatically
+      // follow the camera's own bearing the way track lines do — the icon
+      // layer needs the current bearing explicitly to keep pointing the
+      // right way once the user has rotated/tilted the view.
+      bearingDeg: mapRef.current?.getBearing() ?? 0,
       onAircraftClick: (hex) =>
         handleAircraftClick(hex, hex ? aircraft.find((a) => a.hex === hex) : undefined),
       onAircraftHover: (hovered, x, y) => {
