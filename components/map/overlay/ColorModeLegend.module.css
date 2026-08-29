@@ -38,8 +38,33 @@
   border-radius: 6px;
 }
 
-.speedometer {
-  border-radius: 999px;
+/* Airspeed gauge (`AirspeedGauge` in ColorModeLegend.tsx) — a real
+   speedometer arc, not a bar. `.gaugeWrapper` is sized (via inline style)
+   to fit the arc plus its tick labels' overflow; `.gaugeArc`/`.gaugeCutout`
+   are two nested half-circles (outer conic-gradient ring, inner solid
+   cutout matching `.legend`'s own background) forming the colored band;
+   `.gaugeTick` labels are positioned by trigonometry in the component. */
+.gaugeWrapper {
+  position: relative;
+}
+
+.gaugeArc {
+  position: absolute;
+}
+
+.gaugeCutout {
+  position: absolute;
+  z-index: 1;
+  /* Matches `.legend`'s own background exactly, so the punched-out center
+     reads as part of the same panel rather than a mismatched seam. */
+  background: rgba(27, 28, 33, 0.92);
+}
+
+.gaugeTick {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  white-space: nowrap;
 }
 
 .tickRow {

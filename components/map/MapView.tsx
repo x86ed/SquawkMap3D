@@ -29,6 +29,7 @@ import { buildAircraftIconAtlas, type ColorMode, type IconAtlas } from "./aircra
 import { buildAircraftLayers } from "./aircraftLayer";
 import { AircraftColorDock } from "./controls/AircraftColorDock";
 import { AircraftHoverTooltip } from "./overlay/AircraftHoverTooltip";
+import { ColorModeLegendDock } from "./overlay/ColorModeLegendDock";
 import { clearRotorMarkers, updateRotorMarkers } from "./rotorMarkers";
 import { getFlightRoute, type FlightRoute } from "./flightRoute";
 import {
@@ -1111,6 +1112,7 @@ export default function MapView() {
         onRecenter={handleJumpToLocation}
         drawerOpen={selectedAircraftInfo !== null}
       />
+      <ColorModeLegendDock colorMode={colorMode} drawerOpen={selectedAircraftInfo !== null} />
       {hoveredAircraft && (
         <AircraftHoverTooltip
           aircraft={hoveredAircraft}

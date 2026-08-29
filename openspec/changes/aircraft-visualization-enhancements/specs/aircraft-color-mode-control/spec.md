@@ -17,7 +17,7 @@ The map SHALL provide exactly three mutually-exclusive aircraft color modes — 
 
 #### Scenario: Switching to airspeed mode
 - **WHEN** the user selects the airspeed color mode
-- **THEN** every rendered aircraft icon and track is colored according to that aircraft's current ground speed along the fixed airspeed gradient, and the legend shows the airspeed gradient bar
+- **THEN** every rendered aircraft icon and track is colored according to that aircraft's current ground speed along the fixed airspeed gradient, and the legend shows the airspeed speedometer arc
 
 #### Scenario: Only one mode active at a time
 - **WHEN** the user selects a different color mode than the currently active one
@@ -69,31 +69,31 @@ The map SHALL provide a two-button ("2-gang") control docked to the bottom-left 
 - **THEN** that button's color mode becomes the active aircraft color mode (per the color-mode-switching requirement above)
 
 ### Requirement: Color-mode legend is shown for the active mode
-The map SHALL display a legend matching the currently active color mode, docked at the bottom-left of the map alongside the two-button control: a row of the 9 rarity tier cards when rarity mode is active, a horizontal altitude gradient bar (matching the altitude color mode's control points) when altitude mode is active, or a horizontal speedometer-style airspeed gradient bar (matching the airspeed color mode's bands) when airspeed mode is active. Exactly one legend variant SHALL be visible at a time, matching the active mode.
+The map SHALL display a legend matching the currently active color mode, docked at the bottom-right of the map (separate from the bottom-left two-button control, so neither ever overlaps the other or the map's own top-right layer-toggle controls): a row of the 9 rarity tier cards when rarity mode is active, a horizontal altitude gradient bar (matching the altitude color mode's control points) when altitude mode is active, or a half-circle speedometer-style arc gauge (matching the airspeed color mode's bands, swept across the arc rather than laid out as a straight bar) when airspeed mode is active. Exactly one legend variant SHALL be visible at a time, matching the active mode.
 
 #### Scenario: Rarity legend shown in rarity mode
 - **WHEN** rarity color mode is active
-- **THEN** the bottom-left legend shows a row of cards for all 9 rarity tiers
+- **THEN** the bottom-right legend shows a row of cards for all 9 rarity tiers
 
 #### Scenario: Altitude legend shown in altitude mode
 - **WHEN** altitude color mode is active
-- **THEN** the bottom-left legend shows the altitude gradient bar
+- **THEN** the bottom-right legend shows the altitude gradient bar
 
 #### Scenario: Airspeed legend shown in airspeed mode
 - **WHEN** airspeed color mode is active
-- **THEN** the bottom-left legend shows the airspeed gradient bar
+- **THEN** the bottom-right legend shows the airspeed speedometer arc gauge
 
-### Requirement: Control and legend dock to the aircraft details drawer
-The two-button control and its legend SHALL be positioned to avoid overlapping the aircraft details drawer (per the `aircraft-info-overlay` capability): remaining anchored at the bottom-left of the map when the drawer is closed, and repositioning to sit above/alongside the drawer's top-left edge when the drawer is open.
+### Requirement: Control and legend each dock to the aircraft details drawer
+The two-button control and the color-mode legend SHALL each be positioned to avoid overlapping the aircraft details drawer (per the `aircraft-info-overlay` capability), independently of each other: the control remains anchored at the bottom-left of the map when the drawer is closed and repositions to sit above the drawer's top-left edge when it's open; the legend remains anchored at the bottom-right of the map when the drawer is closed and repositions to sit above the drawer's top-right edge when it's open.
 
-#### Scenario: Control sits at the map's bottom-left when nothing is selected
+#### Scenario: Control and legend sit at the map's bottom corners when nothing is selected
 - **WHEN** no aircraft is selected and the aircraft details drawer is closed
-- **THEN** the two-button control and legend render anchored at the bottom-left corner of the map
+- **THEN** the two-button control renders anchored at the bottom-left corner of the map and the legend renders anchored at the bottom-right corner of the map
 
-#### Scenario: Control repositions when the drawer opens
+#### Scenario: Control and legend reposition when the drawer opens
 - **WHEN** the user selects an aircraft and the aircraft details drawer opens
-- **THEN** the two-button control and legend reposition so they no longer overlap the open drawer
+- **THEN** the two-button control and the legend each reposition so neither overlaps the open drawer
 
-#### Scenario: Control returns to the map corner when the drawer closes
+#### Scenario: Control and legend return to the map corners when the drawer closes
 - **WHEN** the aircraft details drawer closes
-- **THEN** the two-button control and legend return to their bottom-left-of-map position
+- **THEN** the two-button control and the legend return to their respective bottom-corner positions
