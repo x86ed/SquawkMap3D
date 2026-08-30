@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   Map as MapLibreMap,
   NavigationControl,
@@ -91,8 +91,10 @@ import { getFeederLocation } from "./feederLocation";
 import drawerTheme from "./drawer/DrawerTheme.module.css";
 import { ThemeSlider } from "./drawer/ThemeSlider";
 import { LayerDrawer } from "./drawer/LayerDrawer";
+import { DRAWER_DEFAULT_WIDTH } from "./drawer/drawerWidth";
 import { AccordionGroup, LayerToggleRow } from "./drawer/Accordion";
 import { PlaneListingPanel } from "./drawer/PlaneListingPanel";
+import { useDockCollisionOffset } from "./controls/dockCollision";
 import {
   AIRCRAFT_DESELECT_CLICK_GUARD_MS,
   AIRCRAFT_FEED_REFRESH_INTERVAL_MS,
@@ -171,6 +173,10 @@ export default function MapView() {
   const styleReadyRef = useRef(false);
   const deckOverlayRef = useRef<MapboxOverlay | null>(null);
   const aircraftIconAtlasRef = useRef<IconAtlas | null>(null);
+  // Collision-aware repositioning between the two bottom docks (design.md
+  // Decision 4) — refs to each dock's root `.dock` element.
+  const leftDockRef = useRef<HTMLDivElement>(null);
+  const legendDockRef = useRef<HTMLDivElement>(null);
 
   // Selection state (design.md Decision 1) — state for render, ref for the
   // mount-effect's stable closures, same pairing every other piece of this
@@ -227,6 +233,10 @@ export default function MapView() {
   const [userLocationVisible, setUserLocationVisible] = useState(true);
   const [rangeRingsVisible, setRangeRingsVisible] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Reported by LayerDrawer's onWidthChange (design.md Decision 1) — used to
+  // derive the `--right-drawer-w` CSS var below, independent of that
+  // drawer's own open/closed state.
+  const [layerDrawerWidth, setLayerDrawerWidth] = useState(DRAWER_DEFAULT_WIDTH);
   // Mirrors `userLocationRef.current` (design.md Decision 7) — the one
   // piece of aircraft-adjacent state lifted into MapView for the
   // plane-listing panel's Distance column, since it changes rarely (only on

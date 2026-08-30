@@ -37,6 +37,7 @@ export function LayerDrawer({
   subtitle,
   layersContent,
   aircraftContent,
+  onWidthChange,
 }: {
   open: boolean;
   onClose: () => void;
@@ -49,6 +50,11 @@ export function LayerDrawer({
    * into the DOM while `open && activeTab === "aircraft"` (design.md
    * Decision 17), so its poll stops the moment the Layers tab is active. */
   aircraftContent: ReactNode;
+  /** Reports this drawer's occupied `width` (design.md Decision 1) — on
+   * mount (once the initial stored/default value resolves) and again on
+   * every resize-drag change, so callers outside this subtree (`MapView`)
+   * can react to it without lifting `width` itself out of this component. */
+  onWidthChange?: (width: number) => void;
 }) {
   const [width, setWidth] = useState<number>(() => {
     const stored = readStoredDrawerWidth();
@@ -66,6 +72,10 @@ export function LayerDrawer({
     mql.addEventListener("change", update);
     return () => mql.removeEventListener("change", update);
   }, []);
+
+  useEffect(() => {
+    onWidthChange?.(width);
+  }, [width, onWidthChange]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault();
