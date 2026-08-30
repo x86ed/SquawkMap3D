@@ -8,7 +8,7 @@
   padding: 8px 0;
   font-family: var(--font-geist-mono), ui-monospace, monospace;
   font-weight: 600;
-  color: #cbd5e1;
+  color: var(--text-dim);
   /* Fade-masked left/right edges. */
   -webkit-mask-image: linear-gradient(
     90deg,
@@ -63,17 +63,17 @@
 }
 
 .k {
-  color: #64748b;
+  color: var(--text-faint);
   letter-spacing: 0.06em;
 }
 
 .v {
-  color: #f1f5f9;
+  color: var(--text);
   font-weight: 700;
 }
 
 .dot {
-  color: #06b6d4;
+  color: var(--accent);
   margin-left: 1.05em;
 }
 

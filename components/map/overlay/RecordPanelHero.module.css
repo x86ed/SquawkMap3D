@@ -142,7 +142,7 @@ a.heading:focus-visible {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.16em;
-  color: #64748b;
+  color: var(--text-dim);
   margin: 4px 0 0;
 }
 
@@ -156,15 +156,15 @@ a.heading:focus-visible {
   display: grid;
   grid-template-columns: 1fr 1fr;
   margin-top: 4px;
-  border-top: 1px solid rgba(63, 63, 70, 0.42);
-  border-left: 1px solid rgba(63, 63, 70, 0.42);
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
 }
 
 .specCell {
   min-width: 0;
   padding: 8px 16px;
-  border-right: 1px solid rgba(63, 63, 70, 0.42);
-  border-bottom: 1px solid rgba(63, 63, 70, 0.42);
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
 
 .specLabel {
@@ -172,12 +172,12 @@ a.heading:focus-visible {
   font-weight: 900;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #64748b;
+  color: var(--text-dim);
 }
 
 .specValue {
   font-size: 14px;
   font-weight: 800;
-  color: #f1f5f9;
+  color: var(--text);
   margin-top: 2px;
 }
