@@ -43,6 +43,22 @@ export interface Aircraft {
   /** Seconds since the last message received from this aircraft (readsb's
    * `seen`). */
   secondsSinceLastMessage?: number;
+  /** Total message count received from this aircraft (readsb's `messages`). */
+  messages?: number;
+  /** Signal strength in dBm (readsb's `rssi`). */
+  rssi?: number;
+  /** Raw ADS-B/MLAT/TIS-B source type string (readsb's `type`, e.g.
+   * `adsb_icao`/`mlat`/`tisb`) — named `sourceType` rather than `type` to
+   * avoid clashing with the reserved keyword, same convention as
+   * `typeDesignator` for readsb's `t`. */
+  sourceType?: string;
+  /** Whether this aircraft is flagged military (readsb's `dbFlags` bit
+   * `0x1`). */
+  isMilitary?: boolean;
+  /** Wind direction in degrees, rarely populated (readsb's `wd`). */
+  windDirection?: number;
+  /** Wind speed in knots, rarely populated (readsb's `ws`). */
+  windSpeed?: number;
 }
 
 export interface TrackPoint {
@@ -71,6 +87,12 @@ interface RawAircraftJson {
     ownOp?: string;
     year?: string;
     seen?: number;
+    messages?: number;
+    rssi?: number;
+    type?: string;
+    dbFlags?: number;
+    wd?: number;
+    ws?: number;
   }>;
 }
 
@@ -93,6 +115,12 @@ function normalize(raw: NonNullable<RawAircraftJson["aircraft"]>[number]): Aircr
     operator: raw.ownOp?.trim() || undefined,
     year: raw.year?.trim() || undefined,
     secondsSinceLastMessage: raw.seen,
+    messages: raw.messages,
+    rssi: raw.rssi,
+    sourceType: raw.type?.trim() || undefined,
+    isMilitary: ((raw.dbFlags ?? 0) & 1) === 1,
+    windDirection: raw.wd,
+    windSpeed: raw.ws,
   };
 }
 
