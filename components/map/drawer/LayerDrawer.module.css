@@ -87,6 +87,21 @@
   overflow: hidden;
 }
 
+/* Layers top-level tab content (design.md Decision 17) — kept mounted and
+ * merely hidden (rather than unmounted) so the accordion's own expand/
+ * collapse state survives switching to the Aircraft tab and back. */
+.tabPanel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tabPanel[hidden] {
+  display: none;
+}
+
 @media (max-width: 640px) {
   .drawer {
     width: 100vw;

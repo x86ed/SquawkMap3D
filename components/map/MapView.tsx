@@ -1035,7 +1035,11 @@ export default function MapView() {
           </button>
         </div>
 
-        <LayerDrawer open={drawerOpen} onClose={handleDrawerToggle}>
+        <LayerDrawer
+          open={drawerOpen}
+          onClose={handleDrawerToggle}
+          layersContent={
+            <>
           <div className={styles.viewControls}>
             <button
               type="button"
@@ -1141,9 +1145,10 @@ export default function MapView() {
               <LayerToggleRow name="Wildfires" tag="soon" checked={false} onToggle={() => {}} disabled />
             </AccordionGroup>
           </div>
-
-          {drawerOpen && <PlaneListingPanel siteLocation={siteLocation} />}
-        </LayerDrawer>
+            </>
+          }
+          aircraftContent={<PlaneListingPanel siteLocation={siteLocation} />}
+        />
       </div>
       <AircraftOverlay info={selectedAircraftInfo} onClose={() => handleAircraftClick(null)} />
       <AircraftColorDock
