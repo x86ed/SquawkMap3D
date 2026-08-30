@@ -243,18 +243,62 @@ export function buildAircraftLayers(params: {
   const aircraftByHex = new Map(aircraft.map((a) => [a.hex, a]));
 
   const segments: TrackSegment[] = [];
-  for (const [hex, points] of tracks) {
-    const typeDesignator = aircraftByHex.get(hex)?.typeDesignator;
-    for (let i = 1; i < points.length; i++) {
-      const a = points[i - 1];
-      const b = points[i];
-      segments.push({
-        path: [
-          [a.lon, a.lat, altitudeToRenderMeters(a.altitude)],
-          [b.lon, b.lat, altitudeToRenderMeters(b.altitude)],
-        ],
-        color: resolveTrackPointColor(b, colorMode, typeDesignator),
-      });
+  const curtainBands: CurtainBand[] = [];
+  const droplineDots: DroplineDot[] = [];
+  // Captured once per call, not per segment (design.md Decision 1), so every
+  // segment's fade is computed against the same instant.
+  const now = Date.now();
+
+  // tracksVisible gates all track-derived work, not just which layers are
+  // returned (tasks.md 6.2) — skipping these loops entirely while hidden
+  // avoids wasted per-poll work building segments/bands/dots nothing renders.
+  if (tracksVisible) {
+    for (const [hex, points] of tracks) {
+      const typeDesignator = aircraftByHex.get(hex)?.typeDesignator;
+      for (let i = 1; i < points.length; i++) {
+        const a = points[i - 1];
+        const b = points[i];
+        const ageFraction = clamp01((now - b.timestamp) / AIRCRAFT_TRACK_RETENTION_MS);
+        const alpha =
+          i === points.length - 1
+            ? 255
+            : lerp(255, AIRCRAFT_TRACK_FADE_MIN_ALPHA, ageFraction);
+        segments.push({
+          path: [
+            [a.lon, a.lat, altitudeToRenderMeters(a.altitude)],
+            [b.lon, b.lat, altitudeToRenderMeters(b.altitude)],
+          ],
+          color: resolveTrackPointColor(b, colorMode, typeDesignator),
+          alpha,
+        });
+      }
+
+      const markers = selectTrackMarkers(points);
+      for (let i = 1; i < markers.length; i++) {
+        const a = markers[i - 1];
+        const b = markers[i];
+        const bColor = resolveTrackPointColor(b, colorMode, typeDesignator);
+        for (let band = 0; band < AIRCRAFT_TRACK_CURTAIN_BAND_COUNT; band++) {
+          const f = band / (AIRCRAFT_TRACK_CURTAIN_BAND_COUNT - 1);
+          curtainBands.push({
+            path: [
+              [a.lon, a.lat, altitudeToRenderMeters(a.altitude) * f],
+              [b.lon, b.lat, altitudeToRenderMeters(b.altitude) * f],
+            ],
+            color: [...bColor, lerp(AIRCRAFT_TRACK_CURTAIN_TOP_ALPHA, 0, f)],
+          });
+        }
+      }
+
+      for (const marker of markers) {
+        const markerHeight = altitudeToRenderMeters(marker.altitude);
+        for (let dot = 0; dot < AIRCRAFT_TRACK_DROPLINE_DOT_COUNT; dot++) {
+          const f = dot / (AIRCRAFT_TRACK_DROPLINE_DOT_COUNT - 1);
+          droplineDots.push({
+            position: [marker.lon, marker.lat, lerp(markerHeight, 0, f)],
+          });
+        }
+      }
     }
   }
 
@@ -262,7 +306,7 @@ export function buildAircraftLayers(params: {
     id: AIRCRAFT_TRACK_LAYER_ID,
     data: segments,
     getPath: (d) => d.path,
-    getColor: (d) => d.color,
+    getColor: (d) => [...d.color, d.alpha],
     getWidth: 2,
     widthUnits: "pixels",
     pickable: false,
@@ -272,17 +316,46 @@ export function buildAircraftLayers(params: {
   // lower-opacity pass over the exact same `segments` array already built
   // above for `trackLayer` (no new loop), colored as a brightened variant of
   // each segment's own resolved color, purely additive beneath the crisp
-  // original line.
+  // original line. The glow's own fixed alpha is scaled by the segment's own
+  // fade fraction so the glow dims in lockstep with the line rather than
+  // staying at constant brightness under a fading line.
   const trackGlowLayer = new PathLayer<TrackSegment>({
     id: AIRCRAFT_TRACK_GLOW_LAYER_ID,
     data: segments,
     getPath: (d) => d.path,
     getColor: (d) => {
       const [r, g, b] = brightenColor(d.color, AIRCRAFT_GLOW_BRIGHTEN_AMOUNT);
-      return [r, g, b, AIRCRAFT_TRACK_GLOW_ALPHA];
+      return [r, g, b, Math.round(AIRCRAFT_TRACK_GLOW_ALPHA * (d.alpha / 255))];
     },
     getWidth: AIRCRAFT_TRACK_GLOW_WIDTH_PIXELS,
     widthUnits: "pixels",
+    pickable: false,
+  });
+
+  // Ground "curtain" beneath the trail (design.md Decision 3) — a small
+  // number of stacked, decreasing-alpha PathLayer bands approximating a
+  // continuous vertical gradient from the trail's own color down to fully
+  // transparent at the ground, built from the decimated marker subset above.
+  const curtainLayer = new PathLayer<CurtainBand>({
+    id: AIRCRAFT_TRACK_CURTAIN_LAYER_ID,
+    data: curtainBands,
+    getPath: (d) => d.path,
+    getColor: (d) => d.color,
+    getWidth: AIRCRAFT_TRACK_CURTAIN_WIDTH_PIXELS,
+    widthUnits: "pixels",
+    pickable: false,
+  });
+
+  // Dotted ground-reference droplines (design.md Decision 4) — fixed neutral
+  // color regardless of the active color mode, since this is a technical
+  // "how far above the ground was this point" cue, not data-carrying.
+  const droplineLayer = new ScatterplotLayer<DroplineDot>({
+    id: AIRCRAFT_TRACK_DROPLINE_LAYER_ID,
+    data: droplineDots,
+    getPosition: (d) => d.position,
+    getFillColor: [...AIRCRAFT_TRACK_DROPLINE_COLOR, AIRCRAFT_TRACK_DROPLINE_ALPHA],
+    getRadius: AIRCRAFT_TRACK_DROPLINE_DOT_RADIUS_PIXELS,
+    radiusUnits: "pixels",
     pickable: false,
   });
 
