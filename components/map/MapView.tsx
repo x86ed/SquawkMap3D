@@ -88,6 +88,11 @@ import {
 } from "./terminator";
 import { getCurrentLocation, type GeoCoords } from "./geolocation";
 import { getFeederLocation } from "./feederLocation";
+import drawerTheme from "./drawer/DrawerTheme.module.css";
+import { ThemeSlider } from "./drawer/ThemeSlider";
+import { LayerDrawer } from "./drawer/LayerDrawer";
+import { AccordionGroup, LayerToggleRow } from "./drawer/Accordion";
+import { PlaneListingPanel } from "./drawer/PlaneListingPanel";
 import {
   AIRCRAFT_DESELECT_CLICK_GUARD_MS,
   AIRCRAFT_FEED_REFRESH_INTERVAL_MS,
