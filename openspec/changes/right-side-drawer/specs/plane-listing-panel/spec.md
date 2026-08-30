@@ -72,8 +72,8 @@ For every column with a real underlying data source in this application (Hex ID,
 - **WHEN** an aircraft's feeder data omits a given real-data-backed field (e.g. no RSSI reported)
 - **THEN** that aircraft's cell for that column renders an empty/placeholder indicator, not a fabricated value
 
-### Requirement: Columns without a real data source render as explicit placeholders
-The XP, Registrations, and Flight Time columns SHALL render as an explicit placeholder value for every row, since no per-aircraft tracking exists for these in this application, and SHALL be excluded from the table's default-visible column set.
+### Requirement: Columns pending a data source render as a stub for now
+The XP, Registrations, and Flight Time columns SHALL render as an explicit placeholder value for every row — no per-aircraft tracking exists for these in this application yet — and SHALL be excluded from the table's default-visible column set. This is a stub, not a permanent absence: the column exists now so real values can be wired in by a future change without further UI changes.
 
 #### Scenario: Placeholder columns show a placeholder value
 - **WHEN** the XP, Registrations, or Flight Time column is made visible via the Columns tab
