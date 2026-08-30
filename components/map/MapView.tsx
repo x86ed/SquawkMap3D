@@ -982,175 +982,168 @@ export default function MapView() {
     );
   }
 
+  const aviationOnCount = [
+    airportsVisible,
+    openAipVisible,
+    tfrVisible,
+    suaVisible,
+    airspaceBoundariesVisible,
+    militaryVisible,
+    aircraftVisible,
+  ].filter(Boolean).length;
+  const locationOnCount = [
+    userLocationVisible,
+    rangeOutlineVisible,
+    terrainOutlineVisible,
+    rangeRingsVisible,
+  ].filter(Boolean).length;
+  const weatherOnCount = [
+    rainViewerVisible,
+    nexradVisible,
+    noaaRadarVisible,
+    dwdRadolanVisible,
+    noaaInfraredVisible,
+  ].filter(Boolean).length;
+  const environmentalOnCount = weatherOnCount + (terminatorVisible ? 1 : 0);
+
   return (
     <div className={styles.container}>
       <div ref={containerRef} className={styles.container} />
-      <div className={styles.controls}>
-        <button
-          type="button"
-          className={styles.controlButton}
-          onClick={handleThemeToggle}
-          suppressHydrationWarning
-        >
-          {theme === "dark" ? "Light mode" : "Dark mode"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={pilotMode}
-          onClick={handlePilotModeToggle}
-        >
-          Pilot mode
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={militaryVisible}
-          onClick={handleMilitaryToggle}
-        >
-          {militaryVisible ? "Hide military bases" : "Show military bases"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={airportsVisible}
-          onClick={handleAirportsToggle}
-        >
-          {airportsVisible ? "Hide airports" : "Show airports"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={terminatorVisible}
-          onClick={handleTerminatorToggle}
-        >
-          {terminatorVisible ? "Hide day/night terminator" : "Show day/night terminator"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={openAipVisible}
-          onClick={handleOpenAipToggle}
-        >
-          {openAipVisible ? "Hide OpenAIP airspace" : "Show OpenAIP airspace"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={rainViewerVisible}
-          onClick={handleRainViewerToggle}
-        >
-          {rainViewerVisible ? "Hide RainViewer radar" : "Show RainViewer radar"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={tfrVisible}
-          onClick={handleTfrToggle}
-        >
-          {tfrVisible ? "Hide TFRs" : "Show TFRs"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={suaVisible}
-          onClick={handleSuaToggle}
-        >
-          {suaVisible ? "Hide special use airspace" : "Show special use airspace"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={airspaceBoundariesVisible}
-          onClick={handleAirspaceBoundariesToggle}
-        >
-          {airspaceBoundariesVisible
-            ? "Hide airspace boundaries"
-            : "Show airspace boundaries"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={rangeOutlineVisible}
-          onClick={handleRangeOutlineToggle}
-        >
-          {rangeOutlineVisible
-            ? "Hide actual range outline"
-            : "Show actual range outline"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={terrainOutlineVisible}
-          onClick={handleTerrainOutlineToggle}
-        >
-          {terrainOutlineVisible
-            ? "Hide terrain-based outline"
-            : "Show terrain-based outline"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={nexradVisible}
-          onClick={handleNexradToggle}
-        >
-          {nexradVisible ? "Hide NEXRAD" : "Show NEXRAD"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={noaaInfraredVisible}
-          onClick={handleNoaaInfraredToggle}
-        >
-          {noaaInfraredVisible ? "Hide NOAA infrared" : "Show NOAA infrared"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={noaaRadarVisible}
-          onClick={handleNoaaRadarToggle}
-        >
-          {noaaRadarVisible ? "Hide NOAA Radar" : "Show NOAA Radar"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={dwdRadolanVisible}
-          onClick={handleDwdRadolanToggle}
-        >
-          {dwdRadolanVisible ? "Hide DWD RADOLAN" : "Show DWD RADOLAN"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={aircraftVisible}
-          onClick={handleAircraftToggle}
-        >
-          {aircraftVisible ? "Hide aircraft" : "Show aircraft"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={followSelectedAircraft}
-          onClick={handleFollowSelectedAircraftToggle}
-        >
-          Follow selected aircraft
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          onClick={handleJumpToLocation}
-        >
-          My location
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={userLocationVisible}
-          onClick={handleUserLocationToggle}
-        >
-          {userLocationVisible ? "Hide my location" : "Show my location"}
-        </button>
+      <div className={drawerTheme.scope} data-theme={theme}>
+        <div className={styles.controls} data-hidden={drawerOpen}>
+          <ThemeSlider theme={theme} onToggle={handleThemeToggle} />
+          <button
+            type="button"
+            className={styles.pilotModeButton}
+            data-active={pilotMode}
+            onClick={handlePilotModeToggle}
+          >
+            Pilot mode
+          </button>
+          <button
+            type="button"
+            className={styles.drawerToggleButton}
+            data-active={drawerOpen}
+            onClick={handleDrawerToggle}
+            aria-label="Open layers and traffic panel"
+          >
+            <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="12 2 2 7 12 12 22 7 12 2" />
+              <polyline points="2 17 12 22 22 17" />
+              <polyline points="2 12 12 17 22 12" />
+            </svg>
+          </button>
+        </div>
+
+        <LayerDrawer open={drawerOpen} onClose={handleDrawerToggle}>
+          <div className={styles.viewControls}>
+            <button
+              type="button"
+              className={styles.viewControlButton}
+              data-active={followSelectedAircraft}
+              onClick={handleFollowSelectedAircraftToggle}
+            >
+              Follow selected aircraft
+            </button>
+            <button type="button" className={styles.viewControlButton} onClick={handleJumpToLocation}>
+              My location
+            </button>
+          </div>
+
+          <div className={styles.layersScroll}>
+            <AccordionGroup
+              title="Aviation"
+              description="Airports, airspace & restrictions"
+              count={`${aviationOnCount}/7 on`}
+              defaultOpen
+            >
+              <LayerToggleRow name="Airports" checked={airportsVisible} onToggle={handleAirportsToggle} />
+              <LayerToggleRow name="OpenAIP TMS" checked={openAipVisible} onToggle={handleOpenAipToggle} />
+              <LayerToggleRow name="TFRs" checked={tfrVisible} onToggle={handleTfrToggle} />
+              <LayerToggleRow
+                name="Special Use Airspace"
+                checked={suaVisible}
+                onToggle={handleSuaToggle}
+              />
+              <LayerToggleRow
+                name="Airspace Boundaries"
+                checked={airspaceBoundariesVisible}
+                onToggle={handleAirspaceBoundariesToggle}
+              />
+              <LayerToggleRow
+                name="Military Bases"
+                checked={militaryVisible}
+                onToggle={handleMilitaryToggle}
+              />
+              <LayerToggleRow name="Aircraft" checked={aircraftVisible} onToggle={handleAircraftToggle} />
+            </AccordionGroup>
+
+            <AccordionGroup
+              title="Location"
+              description="Feeder position & reception range"
+              count={`${locationOnCount}/4 on`}
+            >
+              <LayerToggleRow
+                name="Transponder Location"
+                checked={userLocationVisible}
+                onToggle={handleUserLocationToggle}
+              />
+              <LayerToggleRow
+                name="Actual Range Outline"
+                checked={rangeOutlineVisible}
+                onToggle={handleRangeOutlineToggle}
+              />
+              <LayerToggleRow
+                name="Terrain-Based Range Outline"
+                checked={terrainOutlineVisible}
+                onToggle={handleTerrainOutlineToggle}
+              />
+              <LayerToggleRow
+                name="Range Rings"
+                checked={rangeRingsVisible}
+                onToggle={handleRangeRingsToggle}
+              />
+            </AccordionGroup>
+
+            <AccordionGroup
+              title="Environmental"
+              description="Weather & ground conditions"
+              count={`${environmentalOnCount}/6 on`}
+            >
+              <AccordionGroup title="Weather" count={`${weatherOnCount}/5 on`} nested>
+                <LayerToggleRow
+                  name="RainViewer"
+                  checked={rainViewerVisible}
+                  onToggle={handleRainViewerToggle}
+                />
+                <LayerToggleRow name="NEXRAD" checked={nexradVisible} onToggle={handleNexradToggle} />
+                <LayerToggleRow
+                  name="NOAA Radar"
+                  checked={noaaRadarVisible}
+                  onToggle={handleNoaaRadarToggle}
+                />
+                <LayerToggleRow
+                  name="DWD RADOLAN"
+                  checked={dwdRadolanVisible}
+                  onToggle={handleDwdRadolanToggle}
+                />
+                <LayerToggleRow
+                  name="NOAA Infrared"
+                  checked={noaaInfraredVisible}
+                  onToggle={handleNoaaInfraredToggle}
+                />
+              </AccordionGroup>
+              <LayerToggleRow
+                name="Day/Night Terminator"
+                checked={terminatorVisible}
+                onToggle={handleTerminatorToggle}
+              />
+              <LayerToggleRow name="Wildfires" tag="soon" checked={false} onToggle={() => {}} disabled />
+            </AccordionGroup>
+          </div>
+
+          {drawerOpen && <PlaneListingPanel siteLocation={siteLocation} />}
+        </LayerDrawer>
       </div>
       <AircraftOverlay info={selectedAircraftInfo} onClose={() => handleAircraftClick(null)} />
       <AircraftColorDock
