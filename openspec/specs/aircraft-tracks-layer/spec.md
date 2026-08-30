@@ -37,6 +37,29 @@ Each rendered aircraft SHALL use an icon resolved from its ICAO type designator 
 - **WHEN** an aircraft reports neither a type designator with a matching shape nor a recognized emitter category
 - **THEN** that aircraft is still rendered, using a generic marker oriented to its reported track/heading
 
+### Requirement: Aircraft icons rendered with an always-on outer glow
+Every rendered aircraft icon SHALL be rendered with an outer glow, independent of whether that aircraft is currently selected. The glow SHALL be colored as a brightened variant of that same aircraft's own current draw color (the color it renders under the currently active aircraft color mode, per `aircraft-color-mode-control`), so the glow's hue always matches the icon it surrounds.
+
+#### Scenario: Every rendered aircraft icon has a glow
+- **WHEN** aircraft are currently rendered on the map
+- **THEN** each rendered aircraft icon, whether selected or not, has a visible outer glow behind it
+
+#### Scenario: Glow color tracks the icon's own draw color
+- **WHEN** an aircraft's icon renders in a given color under the currently active color mode
+- **THEN** that aircraft's outer glow renders as a visibly brighter variant of that same color, not a fixed color independent of the active mode
+
+#### Scenario: Glow color updates when the active color mode changes
+- **WHEN** the user switches the active aircraft color mode
+- **THEN** every rendered aircraft icon's glow color updates to match the newly resolved draw color for that aircraft under the new mode
+
+#### Scenario: Always-on glow is distinct from the selected-aircraft highlight
+- **WHEN** an aircraft is selected
+- **THEN** that aircraft's always-on outer glow continues to render as described above, and the existing rarity-colored selection highlight (per this capability's selected-aircraft glow-highlight requirement) also renders, distinguishable from and in addition to the always-on glow
+
+#### Scenario: Glow follows the icon's own silhouette, not a plain circle
+- **WHEN** an aircraft icon renders (any type shape, category fallback, or generic marker)
+- **THEN** the outer glow behind it is shaped like that icon's own outline, rotated to match the icon's own heading, rather than a plain circle unrelated to the icon's shape
+
 ### Requirement: Recent flight track rendered per aircraft
 The map SHALL accumulate and render a recent flight-track trail for each visible aircraft, built from successive position reports received while the layer is enabled, with the trail's color or shading reflecting the aircraft's value under the currently active aircraft color mode (per the `aircraft-color-mode-control` capability) along its path.
 
@@ -51,6 +74,21 @@ The map SHALL accumulate and render a recent flight-track trail for each visible
 #### Scenario: Aircraft no longer reported
 - **WHEN** an aircraft that previously had a rendered track stops appearing in the feeder's reported aircraft
 - **THEN** the map stops updating that aircraft's marker and track, without erroring or affecting other aircraft
+
+### Requirement: Track trails rendered with an always-on outer glow
+Every rendered segment of a recent flight-track trail SHALL be rendered with an outer glow, colored as a brightened variant of that same segment's own current draw color (per this capability's track-coloring requirement), so the glow's hue varies along the trail exactly as the trail's own color does.
+
+#### Scenario: Every rendered track segment has a glow
+- **WHEN** a track trail is currently rendered for an aircraft
+- **THEN** each rendered segment of that trail has a visible outer glow along its length, wider and dimmer than the trail's own line
+
+#### Scenario: Track glow color tracks the segment's own draw color
+- **WHEN** a track segment renders in a given color reflecting the active color mode
+- **THEN** that segment's outer glow renders as a visibly brighter variant of that same color
+
+#### Scenario: Track glow varies along the trail with the trail's own color
+- **WHEN** a track's color visibly varies along its length under the active color mode (per this capability's track-coloring requirement)
+- **THEN** the track's outer glow visibly varies along its length in the same way, staying a brighter variant of the underlying trail color at each point
 
 ### Requirement: Aircraft layer is toggleable
 The user SHALL be able to show or hide the aircraft layer independently of any other map mode (light/dark theme, pilot mode) or other toggleable layer, and the layer SHALL remain correctly rendered across theme and pilot-mode switches.
@@ -95,19 +133,23 @@ The map SHALL allow the user to select exactly one aircraft by clicking its rend
 - **THEN** the aircraft becomes deselected without erroring, and any UI driven by the selection (highlight, overlay) is cleared
 
 ### Requirement: Selected aircraft rendered with a rarity-colored glow highlight
-While an aircraft is selected, the map SHALL render a glow highlight around that aircraft's icon, colored according to that aircraft's computed rarity tier (see the `aircraft-rarity` capability), and the highlight SHALL track the aircraft's live position on each feeder refresh.
+While an aircraft is selected, the map SHALL render a glow highlight around that aircraft's icon, colored according to that aircraft's computed rarity tier (see the `aircraft-rarity` capability), and the highlight SHALL track the aircraft's live position on each feeder refresh. The highlight SHALL pulse continuously (oscillate in size and/or opacity) for as long as the aircraft remains selected, rather than rendering as a static, unchanging ring.
 
 #### Scenario: Highlight appears on selection
 - **WHEN** the user selects an aircraft
 - **THEN** a glow highlight renders around that aircraft's icon, colored per its computed rarity tier
 
+#### Scenario: Highlight pulses continuously while selected
+- **WHEN** an aircraft remains selected across multiple animation frames
+- **THEN** the glow highlight's size and/or opacity continuously oscillates rather than staying fixed
+
 #### Scenario: Highlight tracks aircraft movement
 - **WHEN** the selected aircraft's position changes on a subsequent feeder refresh
-- **THEN** the glow highlight's rendered position updates to match the aircraft's new position
+- **THEN** the glow highlight's rendered position updates to match the aircraft's new position, and it continues pulsing at that new position
 
 #### Scenario: Highlight clears on deselection
 - **WHEN** the selected aircraft becomes deselected (by any means)
-- **THEN** the glow highlight is no longer rendered
+- **THEN** the glow highlight is no longer rendered, and the pulse animation stops
 
 ### Requirement: Follow-selected-aircraft map control pins the aircraft on screen while the map recenters underneath it
 The map SHALL provide a toggle control, enabled by default, labeled to indicate it follows/centers on the selected aircraft. This toggle and the act of selecting an aircraft while it is enabled are the same mechanism: when enabled, selecting an aircraft locks the camera to it, framed as the aircraft staying fixed at its on-screen position (map center) while the map viewport pans underneath/around it as it moves — not the map staying fixed while the aircraft icon drifts. While enabled and an aircraft is selected, the map SHALL recenter its view on that aircraft's current position immediately upon selection and again on each subsequent aircraft-feed refresh. While disabled, selecting an aircraft SHALL still select it (highlight and open the overlay) without moving the camera. While disabled, or while no aircraft is selected, the map SHALL NOT recenter due to aircraft position changes. Once locked, the lock SHALL be broken only by the aircraft becoming deselected (by any of the means defined in this capability's selection requirement above) — manual map panning, dragging, or zooming while locked SHALL NOT break the lock.
