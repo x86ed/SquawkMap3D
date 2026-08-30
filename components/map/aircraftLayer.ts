@@ -288,7 +288,6 @@ export function buildAircraftLayers(params: {
       for (let i = 1; i < markers.length; i++) {
         const a = markers[i - 1];
         const b = markers[i];
-        const bColor = resolveTrackPointColor(b, colorMode, typeDesignator);
         for (let band = 0; band < AIRCRAFT_TRACK_CURTAIN_BAND_COUNT; band++) {
           const f = band / (AIRCRAFT_TRACK_CURTAIN_BAND_COUNT - 1);
           curtainBands.push({
@@ -296,7 +295,11 @@ export function buildAircraftLayers(params: {
               [a.lon, a.lat, altitudeToRenderMeters(a.altitude) * f],
               [b.lon, b.lat, altitudeToRenderMeters(b.altitude) * f],
             ],
-            color: [...bColor, lerp(AIRCRAFT_TRACK_CURTAIN_TOP_ALPHA, 0, f)],
+            // Neutral, matching the droplines (not resolveTrackPointColor) —
+            // the horizontal trail is the only element that should carry the
+            // track's color-mode color; these ground-reference elements read
+            // as competing/duplicate color-coding otherwise.
+            color: [...AIRCRAFT_TRACK_DROPLINE_COLOR, lerp(AIRCRAFT_TRACK_CURTAIN_TOP_ALPHA, 0, f)],
           });
         }
       }
