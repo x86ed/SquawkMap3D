@@ -55,6 +55,12 @@ export interface Aircraft {
   /** Whether this aircraft is flagged military (readsb's `dbFlags` bit
    * `0x1`). */
   isMilitary?: boolean;
+  /** Whether this aircraft is flagged PIA (Privacy ICAO Address, readsb's
+   * `dbFlags` bit `0x4`). */
+  isPia?: boolean;
+  /** Whether this aircraft is flagged LADD (Limiting Aircraft Data
+   * Displayed, readsb's `dbFlags` bit `0x8`). */
+  isLadd?: boolean;
   /** Wind direction in degrees, rarely populated (readsb's `wd`). */
   windDirection?: number;
   /** Wind speed in knots, rarely populated (readsb's `ws`). */
@@ -119,6 +125,8 @@ function normalize(raw: NonNullable<RawAircraftJson["aircraft"]>[number]): Aircr
     rssi: raw.rssi,
     sourceType: raw.type?.trim() || undefined,
     isMilitary: ((raw.dbFlags ?? 0) & 1) === 1,
+    isPia: ((raw.dbFlags ?? 0) & 0x4) === 0x4,
+    isLadd: ((raw.dbFlags ?? 0) & 0x8) === 0x8,
     windDirection: raw.wd,
     windSpeed: raw.ws,
   };

@@ -80,3 +80,46 @@ test("normalize resolves isMilitary true when bit 0x1 is set alongside other bit
   const [aircraft] = await fetchAircraft();
   assert.equal(aircraft.isMilitary, true);
 });
+
+test("normalize passes category through unchanged when present", async () => {
+  stubFetch([{ hex: "abc123", category: "A3" }]);
+  const [aircraft] = await fetchAircraft();
+  assert.equal(aircraft.category, "A3");
+});
+
+test("normalize leaves category undefined when absent", async () => {
+  stubFetch([{ hex: "abc123" }]);
+  const [aircraft] = await fetchAircraft();
+  assert.equal(aircraft.category, undefined);
+});
+
+test("normalize resolves isPia/isLadd false when dbFlags is absent", async () => {
+  stubFetch([{ hex: "abc123" }]);
+  const [aircraft] = await fetchAircraft();
+  assert.equal(aircraft.isPia, false);
+  assert.equal(aircraft.isLadd, false);
+});
+
+test("normalize resolves isPia true when dbFlags bit 0x4 is set", async () => {
+  stubFetch([{ hex: "abc123", dbFlags: 0x4 }]);
+  const [aircraft] = await fetchAircraft();
+  assert.equal(aircraft.isPia, true);
+  assert.equal(aircraft.isLadd, false);
+  assert.equal(aircraft.isMilitary, false);
+});
+
+test("normalize resolves isLadd true when dbFlags bit 0x8 is set", async () => {
+  stubFetch([{ hex: "abc123", dbFlags: 0x8 }]);
+  const [aircraft] = await fetchAircraft();
+  assert.equal(aircraft.isLadd, true);
+  assert.equal(aircraft.isPia, false);
+  assert.equal(aircraft.isMilitary, false);
+});
+
+test("normalize resolves isMilitary/isPia/isLadd all true when all bits are set", async () => {
+  stubFetch([{ hex: "abc123", dbFlags: 0x1 | 0x4 | 0x8 }]);
+  const [aircraft] = await fetchAircraft();
+  assert.equal(aircraft.isMilitary, true);
+  assert.equal(aircraft.isPia, true);
+  assert.equal(aircraft.isLadd, true);
+});
