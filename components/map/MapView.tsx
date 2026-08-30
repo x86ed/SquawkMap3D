@@ -1040,111 +1040,111 @@ export default function MapView() {
           onClose={handleDrawerToggle}
           layersContent={
             <>
-          <div className={styles.viewControls}>
-            <button
-              type="button"
-              className={styles.viewControlButton}
-              data-active={followSelectedAircraft}
-              onClick={handleFollowSelectedAircraftToggle}
-            >
-              Follow selected aircraft
-            </button>
-            <button type="button" className={styles.viewControlButton} onClick={handleJumpToLocation}>
-              My location
-            </button>
-          </div>
+              <div className={styles.viewControls}>
+                <button
+                  type="button"
+                  className={styles.viewControlButton}
+                  data-active={followSelectedAircraft}
+                  onClick={handleFollowSelectedAircraftToggle}
+                >
+                  Follow selected aircraft
+                </button>
+                <button type="button" className={styles.viewControlButton} onClick={handleJumpToLocation}>
+                  My location
+                </button>
+              </div>
 
-          <div className={styles.layersScroll}>
-            <AccordionGroup
-              title="Aviation"
-              description="Airports, airspace & restrictions"
-              count={`${aviationOnCount}/7 on`}
-              defaultOpen
-            >
-              <LayerToggleRow name="Airports" checked={airportsVisible} onToggle={handleAirportsToggle} />
-              <LayerToggleRow name="OpenAIP TMS" checked={openAipVisible} onToggle={handleOpenAipToggle} />
-              <LayerToggleRow name="TFRs" checked={tfrVisible} onToggle={handleTfrToggle} />
-              <LayerToggleRow
-                name="Special Use Airspace"
-                checked={suaVisible}
-                onToggle={handleSuaToggle}
-              />
-              <LayerToggleRow
-                name="Airspace Boundaries"
-                checked={airspaceBoundariesVisible}
-                onToggle={handleAirspaceBoundariesToggle}
-              />
-              <LayerToggleRow
-                name="Military Bases"
-                checked={militaryVisible}
-                onToggle={handleMilitaryToggle}
-              />
-              <LayerToggleRow name="Aircraft" checked={aircraftVisible} onToggle={handleAircraftToggle} />
-            </AccordionGroup>
+              <div className={styles.layersScroll}>
+                <AccordionGroup
+                  title="Aviation"
+                  description="Airports, airspace & restrictions"
+                  count={`${aviationOnCount}/7 on`}
+                  defaultOpen
+                >
+                  <LayerToggleRow name="Airports" checked={airportsVisible} onToggle={handleAirportsToggle} />
+                  <LayerToggleRow name="OpenAIP TMS" checked={openAipVisible} onToggle={handleOpenAipToggle} />
+                  <LayerToggleRow name="TFRs" checked={tfrVisible} onToggle={handleTfrToggle} />
+                  <LayerToggleRow
+                    name="Special Use Airspace"
+                    checked={suaVisible}
+                    onToggle={handleSuaToggle}
+                  />
+                  <LayerToggleRow
+                    name="Airspace Boundaries"
+                    checked={airspaceBoundariesVisible}
+                    onToggle={handleAirspaceBoundariesToggle}
+                  />
+                  <LayerToggleRow
+                    name="Military Bases"
+                    checked={militaryVisible}
+                    onToggle={handleMilitaryToggle}
+                  />
+                  <LayerToggleRow name="Aircraft" checked={aircraftVisible} onToggle={handleAircraftToggle} />
+                </AccordionGroup>
 
-            <AccordionGroup
-              title="Location"
-              description="Feeder position & reception range"
-              count={`${locationOnCount}/4 on`}
-            >
-              <LayerToggleRow
-                name="Transponder Location"
-                checked={userLocationVisible}
-                onToggle={handleUserLocationToggle}
-              />
-              <LayerToggleRow
-                name="Actual Range Outline"
-                checked={rangeOutlineVisible}
-                onToggle={handleRangeOutlineToggle}
-              />
-              <LayerToggleRow
-                name="Terrain-Based Range Outline"
-                checked={terrainOutlineVisible}
-                onToggle={handleTerrainOutlineToggle}
-              />
-              <LayerToggleRow
-                name="Range Rings"
-                checked={rangeRingsVisible}
-                onToggle={handleRangeRingsToggle}
-              />
-            </AccordionGroup>
+                <AccordionGroup
+                  title="Location"
+                  description="Feeder position & reception range"
+                  count={`${locationOnCount}/4 on`}
+                >
+                  <LayerToggleRow
+                    name="Transponder Location"
+                    checked={userLocationVisible}
+                    onToggle={handleUserLocationToggle}
+                  />
+                  <LayerToggleRow
+                    name="Actual Range Outline"
+                    checked={rangeOutlineVisible}
+                    onToggle={handleRangeOutlineToggle}
+                  />
+                  <LayerToggleRow
+                    name="Terrain-Based Range Outline"
+                    checked={terrainOutlineVisible}
+                    onToggle={handleTerrainOutlineToggle}
+                  />
+                  <LayerToggleRow
+                    name="Range Rings"
+                    checked={rangeRingsVisible}
+                    onToggle={handleRangeRingsToggle}
+                  />
+                </AccordionGroup>
 
-            <AccordionGroup
-              title="Environmental"
-              description="Weather & ground conditions"
-              count={`${environmentalOnCount}/6 on`}
-            >
-              <AccordionGroup title="Weather" count={`${weatherOnCount}/5 on`} nested>
-                <LayerToggleRow
-                  name="RainViewer"
-                  checked={rainViewerVisible}
-                  onToggle={handleRainViewerToggle}
-                />
-                <LayerToggleRow name="NEXRAD" checked={nexradVisible} onToggle={handleNexradToggle} />
-                <LayerToggleRow
-                  name="NOAA Radar"
-                  checked={noaaRadarVisible}
-                  onToggle={handleNoaaRadarToggle}
-                />
-                <LayerToggleRow
-                  name="DWD RADOLAN"
-                  checked={dwdRadolanVisible}
-                  onToggle={handleDwdRadolanToggle}
-                />
-                <LayerToggleRow
-                  name="NOAA Infrared"
-                  checked={noaaInfraredVisible}
-                  onToggle={handleNoaaInfraredToggle}
-                />
-              </AccordionGroup>
-              <LayerToggleRow
-                name="Day/Night Terminator"
-                checked={terminatorVisible}
-                onToggle={handleTerminatorToggle}
-              />
-              <LayerToggleRow name="Wildfires" tag="soon" checked={false} onToggle={() => {}} disabled />
-            </AccordionGroup>
-          </div>
+                <AccordionGroup
+                  title="Environmental"
+                  description="Weather & ground conditions"
+                  count={`${environmentalOnCount}/6 on`}
+                >
+                  <AccordionGroup title="Weather" count={`${weatherOnCount}/5 on`} nested>
+                    <LayerToggleRow
+                      name="RainViewer"
+                      checked={rainViewerVisible}
+                      onToggle={handleRainViewerToggle}
+                    />
+                    <LayerToggleRow name="NEXRAD" checked={nexradVisible} onToggle={handleNexradToggle} />
+                    <LayerToggleRow
+                      name="NOAA Radar"
+                      checked={noaaRadarVisible}
+                      onToggle={handleNoaaRadarToggle}
+                    />
+                    <LayerToggleRow
+                      name="DWD RADOLAN"
+                      checked={dwdRadolanVisible}
+                      onToggle={handleDwdRadolanToggle}
+                    />
+                    <LayerToggleRow
+                      name="NOAA Infrared"
+                      checked={noaaInfraredVisible}
+                      onToggle={handleNoaaInfraredToggle}
+                    />
+                  </AccordionGroup>
+                  <LayerToggleRow
+                    name="Day/Night Terminator"
+                    checked={terminatorVisible}
+                    onToggle={handleTerminatorToggle}
+                  />
+                  <LayerToggleRow name="Wildfires" tag="soon" checked={false} onToggle={() => {}} disabled />
+                </AccordionGroup>
+              </div>
             </>
           }
           aircraftContent={<PlaneListingPanel siteLocation={siteLocation} />}
