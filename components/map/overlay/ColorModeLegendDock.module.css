@@ -8,7 +8,7 @@
    (design.md Decision 2/tasks.md 4.6). */
 .dock {
   position: fixed;
-  right: 12px;
+  right: calc(var(--right-drawer-w, 0px) + 12px);
   bottom: 12px;
   z-index: 4;
   transition: bottom 220ms ease, right 220ms ease;
@@ -24,5 +24,11 @@
 @media (max-width: 760px) {
   .dock[data-drawer-open="true"] {
     bottom: calc(80vh + 12px);
+  }
+}
+
+@media (max-width: 640px) {
+  .dock[data-layer-drawer-open="true"] {
+    display: none;
   }
 }

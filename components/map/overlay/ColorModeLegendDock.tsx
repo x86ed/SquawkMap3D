@@ -1,3 +1,4 @@
+import { forwardRef } from "react";
 import styles from "./ColorModeLegendDock.module.css";
 import { ColorModeLegend } from "./ColorModeLegend";
 import type { ColorMode } from "../aircraftIcons";
@@ -10,17 +11,32 @@ import type { ColorMode } from "../aircraftIcons";
  * drives the same `[data-drawer-open]` repositioning pattern
  * `AircraftColorDock` uses, mirrored to the drawer's top-right edge instead
  * of top-left.
+ *
+ * Forwards a ref to its root `.dock` element (design.md Decision 4) so
+ * `MapView` can measure it against `AircraftColorDock` for collision-aware
+ * repositioning.
  */
-export function ColorModeLegendDock({
-  colorMode,
-  drawerOpen,
-}: {
-  colorMode: ColorMode;
-  drawerOpen: boolean;
-}) {
+export const ColorModeLegendDock = forwardRef<
+  HTMLDivElement,
+  {
+    colorMode: ColorMode;
+    drawerOpen: boolean;
+    /** Whether the layer-control drawer (`LayerDrawer`) is open — distinct
+     * from `drawerOpen` above, which reflects the *aircraft* overlay's open
+     * state (design.md Decision 5). Drives `[data-layer-drawer-open]`,
+     * which hides this dock entirely at the mobile full-screen drawer
+     * breakpoint. */
+    layerDrawerOpen: boolean;
+  }
+>(function ColorModeLegendDock({ colorMode, drawerOpen, layerDrawerOpen }, ref) {
   return (
-    <div className={styles.dock} data-drawer-open={drawerOpen}>
+    <div
+      ref={ref}
+      className={styles.dock}
+      data-drawer-open={drawerOpen}
+      data-layer-drawer-open={layerDrawerOpen}
+    >
       <ColorModeLegend mode={colorMode} />
     </div>
   );
-}
+});

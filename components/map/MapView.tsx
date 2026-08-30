@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   Map as MapLibreMap,
   NavigationControl,
@@ -91,8 +91,10 @@ import { getFeederLocation } from "./feederLocation";
 import drawerTheme from "./drawer/DrawerTheme.module.css";
 import { ThemeSlider } from "./drawer/ThemeSlider";
 import { LayerDrawer } from "./drawer/LayerDrawer";
+import { DRAWER_DEFAULT_WIDTH } from "./drawer/drawerWidth";
 import { AccordionGroup, LayerToggleRow } from "./drawer/Accordion";
 import { PlaneListingPanel } from "./drawer/PlaneListingPanel";
+import { useDockCollisionOffset } from "./controls/dockCollision";
 import {
   AIRCRAFT_DESELECT_CLICK_GUARD_MS,
   AIRCRAFT_FEED_REFRESH_INTERVAL_MS,
@@ -168,9 +170,19 @@ export default function MapView() {
   // matching the marker's own pre-split default.
   const rangeRingsVisibleRef = useRef(true);
   const drawerOpenRef = useRef(false);
+  // Mirrors `layerDrawerWidth` state (paired with `drawerOpenRef` above) so
+  // the aircraft-focus camera offset below can read the drawer's current
+  // occupied width from `refreshAircraft`'s mount-once-effect `setInterval`
+  // closure without going stale — same reasoning as every other ref in this
+  // file paired with render state.
+  const layerDrawerWidthRef = useRef(DRAWER_DEFAULT_WIDTH);
   const styleReadyRef = useRef(false);
   const deckOverlayRef = useRef<MapboxOverlay | null>(null);
   const aircraftIconAtlasRef = useRef<IconAtlas | null>(null);
+  // Collision-aware repositioning between the two bottom docks (design.md
+  // Decision 4) — refs to each dock's root `.dock` element.
+  const leftDockRef = useRef<HTMLDivElement>(null);
+  const legendDockRef = useRef<HTMLDivElement>(null);
 
   // Selection state (design.md Decision 1) — state for render, ref for the
   // mount-effect's stable closures, same pairing every other piece of this
@@ -227,6 +239,10 @@ export default function MapView() {
   const [userLocationVisible, setUserLocationVisible] = useState(true);
   const [rangeRingsVisible, setRangeRingsVisible] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Reported by LayerDrawer's onWidthChange (design.md Decision 1) — used to
+  // derive the `--right-drawer-w` CSS var below, independent of that
+  // drawer's own open/closed state.
+  const [layerDrawerWidth, setLayerDrawerWidth] = useState(DRAWER_DEFAULT_WIDTH);
   // Mirrors `userLocationRef.current` (design.md Decision 7) — the one
   // piece of aircraft-adjacent state lifted into MapView for the
   // plane-listing panel's Distance column, since it changes rarely (only on
@@ -258,6 +274,18 @@ export default function MapView() {
   // aircraftLayer.ts), lets a fresh selection recenter the camera
   // immediately rather than waiting for the next poll (design.md Decision
   // 13's "Camera centers on the aircraft immediately upon selection").
+  // The map's own canvas always spans the full viewport (LayerDrawer is a
+  // layered overlay, not something that shrinks the canvas) — so centering
+  // on a raw [lon, lat] targets the midpoint of the whole screen, including
+  // whatever width the drawer currently occludes. MapLibre's `offset` shifts
+  // the target's screen position, in pixels, from the canvas's true center;
+  // shifting left by half the drawer's occupied width lands the aircraft at
+  // the center of the *visible* remaining area instead.
+  const getAircraftFocusOffset = (): [number, number] => {
+    const occupiedWidth = drawerOpenRef.current ? layerDrawerWidthRef.current : 0;
+    return [-occupiedWidth / 2, 0];
+  };
+
   const handleAircraftClick = (hex: string | null, picked?: Aircraft) => {
     // react-hooks/purity flags this `Date.now()` conservatively: its static
     // reachability analysis can't prove `handleAircraftClick` is only ever
@@ -282,6 +310,7 @@ export default function MapView() {
     ) {
       mapRef.current.easeTo({
         center: [picked.lon, picked.lat],
+        offset: getAircraftFocusOffset(),
         duration: FOLLOW_SELECTED_AIRCRAFT_EASE_MS,
       });
     }
@@ -345,6 +374,7 @@ export default function MapView() {
     ) {
       mapRef.current.easeTo({
         center: [selected.lon, selected.lat],
+        offset: getAircraftFocusOffset(),
         duration: FOLLOW_SELECTED_AIRCRAFT_EASE_MS,
       });
     }
@@ -948,6 +978,11 @@ export default function MapView() {
     setDrawerOpen(next);
   };
 
+  const handleLayerDrawerWidthChange = (width: number) => {
+    layerDrawerWidthRef.current = width;
+    setLayerDrawerWidth(width);
+  };
+
   const handleJumpToLocation = () => {
     resolveUserLocation().then((coords) => {
       handleLocationResolved(coords);
@@ -973,6 +1008,8 @@ export default function MapView() {
     followSelectedAircraftRef.current = next;
     setFollowSelectedAircraft(next);
   };
+
+  const collisionOffsetPx = useDockCollisionOffset(leftDockRef, legendDockRef);
 
   if (error) {
     return (
@@ -1005,9 +1042,16 @@ export default function MapView() {
     noaaInfraredVisible,
   ].filter(Boolean).length;
   const environmentalOnCount = weatherOnCount + (terminatorVisible ? 1 : 0);
+  // The occupied width LayerDrawer's fixed-position siblings should treat as
+  // their right edge (design.md Decision 1) — 0 while closed, since the
+  // drawer itself renders offscreen (`transform: translateX(100%)`) then.
+  const rightDrawerOccupiedWidth = drawerOpen ? layerDrawerWidth : 0;
 
   return (
-    <div className={styles.container}>
+    <div
+      className={styles.container}
+      style={{ "--right-drawer-w": `${rightDrawerOccupiedWidth}px` } as CSSProperties}
+    >
       <div ref={containerRef} className={styles.container} />
       <div className={drawerTheme.scope} data-theme={theme}>
         <div className={styles.controls} data-hidden={drawerOpen}>
@@ -1038,6 +1082,7 @@ export default function MapView() {
         <LayerDrawer
           open={drawerOpen}
           onClose={handleDrawerToggle}
+          onWidthChange={handleLayerDrawerWidthChange}
           layersContent={
             <>
               <div className={styles.viewControls}>
@@ -1158,12 +1203,20 @@ export default function MapView() {
       </div>
       <AircraftOverlay info={selectedAircraftInfo} onClose={() => handleAircraftClick(null)} />
       <AircraftColorDock
+        ref={leftDockRef}
         colorMode={colorMode}
         onColorModeChange={handleColorModeChange}
         onRecenter={handleJumpToLocation}
         drawerOpen={selectedAircraftInfo !== null}
+        layerDrawerOpen={drawerOpen}
+        collisionOffsetPx={collisionOffsetPx}
       />
-      <ColorModeLegendDock colorMode={colorMode} drawerOpen={selectedAircraftInfo !== null} />
+      <ColorModeLegendDock
+        ref={legendDockRef}
+        colorMode={colorMode}
+        drawerOpen={selectedAircraftInfo !== null}
+        layerDrawerOpen={drawerOpen}
+      />
       {hoveredAircraft && (
         <AircraftHoverTooltip
           aircraft={hoveredAircraft}
