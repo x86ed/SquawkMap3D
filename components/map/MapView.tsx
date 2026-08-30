@@ -1049,7 +1049,8 @@ export default function MapView() {
 
   return (
     <div
-      className={styles.container}
+      className={`${styles.container} ${drawerTheme.scope}`}
+      data-theme={theme}
       style={{ "--right-drawer-w": `${rightDrawerOccupiedWidth}px` } as CSSProperties}
     >
       <div ref={containerRef} className={styles.container} />
