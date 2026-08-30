@@ -1,5 +1,5 @@
 import type { Layer } from "@deck.gl/core";
-import { IconLayer, PathLayer } from "@deck.gl/layers";
+import { IconLayer, PathLayer, ScatterplotLayer } from "@deck.gl/layers";
 import type { Aircraft, TrackPoint } from "./aircraft";
 import {
   brightenColor,
@@ -15,8 +15,18 @@ import {
   AIRCRAFT_GLOW_BRIGHTEN_AMOUNT,
   AIRCRAFT_ICON_GLOW_ALPHA,
   AIRCRAFT_ICON_GLOW_SIZE_PIXELS,
+  AIRCRAFT_TRACK_CURTAIN_BAND_COUNT,
+  AIRCRAFT_TRACK_CURTAIN_TOP_ALPHA,
+  AIRCRAFT_TRACK_CURTAIN_WIDTH_PIXELS,
+  AIRCRAFT_TRACK_DROPLINE_ALPHA,
+  AIRCRAFT_TRACK_DROPLINE_COLOR,
+  AIRCRAFT_TRACK_DROPLINE_DOT_COUNT,
+  AIRCRAFT_TRACK_DROPLINE_DOT_RADIUS_PIXELS,
+  AIRCRAFT_TRACK_FADE_MIN_ALPHA,
   AIRCRAFT_TRACK_GLOW_ALPHA,
   AIRCRAFT_TRACK_GLOW_WIDTH_PIXELS,
+  AIRCRAFT_TRACK_MARKER_INTERVAL_MS,
+  AIRCRAFT_TRACK_RETENTION_MS,
   TERRAIN_EXAGGERATION,
 } from "./constants";
 
@@ -26,6 +36,8 @@ export const AIRCRAFT_SELECTION_GLOW_LAYER_ID = "aircraft-selection-glow";
 export const AIRCRAFT_ROTOR_ACCENT_LAYER_ID = "aircraft-rotor-accent";
 export const AIRCRAFT_ICON_GLOW_LAYER_ID = "aircraft-icon-glow";
 export const AIRCRAFT_TRACK_GLOW_LAYER_ID = "aircraft-track-glow";
+export const AIRCRAFT_TRACK_CURTAIN_LAYER_ID = "aircraft-track-curtain";
+export const AIRCRAFT_TRACK_DROPLINE_LAYER_ID = "aircraft-track-dropline";
 
 const ROTORCRAFT_CATEGORY = "A7";
 const ROTOR_ACCENT_SIZE_PIXELS = 22;
@@ -54,6 +66,52 @@ export function altitudeToRenderMeters(altitudeFt: number | undefined): number {
 interface TrackSegment {
   path: [[number, number, number], [number, number, number]];
   color: [number, number, number];
+  alpha: number;
+}
+
+interface CurtainBand {
+  path: [[number, number, number], [number, number, number]];
+  color: [number, number, number, number];
+}
+
+interface DroplineDot {
+  position: [number, number, number];
+}
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value));
+}
+
+function lerp(from: number, to: number, fraction: number): number {
+  return from + (to - from) * fraction;
+}
+
+/**
+ * Decimates a track's recorded points down to a coarser subset used by the
+ * ground droplines/curtain (design.md Decision 2), keeping one point at
+ * least `AIRCRAFT_TRACK_MARKER_INTERVAL_MS` after the previously-kept
+ * marker's timestamp. Always appends the final (most recent) point, even if
+ * it falls short of a full interval since the last kept marker, so the
+ * current position always gets a dropline/curtain edge.
+ */
+export function selectTrackMarkers(points: TrackPoint[]): TrackPoint[] {
+  if (points.length === 0) return [];
+
+  const markers: TrackPoint[] = [points[0]];
+  let lastKeptTimestamp = points[0].timestamp;
+  for (let i = 1; i < points.length - 1; i++) {
+    const point = points[i];
+    if (point.timestamp - lastKeptTimestamp >= AIRCRAFT_TRACK_MARKER_INTERVAL_MS) {
+      markers.push(point);
+      lastKeptTimestamp = point.timestamp;
+    }
+  }
+
+  const lastPoint = points[points.length - 1];
+  if (markers[markers.length - 1] !== lastPoint) {
+    markers.push(lastPoint);
+  }
+  return markers;
 }
 
 /**
