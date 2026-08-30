@@ -1,8 +1,8 @@
 .panel {
   position: relative;
   height: 100%;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(63, 63, 70, 0.42);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
   /* Deliberately square corners — distinct from PlaneCard's rounded sticker
    * look. */
   border-radius: 0;
@@ -18,10 +18,10 @@
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #64748b;
-  background: rgba(255, 255, 255, 0.05);
-  border-left: 1px solid rgba(63, 63, 70, 0.42);
-  border-bottom: 1px solid rgba(63, 63, 70, 0.42);
+  color: var(--text-dim);
+  background: var(--panel-2);
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
 }
 
 .body {
@@ -39,7 +39,7 @@
 .photoBlock {
   flex: 0 0 60%;
   min-width: 0;
-  border-right: 1px solid rgba(63, 63, 70, 0.42);
+  border-right: 1px solid var(--border);
 }
 
 .iconBlock {
@@ -48,8 +48,8 @@
   justify-content: center;
   /* Same container-size-driven growth as .heading, same `cqmin` cap. */
   font-size: clamp(48px, 26cqmin, 112px);
-  color: #64748b;
-  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-dim);
+  background: var(--panel-2);
 }
 
 .photoBlock {
@@ -74,8 +74,8 @@
   padding: 8px 14px;
   font-size: 11px;
   font-weight: 600;
-  color: #f8fafc;
-  background: rgba(2, 6, 23, 0.75);
+  color: var(--text);
+  background: color-mix(in srgb, var(--panel-2) 75%, transparent);
   backdrop-filter: blur(6px);
 }
 
@@ -87,7 +87,7 @@
 .panel[data-orientation="portrait"] .photoBlock {
   flex: 0 0 40%;
   border-right: none;
-  border-bottom: 1px solid rgba(63, 63, 70, 0.42);
+  border-bottom: 1px solid var(--border);
 }
 
 .identity {
@@ -103,7 +103,7 @@
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #64748b;
+  color: var(--text-dim);
 }
 
 /* Grows with the hero cell's own measured size (`container-type: size` on
@@ -120,7 +120,7 @@
   font-size: clamp(24px, 11cqmin, 40px);
   font-weight: 900;
   letter-spacing: -0.01em;
-  color: #f1f5f9;
+  color: var(--text);
   margin: 2px 0 4px;
   /* Reset the default link look — this reads as a heading at rest, with a
    * hover affordance (accent color + underline) as the only signal it's
@@ -130,7 +130,7 @@
 
 a.heading:hover,
 a.heading:focus-visible {
-  color: #22d3ee;
+  color: var(--accent);
   text-decoration: underline;
 }
 
