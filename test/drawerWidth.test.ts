@@ -23,9 +23,12 @@ test("clampDrawerWidth clamps to 90% of viewport width when that's tighter than 
   assert.equal(clampDrawerWidth(800, 700), 630);
 });
 
-test("clampDrawerWidth on a narrow viewport still respects the 360px floor", () => {
-  // 90% of 300px is 270px, below the 360px minimum — minimum wins.
-  assert.equal(clampDrawerWidth(200, 300), 360);
+test("clampDrawerWidth at the desktop breakpoint's edge still allows the full 360-900 range", () => {
+  // The resize handle only renders at/above the 641px desktop breakpoint
+  // (LayerDrawer.tsx's DESKTOP_MEDIA_QUERY), where 90% of the viewport
+  // (~577px) is comfortably above the 360px floor — no conflict in practice.
+  assert.equal(clampDrawerWidth(200, 641), 360);
+  assert.equal(clampDrawerWidth(900, 641), Math.min(900, 641 * 0.9));
 });
 
 // `readStoredDrawerWidth`/`writeStoredDrawerWidth` guard on `typeof window`;
