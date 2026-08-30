@@ -83,7 +83,6 @@ The map SHALL accumulate and render a recent flight-track trail for each visible
 - **WHEN** an aircraft that previously had a rendered track stops appearing in the feeder's reported aircraft
 - **THEN** the map stops updating that aircraft's marker and track, without erroring or affecting other aircraft
 
-
 ### Requirement: Track trails rendered with an always-on outer glow
 Every rendered segment of a recent flight-track trail SHALL be rendered with an outer glow, colored as a brightened variant of that same segment's own current draw color (per this capability's track-coloring requirement), so the glow's hue varies along the trail exactly as the trail's own color does.
 
