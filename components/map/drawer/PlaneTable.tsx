@@ -2,6 +2,16 @@ import styles from "./PlaneTable.module.css";
 import { COLUMNS, formatCell, type ColumnKey } from "./columns";
 import type { PlaneListingRow } from "./aircraftDisplay";
 import { RARITY_TIER_STYLES } from "../aircraftRarity";
+import { bucketForSourceType } from "./sourceBucket";
+
+const SOURCE_ROW_CLASS: Record<string, string> = {
+  adsb: styles.rowAdsb,
+  uat_adsr: styles.rowUatAdsr,
+  mlat: styles.rowMlat,
+  tisb: styles.rowTisb,
+  mode_s: styles.rowModeS,
+  other: styles.rowOther,
+};
 
 export interface SortState {
   key: ColumnKey;
@@ -163,7 +173,7 @@ export function PlaneTable({
               </tr>
             ) : (
               rows.map((row) => (
-                <tr key={row.hex}>
+                <tr key={row.hex} className={SOURCE_ROW_CLASS[bucketForSourceType(row.sourceType)]}>
                   {visibleColumns.map((column) => (
                     <td key={column.key} className={alignClass(column.align)}>
                       <CellContent row={row} columnKey={column.key} />

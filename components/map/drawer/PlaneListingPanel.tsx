@@ -586,6 +586,7 @@ export function PlaneListingPanel({ siteLocation }: { siteLocation: GeoCoords | 
         sort={sort}
         onSort={handleSort}
       />
+      <SourceChipRow selected={selectedSourceBuckets} onToggle={handleToggleSourceBucket} />
     </div>
   );
 }
