@@ -199,15 +199,23 @@ export const AIRCRAFT_TRACK_FADE_MIN_ALPHA = 60;
 // coarser than the trail line's own per-poll resolution to bound their draw
 // cost against the uncapped, per-poll-resolution point buffer.
 export const AIRCRAFT_TRACK_MARKER_INTERVAL_MS = 15_000;
-export const AIRCRAFT_TRACK_DROPLINE_DOT_COUNT = 5;
-export const AIRCRAFT_TRACK_DROPLINE_DOT_RADIUS_PIXELS = 2;
-export const AIRCRAFT_TRACK_DROPLINE_ALPHA = 90;
+// Bumped from the original 5/2px/90-alpha defaults (enhance-aircraft-tracks
+// design.md's Open Questions left these to visual tuning) — verified against
+// a live feeder that at those values the dropline was imperceptible: a 2px,
+// ~35%-alpha dot is well under a pixel of effective coverage once
+// anti-aliased, especially for the low-altitude GA/rotorcraft traffic that
+// dominates a typical view, where the dropline's real-world extent is only a
+// few hundred meters to begin with.
+export const AIRCRAFT_TRACK_DROPLINE_DOT_COUNT = 8;
+export const AIRCRAFT_TRACK_DROPLINE_DOT_RADIUS_PIXELS = 3;
+export const AIRCRAFT_TRACK_DROPLINE_ALPHA = 190;
 // Fixed neutral grey, not color-mode-driven (design.md Decision 4) — a
 // ground-reference cue, not a data-carrying element.
 export const AIRCRAFT_TRACK_DROPLINE_COLOR: [number, number, number] = [200, 200, 200];
 export const AIRCRAFT_TRACK_CURTAIN_BAND_COUNT = 6;
-export const AIRCRAFT_TRACK_CURTAIN_TOP_ALPHA = 70;
-export const AIRCRAFT_TRACK_CURTAIN_WIDTH_PIXELS = 2;
+// Bumped alongside the dropline constants above, same reasoning.
+export const AIRCRAFT_TRACK_CURTAIN_TOP_ALPHA = 140;
+export const AIRCRAFT_TRACK_CURTAIN_WIDTH_PIXELS = 3;
 
 // "Follow selected aircraft" per-poll recenter duration (design.md Decision
 // 13) — short enough to track a ~1s-polled aircraft without visibly lagging
