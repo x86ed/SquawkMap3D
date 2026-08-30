@@ -4,10 +4,10 @@
   gap: 4px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: rgba(27, 28, 33, 0.92);
-  border: 1px solid rgba(63, 63, 70, 0.42);
+  background: var(--panel);
+  border: 1px solid var(--border);
   box-shadow: 0 4px 12px rgba(2, 6, 23, 0.5);
-  color: #f1f5f9;
+  color: var(--text);
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 10px;
 }
