@@ -1,13 +1,14 @@
-/* `right: 210px`, not 12px: MapView.tsx's own top-right toggle-button
-   sidebar (`.controls` in MapView.module.css) is tall enough on a typical
-   viewport height to reach all the way down near this dock's own bottom
-   position, and its rendered width (~186px, driven by its longest button's
-   text — "Hide special use airspace"/"Hide airspace boundaries" — not by
-   viewport width) is effectively constant. This offset clears it with a
-   12px gap; revisit if that sidebar's longest label changes meaningfully. */
+/* `right: 12px`, not the old 210px: MapView.tsx's former tall, flat
+   top-right toggle-button column (which used to reach far enough down a
+   typical viewport to require a wide clearance here) was replaced by the
+   right-side-drawer change with a compact, ~40px-tall 3-item cluster
+   (`.controls` in MapView.module.css) confined to the very top of the
+   viewport — it never reaches anywhere near this dock's bottom-right
+   position, so no horizontal offset is needed to clear it anymore
+   (design.md Decision 2/tasks.md 4.6). */
 .dock {
   position: fixed;
-  right: 210px;
+  right: 12px;
   bottom: 12px;
   z-index: 4;
   transition: bottom 220ms ease, right 220ms ease;

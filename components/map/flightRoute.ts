@@ -86,3 +86,44 @@ export async function getFlightRoute(
     return null;
   }
 }
+
+/**
+ * Module-level cache shared by every consumer of `getCachedFlightRoute()` —
+ * the selected-aircraft info overlay and the plane-listing panel both hit
+ * this one `Map`, keyed `${hex}:${callsign}` (matching the key format
+ * `MapView.tsx` used for its own now-removed local `routeCacheRef`), so a
+ * given aircraft's route is only ever fetched once per cache lifetime no
+ * matter how many consumers ask for it (design.md Decision 9).
+ */
+const routeCache = new Map<string, FlightRoute | null>();
+
+/**
+ * Cache-wrapped `getFlightRoute()`. Returns the cached entry for
+ * `${hex}:${callsign}` if present, otherwise fetches and caches the result
+ * (including a `null` no-match result, so a callsign with no route data
+ * isn't re-fetched every call either). No debounce, queue, rate limit, or
+ * staggering is added here — a first-ever ask for a given key fetches
+ * immediately, exactly as `MapView.tsx` did with its own local cache before
+ * this extraction (design.md Decision 9).
+ */
+export async function getCachedFlightRoute(
+  hex: string,
+  callsign: string,
+  lat: number,
+  lon: number,
+): Promise<FlightRoute | null> {
+  const cacheKey = `${hex}:${callsign}`;
+  if (routeCache.has(cacheKey)) {
+    return routeCache.get(cacheKey) ?? null;
+  }
+  const route = await getFlightRoute(callsign, lat, lon);
+  routeCache.set(cacheKey, route);
+  return route;
+}
+
+/** Clears every cached route — called on deselect/drop-out, mirroring what
+ * `MapView.tsx`'s own local `routeCacheRef.current.clear()` did before this
+ * extraction. */
+export function clearFlightRouteCache(): void {
+  routeCache.clear();
+}

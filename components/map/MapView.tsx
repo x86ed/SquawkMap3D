@@ -30,7 +30,7 @@ import { buildAircraftLayers } from "./aircraftLayer";
 import { AircraftColorDock } from "./controls/AircraftColorDock";
 import { AircraftHoverTooltip } from "./overlay/AircraftHoverTooltip";
 import { ColorModeLegendDock } from "./overlay/ColorModeLegendDock";
-import { getFlightRoute, type FlightRoute } from "./flightRoute";
+import { getCachedFlightRoute, clearFlightRouteCache, type FlightRoute } from "./flightRoute";
 import {
   buildSelectedAircraftInfo,
   type SelectedAircraftInfo,
@@ -77,7 +77,8 @@ import {
 import {
   addUserLocationLayers,
   getUserLocationBounds,
-  setUserLocationVisibility,
+  setUserLocationMarkerVisibility,
+  setRangeRingsVisibility,
   USER_LOCATION_ICON_LAYER_ID,
 } from "./userLocation";
 import {
@@ -87,6 +88,11 @@ import {
 } from "./terminator";
 import { getCurrentLocation, type GeoCoords } from "./geolocation";
 import { getFeederLocation } from "./feederLocation";
+import drawerTheme from "./drawer/DrawerTheme.module.css";
+import { ThemeSlider } from "./drawer/ThemeSlider";
+import { LayerDrawer } from "./drawer/LayerDrawer";
+import { AccordionGroup, LayerToggleRow } from "./drawer/Accordion";
+import { PlaneListingPanel } from "./drawer/PlaneListingPanel";
 import {
   AIRCRAFT_DESELECT_CLICK_GUARD_MS,
   AIRCRAFT_FEED_REFRESH_INTERVAL_MS,
@@ -157,6 +163,11 @@ export default function MapView() {
   const aircraftVisibleRef = useRef(true);
   const userLocationRef = useRef<GeoCoords | null>(null);
   const userLocationVisibleRef = useRef(true);
+  // Split out of the former combined user-location toggle (design.md
+  // Decision 5) — independent of `userLocationVisibleRef`, default `true`
+  // matching the marker's own pre-split default.
+  const rangeRingsVisibleRef = useRef(true);
+  const drawerOpenRef = useRef(false);
   const styleReadyRef = useRef(false);
   const deckOverlayRef = useRef<MapboxOverlay | null>(null);
   const aircraftIconAtlasRef = useRef<IconAtlas | null>(null);
@@ -174,9 +185,6 @@ export default function MapView() {
   // Aircraft color mode (design.md Decision 1) — default "altitude" is
   // closest to this layer's prior always-on-altitude-tint behavior.
   const colorModeRef = useRef<ColorMode>("altitude");
-  // callsign+hex-keyed, cleared on deselect — avoids re-fetching the same
-  // aircraft's route every ~1s poll while it stays selected (tasks.md 6.2).
-  const routeCacheRef = useRef<Map<string, FlightRoute | null>>(new Map());
 
   // Second, dedicated overlay (design.md Decision 4) — kept separate from
   // `deckOverlayRef` above so this layer's ~60fps rAF loop never couples to
@@ -217,6 +225,13 @@ export default function MapView() {
   const [dwdRadolanVisible, setDwdRadolanVisible] = useState(true);
   const [aircraftVisible, setAircraftVisible] = useState(true);
   const [userLocationVisible, setUserLocationVisible] = useState(true);
+  const [rangeRingsVisible, setRangeRingsVisible] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  // Mirrors `userLocationRef.current` (design.md Decision 7) — the one
+  // piece of aircraft-adjacent state lifted into MapView for the
+  // plane-listing panel's Distance column, since it changes rarely (only on
+  // location resolution/re-jump), unlike the aircraft feed itself.
+  const [siteLocation, setSiteLocation] = useState<GeoCoords | null>(null);
   const [selectedAircraftHex, setSelectedAircraftHex] = useState<string | null>(null);
   const [selectedAircraftInfo, setSelectedAircraftInfo] = useState<SelectedAircraftInfo | null>(
     null,
@@ -258,7 +273,7 @@ export default function MapView() {
 
     if (next === null) {
       setSelectedAircraftInfo(null);
-      routeCacheRef.current.clear();
+      clearFlightRouteCache();
     } else if (
       followSelectedAircraftRef.current &&
       picked?.lat !== undefined &&
@@ -296,7 +311,7 @@ export default function MapView() {
       selectedAircraftHexRef.current = null;
       setSelectedAircraftHex(null);
       setSelectedAircraftInfo(null);
-      routeCacheRef.current.clear();
+      clearFlightRouteCache();
     }
 
     const layers = buildAircraftLayers({
@@ -336,13 +351,12 @@ export default function MapView() {
 
     let route: FlightRoute | null = null;
     if (selected.callsign && selected.lat !== undefined && selected.lon !== undefined) {
-      const cacheKey = `${selected.hex}:${selected.callsign}`;
-      if (routeCacheRef.current.has(cacheKey)) {
-        route = routeCacheRef.current.get(cacheKey) ?? null;
-      } else {
-        route = await getFlightRoute(selected.callsign, selected.lat, selected.lon);
-        routeCacheRef.current.set(cacheKey, route);
-      }
+      route = await getCachedFlightRoute(
+        selected.hex,
+        selected.callsign,
+        selected.lat,
+        selected.lon,
+      );
     }
 
     setSelectedAircraftInfo(
@@ -424,6 +438,7 @@ export default function MapView() {
 
   const handleLocationResolved = (coords: GeoCoords | null) => {
     userLocationRef.current = coords;
+    setSiteLocation(coords);
     // `resolveUserLocation()` can resolve before the map's "load"/"style.load"
     // handler (`setupStyleDependentState`) has run for the first time (e.g. a
     // fast feeder/geolocation result racing initial style load), and
@@ -439,7 +454,8 @@ export default function MapView() {
     // once "load"/"style.load" fires — no separate retry needed here.
     if (coords && mapRef.current && styleReadyRef.current) {
       addUserLocationLayers(mapRef.current, coords, AIRPORTS_LAYER_ID);
-      setUserLocationVisibility(mapRef.current, userLocationVisibleRef.current);
+      setUserLocationMarkerVisibility(mapRef.current, userLocationVisibleRef.current);
+      setRangeRingsVisibility(mapRef.current, rangeRingsVisibleRef.current);
       // Location can resolve asynchronously, after the range-outline layers
       // already exist — re-assert their position below airports/above the
       // range-circle rings this call just (re)added. See
@@ -575,7 +591,8 @@ export default function MapView() {
       void refreshTerrainOutline(map);
       setPilotModeVisibility(map, pilotModeRef.current);
       addUserLocationLayers(map, userLocationRef.current, AIRPORTS_LAYER_ID);
-      setUserLocationVisibility(map, userLocationVisibleRef.current);
+      setUserLocationMarkerVisibility(map, userLocationVisibleRef.current);
+      setRangeRingsVisibility(map, rangeRingsVisibleRef.current);
       // Re-assert stacking order every style reload too — a fresh style
       // swap re-adds every custom layer from scratch, same ordering
       // concerns as the initial add (see
@@ -912,8 +929,23 @@ export default function MapView() {
     userLocationVisibleRef.current = next;
     setUserLocationVisible(next);
     if (mapRef.current) {
-      setUserLocationVisibility(mapRef.current, next);
+      setUserLocationMarkerVisibility(mapRef.current, next);
     }
+  };
+
+  const handleRangeRingsToggle = () => {
+    const next = !rangeRingsVisible;
+    rangeRingsVisibleRef.current = next;
+    setRangeRingsVisible(next);
+    if (mapRef.current) {
+      setRangeRingsVisibility(mapRef.current, next);
+    }
+  };
+
+  const handleDrawerToggle = () => {
+    const next = !drawerOpen;
+    drawerOpenRef.current = next;
+    setDrawerOpen(next);
   };
 
   const handleJumpToLocation = () => {
@@ -950,175 +982,179 @@ export default function MapView() {
     );
   }
 
+  const aviationOnCount = [
+    airportsVisible,
+    openAipVisible,
+    tfrVisible,
+    suaVisible,
+    airspaceBoundariesVisible,
+    militaryVisible,
+    aircraftVisible,
+  ].filter(Boolean).length;
+  const locationOnCount = [
+    userLocationVisible,
+    rangeOutlineVisible,
+    terrainOutlineVisible,
+    rangeRingsVisible,
+  ].filter(Boolean).length;
+  const weatherOnCount = [
+    rainViewerVisible,
+    nexradVisible,
+    noaaRadarVisible,
+    dwdRadolanVisible,
+    noaaInfraredVisible,
+  ].filter(Boolean).length;
+  const environmentalOnCount = weatherOnCount + (terminatorVisible ? 1 : 0);
+
   return (
     <div className={styles.container}>
       <div ref={containerRef} className={styles.container} />
-      <div className={styles.controls}>
-        <button
-          type="button"
-          className={styles.controlButton}
-          onClick={handleThemeToggle}
-          suppressHydrationWarning
-        >
-          {theme === "dark" ? "Light mode" : "Dark mode"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={pilotMode}
-          onClick={handlePilotModeToggle}
-        >
-          Pilot mode
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={militaryVisible}
-          onClick={handleMilitaryToggle}
-        >
-          {militaryVisible ? "Hide military bases" : "Show military bases"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={airportsVisible}
-          onClick={handleAirportsToggle}
-        >
-          {airportsVisible ? "Hide airports" : "Show airports"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={terminatorVisible}
-          onClick={handleTerminatorToggle}
-        >
-          {terminatorVisible ? "Hide day/night terminator" : "Show day/night terminator"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={openAipVisible}
-          onClick={handleOpenAipToggle}
-        >
-          {openAipVisible ? "Hide OpenAIP airspace" : "Show OpenAIP airspace"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={rainViewerVisible}
-          onClick={handleRainViewerToggle}
-        >
-          {rainViewerVisible ? "Hide RainViewer radar" : "Show RainViewer radar"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={tfrVisible}
-          onClick={handleTfrToggle}
-        >
-          {tfrVisible ? "Hide TFRs" : "Show TFRs"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={suaVisible}
-          onClick={handleSuaToggle}
-        >
-          {suaVisible ? "Hide special use airspace" : "Show special use airspace"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={airspaceBoundariesVisible}
-          onClick={handleAirspaceBoundariesToggle}
-        >
-          {airspaceBoundariesVisible
-            ? "Hide airspace boundaries"
-            : "Show airspace boundaries"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={rangeOutlineVisible}
-          onClick={handleRangeOutlineToggle}
-        >
-          {rangeOutlineVisible
-            ? "Hide actual range outline"
-            : "Show actual range outline"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={terrainOutlineVisible}
-          onClick={handleTerrainOutlineToggle}
-        >
-          {terrainOutlineVisible
-            ? "Hide terrain-based outline"
-            : "Show terrain-based outline"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={nexradVisible}
-          onClick={handleNexradToggle}
-        >
-          {nexradVisible ? "Hide NEXRAD" : "Show NEXRAD"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={noaaInfraredVisible}
-          onClick={handleNoaaInfraredToggle}
-        >
-          {noaaInfraredVisible ? "Hide NOAA infrared" : "Show NOAA infrared"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={noaaRadarVisible}
-          onClick={handleNoaaRadarToggle}
-        >
-          {noaaRadarVisible ? "Hide NOAA Radar" : "Show NOAA Radar"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={dwdRadolanVisible}
-          onClick={handleDwdRadolanToggle}
-        >
-          {dwdRadolanVisible ? "Hide DWD RADOLAN" : "Show DWD RADOLAN"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={aircraftVisible}
-          onClick={handleAircraftToggle}
-        >
-          {aircraftVisible ? "Hide aircraft" : "Show aircraft"}
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={followSelectedAircraft}
-          onClick={handleFollowSelectedAircraftToggle}
-        >
-          Follow selected aircraft
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          onClick={handleJumpToLocation}
-        >
-          My location
-        </button>
-        <button
-          type="button"
-          className={styles.controlButton}
-          data-active={userLocationVisible}
-          onClick={handleUserLocationToggle}
-        >
-          {userLocationVisible ? "Hide my location" : "Show my location"}
-        </button>
+      <div className={drawerTheme.scope} data-theme={theme}>
+        <div className={styles.controls} data-hidden={drawerOpen}>
+          <ThemeSlider theme={theme} onToggle={handleThemeToggle} />
+          <button
+            type="button"
+            className={styles.pilotModeButton}
+            data-active={pilotMode}
+            onClick={handlePilotModeToggle}
+          >
+            Pilot mode
+          </button>
+          <button
+            type="button"
+            className={styles.drawerToggleButton}
+            data-active={drawerOpen}
+            onClick={handleDrawerToggle}
+            aria-label="Open layers and traffic panel"
+          >
+            <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="12 2 2 7 12 12 22 7 12 2" />
+              <polyline points="2 17 12 22 22 17" />
+              <polyline points="2 12 12 17 22 12" />
+            </svg>
+          </button>
+        </div>
+
+        <LayerDrawer
+          open={drawerOpen}
+          onClose={handleDrawerToggle}
+          layersContent={
+            <>
+              <div className={styles.viewControls}>
+                <button
+                  type="button"
+                  className={styles.viewControlButton}
+                  data-active={followSelectedAircraft}
+                  onClick={handleFollowSelectedAircraftToggle}
+                >
+                  Follow selected aircraft
+                </button>
+                <button type="button" className={styles.viewControlButton} onClick={handleJumpToLocation}>
+                  My location
+                </button>
+              </div>
+
+              <div className={styles.layersScroll}>
+                <AccordionGroup
+                  title="Aviation"
+                  description="Airports, airspace & restrictions"
+                  count={`${aviationOnCount}/7 on`}
+                  defaultOpen
+                >
+                  <LayerToggleRow name="Airports" checked={airportsVisible} onToggle={handleAirportsToggle} />
+                  <LayerToggleRow name="OpenAIP TMS" checked={openAipVisible} onToggle={handleOpenAipToggle} />
+                  <LayerToggleRow name="TFRs" checked={tfrVisible} onToggle={handleTfrToggle} />
+                  <LayerToggleRow
+                    name="Special Use Airspace"
+                    checked={suaVisible}
+                    onToggle={handleSuaToggle}
+                  />
+                  <LayerToggleRow
+                    name="Airspace Boundaries"
+                    checked={airspaceBoundariesVisible}
+                    onToggle={handleAirspaceBoundariesToggle}
+                  />
+                  <LayerToggleRow
+                    name="Military Bases"
+                    checked={militaryVisible}
+                    onToggle={handleMilitaryToggle}
+                  />
+                  <LayerToggleRow name="Aircraft" checked={aircraftVisible} onToggle={handleAircraftToggle} />
+                </AccordionGroup>
+
+                <AccordionGroup
+                  title="Location"
+                  description="Feeder position & reception range"
+                  count={`${locationOnCount}/4 on`}
+                >
+                  <LayerToggleRow
+                    name="Transponder Location"
+                    checked={userLocationVisible}
+                    onToggle={handleUserLocationToggle}
+                  />
+                  <LayerToggleRow
+                    name="Actual Range Outline"
+                    checked={rangeOutlineVisible}
+                    onToggle={handleRangeOutlineToggle}
+                  />
+                  <LayerToggleRow
+                    name="Terrain-Based Range Outline"
+                    checked={terrainOutlineVisible}
+                    onToggle={handleTerrainOutlineToggle}
+                  />
+                  <LayerToggleRow
+                    name="Range Rings"
+                    checked={rangeRingsVisible}
+                    onToggle={handleRangeRingsToggle}
+                  />
+                </AccordionGroup>
+
+                <AccordionGroup
+                  title="Environmental"
+                  description="Weather & ground conditions"
+                  count={`${environmentalOnCount}/6 on`}
+                >
+                  <AccordionGroup title="Weather" count={`${weatherOnCount}/5 on`} nested>
+                    <LayerToggleRow
+                      name="RainViewer"
+                      checked={rainViewerVisible}
+                      onToggle={handleRainViewerToggle}
+                    />
+                    <LayerToggleRow name="NEXRAD" checked={nexradVisible} onToggle={handleNexradToggle} />
+                    <LayerToggleRow
+                      name="NOAA Radar"
+                      checked={noaaRadarVisible}
+                      onToggle={handleNoaaRadarToggle}
+                    />
+                    <LayerToggleRow
+                      name="DWD RADOLAN"
+                      checked={dwdRadolanVisible}
+                      onToggle={handleDwdRadolanToggle}
+                    />
+                    <LayerToggleRow
+                      name="NOAA Infrared"
+                      checked={noaaInfraredVisible}
+                      onToggle={handleNoaaInfraredToggle}
+                    />
+                  </AccordionGroup>
+                  <LayerToggleRow
+                    name="Day/Night Terminator"
+                    checked={terminatorVisible}
+                    onToggle={handleTerminatorToggle}
+                  />
+                  <LayerToggleRow name="Wildfires" tag="soon" checked={false} onToggle={() => {}} disabled />
+                </AccordionGroup>
+              </div>
+            </>
+          }
+          aircraftContent={
+            <PlaneListingPanel
+              siteLocation={siteLocation}
+              selectedHex={selectedAircraftHex}
+              onAircraftClick={handleAircraftClick}
+            />
+          }
+        />
       </div>
       <AircraftOverlay info={selectedAircraftInfo} onClose={() => handleAircraftClick(null)} />
       <AircraftColorDock

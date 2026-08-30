@@ -1,0 +1,191 @@
+.wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 16px;
+  font-size: 11px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+.tableWrap {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: color-mix(in srgb, var(--panel) 96%, transparent);
+  backdrop-filter: blur(6px);
+  text-align: left;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.table thead th:hover {
+  color: var(--text);
+}
+
+.sorted {
+  color: var(--accent);
+}
+
+.sortIcon {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-left: 4px;
+  opacity: 0.7;
+}
+
+.right {
+  text-align: right;
+}
+
+.center {
+  text-align: center;
+}
+
+.table tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table tbody tr:nth-child(odd) {
+  background: var(--row-alt);
+}
+
+.table tbody tr:hover {
+  background: var(--row-hover);
+}
+
+/* Source-bucket row tints (design.md Decision 15) — same buckets as the
+ * Source filter's chips. Selectors are qualified with `.table tbody tr` (the
+ * same specificity as the alternating-row-background rule above) so a row's
+ * source tint always wins over plain odd/even striping regardless of source
+ * order; the hover rule stays a plain flat color on top since a hover
+ * highlight doesn't need to preserve the tint underneath. Colors are
+ * blended toward `--panel` so this app's light text stays readable over
+ * every tint. */
+.table tbody tr.rowAdsb {
+  background: color-mix(in srgb, #4a90d9 22%, var(--panel));
+}
+
+.table tbody tr.rowUatAdsr {
+  background: color-mix(in srgb, #4caf50 20%, var(--panel));
+}
+
+.table tbody tr.rowMlat {
+  background: color-mix(in srgb, #b5a642 22%, var(--panel));
+}
+
+.table tbody tr.rowTisb {
+  background: color-mix(in srgb, #a13d3d 22%, var(--panel));
+}
+
+.table tbody tr.rowModeS {
+  background: color-mix(in srgb, #6b5fc9 22%, var(--panel));
+}
+
+.table tbody tr.rowOther {
+  background: var(--panel);
+}
+
+.clickableRow {
+  cursor: pointer;
+}
+
+/* Selected-row highlight — defined after the source-tint rules above so it
+ * wins the equal-specificity tie when a row carries both a source class and
+ * this one (clicking a table row selects that aircraft, same as clicking its
+ * icon on the map; the highlight tracks selectedHex regardless of which way
+ * the selection was made). An inset outline is used instead of overriding
+ * `background` so the row's source tint stays visible underneath. */
+.table tbody tr.rowSelected {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.callsignCell {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.muted {
+  color: var(--text-faint);
+}
+
+.flagImg {
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+.badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 5px;
+  letter-spacing: 0.02em;
+}
+
+.badgeEmerg {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: rgba(251, 97, 97, 0.16);
+  color: var(--red);
+}
+
+.badgeMil {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: var(--accent-glow);
+  color: var(--accent);
+}
+
+.vrUp {
+  color: var(--green);
+}
+
+.vrDown {
+  color: var(--red);
+}
+
+.vrLevel {
+  color: var(--text-faint);
+}
+
+.emptyRow td {
+  text-align: center;
+  padding: 36px 12px;
+  color: var(--text-faint);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+}

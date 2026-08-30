@@ -1,0 +1,39 @@
+/* Top-level Layers/Aircraft tab bar (design.md Decision 17) — a filled
+   segmented-button treatment, deliberately distinct from the Aircraft tab's
+   own nested Search/Filters/Columns underline-style sub-tab-nav
+   (`PlaneListingPanel.module.css`'s `.tabnav`/`.tabButton`), so the two
+   levels of tabs are visually distinguishable at a glance. */
+.tabs {
+  display: flex;
+  gap: 6px;
+  padding: 10px 16px;
+  flex-shrink: 0;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  flex: 1;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  text-align: center;
+}
+
+.tab:hover:not([data-active="true"]) {
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.tab[data-active="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}

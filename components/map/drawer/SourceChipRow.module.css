@@ -1,0 +1,71 @@
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  background: var(--row-alt);
+  color: var(--text-faint);
+  opacity: 0.55;
+}
+
+.chip[data-selected="true"] {
+  opacity: 1;
+  border-color: currentColor;
+}
+
+.chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.3;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.adsb {
+  color: #4a90d9;
+}
+
+.uat_adsr {
+  color: #4caf50;
+}
+
+.mlat {
+  color: #b5a642;
+}
+
+.tisb {
+  color: #a13d3d;
+}
+
+.mode_s {
+  color: #6b5fc9;
+}
+
+.other {
+  color: var(--text-faint);
+}
+
+.acars {
+  color: var(--text-faint);
+}
