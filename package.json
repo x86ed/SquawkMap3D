@@ -1,10 +1,6 @@
 {
   "name": "squawkmap3d",
-<<<<<<< HEAD
   "version": "0.22.3",
-=======
-  "version": "0.19.0",
->>>>>>> acb727f (0.19.0)
   "description": "an adsb map",
   "keywords": [
     "ADSB",
