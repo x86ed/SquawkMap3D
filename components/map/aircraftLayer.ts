@@ -311,64 +311,66 @@ export function buildAircraftLayers(params: {
         }
       }
     }
+
+    trackLayer = new PathLayer<TrackSegment>({
+      id: AIRCRAFT_TRACK_LAYER_ID,
+      data: segments,
+      getPath: (d) => d.path,
+      getColor: (d) => [...d.color, d.alpha],
+      getWidth: 2,
+      widthUnits: "pixels",
+      pickable: false,
+    });
+
+    // Always-on track glow (design.md Decision 4) — a second, wider,
+    // lower-opacity pass over the exact same `segments` array already built
+    // above for `trackLayer` (no new loop), colored as a brightened variant
+    // of each segment's own resolved color, purely additive beneath the
+    // crisp original line. The glow's own fixed alpha is scaled by the
+    // segment's own fade fraction so the glow dims in lockstep with the line
+    // rather than staying at constant brightness under a fading line.
+    trackGlowLayer = new PathLayer<TrackSegment>({
+      id: AIRCRAFT_TRACK_GLOW_LAYER_ID,
+      data: segments,
+      getPath: (d) => d.path,
+      getColor: (d) => {
+        const [r, g, b] = brightenColor(d.color, AIRCRAFT_GLOW_BRIGHTEN_AMOUNT);
+        return [r, g, b, Math.round(AIRCRAFT_TRACK_GLOW_ALPHA * (d.alpha / 255))];
+      },
+      getWidth: AIRCRAFT_TRACK_GLOW_WIDTH_PIXELS,
+      widthUnits: "pixels",
+      pickable: false,
+    });
+
+    // Ground "curtain" beneath the trail (design.md Decision 3) — a small
+    // number of stacked, decreasing-alpha PathLayer bands approximating a
+    // continuous vertical gradient from the trail's own color down to fully
+    // transparent at the ground, built from the decimated marker subset
+    // above.
+    curtainLayer = new PathLayer<CurtainBand>({
+      id: AIRCRAFT_TRACK_CURTAIN_LAYER_ID,
+      data: curtainBands,
+      getPath: (d) => d.path,
+      getColor: (d) => d.color,
+      getWidth: AIRCRAFT_TRACK_CURTAIN_WIDTH_PIXELS,
+      widthUnits: "pixels",
+      pickable: false,
+    });
+
+    // Dotted ground-reference droplines (design.md Decision 4) — fixed
+    // neutral color regardless of the active color mode, since this is a
+    // technical "how far above the ground was this point" cue, not
+    // data-carrying.
+    droplineLayer = new ScatterplotLayer<DroplineDot>({
+      id: AIRCRAFT_TRACK_DROPLINE_LAYER_ID,
+      data: droplineDots,
+      getPosition: (d) => d.position,
+      getFillColor: [...AIRCRAFT_TRACK_DROPLINE_COLOR, AIRCRAFT_TRACK_DROPLINE_ALPHA],
+      getRadius: AIRCRAFT_TRACK_DROPLINE_DOT_RADIUS_PIXELS,
+      radiusUnits: "pixels",
+      pickable: false,
+    });
   }
-
-  const trackLayer = new PathLayer<TrackSegment>({
-    id: AIRCRAFT_TRACK_LAYER_ID,
-    data: segments,
-    getPath: (d) => d.path,
-    getColor: (d) => [...d.color, d.alpha],
-    getWidth: 2,
-    widthUnits: "pixels",
-    pickable: false,
-  });
-
-  // Always-on track glow (design.md Decision 4) — a second, wider,
-  // lower-opacity pass over the exact same `segments` array already built
-  // above for `trackLayer` (no new loop), colored as a brightened variant of
-  // each segment's own resolved color, purely additive beneath the crisp
-  // original line. The glow's own fixed alpha is scaled by the segment's own
-  // fade fraction so the glow dims in lockstep with the line rather than
-  // staying at constant brightness under a fading line.
-  const trackGlowLayer = new PathLayer<TrackSegment>({
-    id: AIRCRAFT_TRACK_GLOW_LAYER_ID,
-    data: segments,
-    getPath: (d) => d.path,
-    getColor: (d) => {
-      const [r, g, b] = brightenColor(d.color, AIRCRAFT_GLOW_BRIGHTEN_AMOUNT);
-      return [r, g, b, Math.round(AIRCRAFT_TRACK_GLOW_ALPHA * (d.alpha / 255))];
-    },
-    getWidth: AIRCRAFT_TRACK_GLOW_WIDTH_PIXELS,
-    widthUnits: "pixels",
-    pickable: false,
-  });
-
-  // Ground "curtain" beneath the trail (design.md Decision 3) — a small
-  // number of stacked, decreasing-alpha PathLayer bands approximating a
-  // continuous vertical gradient from the trail's own color down to fully
-  // transparent at the ground, built from the decimated marker subset above.
-  const curtainLayer = new PathLayer<CurtainBand>({
-    id: AIRCRAFT_TRACK_CURTAIN_LAYER_ID,
-    data: curtainBands,
-    getPath: (d) => d.path,
-    getColor: (d) => d.color,
-    getWidth: AIRCRAFT_TRACK_CURTAIN_WIDTH_PIXELS,
-    widthUnits: "pixels",
-    pickable: false,
-  });
-
-  // Dotted ground-reference droplines (design.md Decision 4) — fixed neutral
-  // color regardless of the active color mode, since this is a technical
-  // "how far above the ground was this point" cue, not data-carrying.
-  const droplineLayer = new ScatterplotLayer<DroplineDot>({
-    id: AIRCRAFT_TRACK_DROPLINE_LAYER_ID,
-    data: droplineDots,
-    getPosition: (d) => d.position,
-    getFillColor: [...AIRCRAFT_TRACK_DROPLINE_COLOR, AIRCRAFT_TRACK_DROPLINE_ALPHA],
-    getRadius: AIRCRAFT_TRACK_DROPLINE_DOT_RADIUS_PIXELS,
-    radiusUnits: "pixels",
-    pickable: false,
-  });
 
   // Rotorcraft rotor-disc accent (design.md Decision 8, revised): a second,
   // smaller `IconLayer` for category-A7 aircraft only, positioned at the
@@ -406,6 +408,16 @@ export function buildAircraftLayers(params: {
   // new ground droplines, then the crisp track line, rotor accent, and icons
   // on top (rotor drawn just before the icon so the fuselage silhouette
   // isn't hidden underneath it). Relative order between trackGlowLayer/
-  // curtainLayer/droplineLayer is left to visual tuning (tasks.md 6.3).
-  return [iconGlowLayer, curtainLayer, trackGlowLayer, droplineLayer, trackLayer, rotorLayer, iconLayer];
+  // curtainLayer/droplineLayer is left to visual tuning (tasks.md 6.3). The
+  // four track-related layers are `null` (and simply omitted) when
+  // `tracksVisible` is false.
+  return [
+    iconGlowLayer,
+    curtainLayer,
+    trackGlowLayer,
+    droplineLayer,
+    trackLayer,
+    rotorLayer,
+    iconLayer,
+  ].filter((layer): layer is Layer => layer !== null);
 }
