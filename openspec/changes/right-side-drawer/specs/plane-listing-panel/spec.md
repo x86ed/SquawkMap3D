@@ -26,6 +26,46 @@ The plane listing panel SHALL present a tab navigation with Search, Filters, and
 - **WHEN** the user selects the Filters tab and applies a filter (e.g. altitude range, distance range)
 - **THEN** the table's visible rows are filtered to aircraft matching the applied filter criteria
 
+### Requirement: Full filter-field set matching this app's underlying feeder stack
+The Filters tab SHALL provide the following filters, each independently applicable and all simultaneously combinable (an aircraft SHALL be shown only if it matches every currently-active filter):
+- Altitude range (min/max)
+- Distance range (min/max)
+- Callsign (substring)
+- Squawk (substring)
+- Registration (substring)
+- ICAO hex ID (substring)
+- Type code (substring, matching the same value as the Type column)
+- Type description (substring, matching the type code's decoded description)
+- Route (substring, matching the resolved Route value)
+- Country of registration (substring, matching either the resolved country's code or name)
+- Category (substring, matching the ADS-B emitter category)
+- Source (multi-select: ADS-B, UAT/ADS-R, MLAT, TIS-B, Mode-S, Other, ACARS — an aircraft matches if its source bucket is one of the currently-selected chips, or if no chip is selected)
+- DB flags (multi-select: Military, PIA, LADD — an aircraft matches if it has any of the currently-selected flags set, or if none is selected)
+
+#### Scenario: Multiple simultaneous field filters narrow the row set together
+- **WHEN** the user sets both a Callsign filter and an Altitude range filter
+- **THEN** only aircraft matching both the callsign substring and the altitude range are shown
+
+#### Scenario: Type description filter matches on decoded description, not the raw code
+- **WHEN** the user enters a Type description filter value that matches a known type code's decoded description but not the code itself
+- **THEN** aircraft whose type code decodes to a matching description are shown
+
+#### Scenario: Source multi-select filters by resolved source bucket
+- **WHEN** the user selects one or more Source chips (e.g. "ADS-B" and "MLAT")
+- **THEN** only aircraft whose resolved source bucket matches one of the selected chips are shown
+
+#### Scenario: ACARS source chip has no matching data
+- **WHEN** the user views the Source chip row
+- **THEN** the ACARS chip is present but disabled, since this application has no ACARS data source, and selecting it has no effect
+
+#### Scenario: DB flags multi-select filters by Military/PIA/LADD
+- **WHEN** the user selects one or more DB-flag chips (e.g. "Military")
+- **THEN** only aircraft with at least one of the selected flags set are shown
+
+#### Scenario: No filter values set shows all aircraft
+- **WHEN** the Filters tab has no field filled in and no chips selected
+- **THEN** the table shows every currently-tracked aircraft, unfiltered by this tab (still subject to Search tab text if any is entered)
+
 #### Scenario: Columns tab toggles column visibility
 - **WHEN** the user selects the Columns tab and toggles a column's checkbox
 - **THEN** the table adds or removes that column from its currently displayed columns, without affecting the current sort or filter state
@@ -112,3 +152,18 @@ The search text, every filter's current value, and column visibility SHALL each 
 #### Scenario: Clear all resets and wipes persisted state in one action
 - **WHEN** the user activates "Clear all"
 - **THEN** search text is emptied, every filter is reset to its default, every column returns to the default-visible set, the table reflects all of this immediately, and no persisted state for this panel remains in `localStorage`
+
+### Requirement: Table rows are color-coded by source, with a shared, always-visible legend/filter chip row
+Each table row SHALL render with a background tint corresponding to its resolved source bucket (ADS-B, UAT/ADS-R, MLAT, TIS-B, Mode-S, or Other — the same buckets as the Source filter). The same Source chip row SHALL also render pinned beneath the table at all times, regardless of which tab (Search/Filters/Columns) is active, acting as both a legend and a live shortcut to the Source filter.
+
+#### Scenario: Row background reflects its source bucket
+- **WHEN** an aircraft's resolved source bucket is known
+- **THEN** that aircraft's row renders with the background tint associated with that bucket, distinguishable from rows in a different bucket
+
+#### Scenario: Legend chip row is visible beneath the table regardless of active tab
+- **WHEN** the drawer is open and any of Search, Filters, or Columns is the active tab
+- **THEN** the Source chip row is visible pinned beneath the table
+
+#### Scenario: Clicking a legend chip toggles the Source filter
+- **WHEN** the user clicks a chip in the pinned legend row beneath the table
+- **THEN** that source bucket's filter state toggles exactly as if the same chip had been clicked from within the Filters tab, and the table's visible rows update accordingly

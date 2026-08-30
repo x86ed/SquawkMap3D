@@ -4,6 +4,9 @@
 - [x] 1.2 In `Aircraft`, add `messages?: number`, `rssi?: number`, `sourceType?: string` (avoids clashing with the `type` keyword, same convention as `typeDesignator`), `isMilitary?: boolean`, `windDirection?: number`, `windSpeed?: number`, each with a doc comment citing the raw readsb field name.
 - [x] 1.3 In `normalize()`, map `raw.messages` → `messages`, `raw.rssi` → `rssi`, `raw.type` → `sourceType`, `(raw.dbFlags ?? 0) & 1` → `isMilitary` (boolean), `raw.wd` → `windDirection`, `raw.ws` → `windSpeed`.
 - [x] 1.4 Add/update unit tests for `normalize()` covering the new fields present, absent, and `dbFlags` bit-flag edge cases (0, 1, other bits set without bit 0).
+- [ ] 1.5 In `RawAircraftJson`/`Aircraft`, add `category?: string`, mapped straight through in `normalize()` from `raw.category` (no transformation, unlike the bit-flag fields) — design.md Decision 14.
+- [ ] 1.6 In `Aircraft`, add `isPia?: boolean` and `isLadd?: boolean`, derived in `normalize()` from `dbFlags` bits `0x4` and `0x8` respectively, alongside the existing `isMilitary` (bit `0x1`) derivation — design.md Decision 14.
+- [ ] 1.7 Add/update unit tests for `category` passthrough and the `isPia`/`isLadd` bit-flag derivations (present, absent, combined with `isMilitary` and with each other).
 
 ## 2. Shared flight-route cache (no additional throttling — design.md Decision 9)
 
@@ -18,6 +21,9 @@
 - [x] 3.2 Add `components/map/data/airlineDesignators.json`, a vendored ICAO 3-letter callsign-prefix → airline-name table built from OpenFlights' `airlines.dat` (design.md Decision 11) — filter to rows with a non-`\N`, non-empty ICAO code, keep only `{icao, name}`, drop rows OpenFlights marks defunct/inactive; document the source/filter in a comment/README note near the file, same convention as `aircraftRareness.json`'s sourcing comment in `aircraftRarity.ts`.
 - [x] 3.3 Add `components/map/airlineLookup.ts` exporting `airlineNameForCallsign(callsign: string | undefined): string | null` — extracts the leading alphabetic prefix and looks it up in 3.2's table, returning `null` for no match.
 - [x] 3.4 Add unit tests for both lookups: known prefix, unknown prefix, missing/empty input.
+- [ ] 3.5 In `registrationCountry.ts`, add `countryNameForCode(code: string | undefined): string | null` backed by a code→name table (extend `registrationPrefixes.json`'s data or add a small sibling table) — design.md Decision 14, needed for the Country-of-registration filter.
+- [ ] 3.6 Add `components/map/data/typeDescriptions.json`, a vendored ICAO aircraft-type-designator → description table (source: a public ICAO Doc 8643 / FAA aircraft-characteristics derivative; document the source, same convention as 3.2), and `components/map/typeDescriptionLookup.ts` exporting `typeDescriptionForCode(typeDesignator: string | undefined): string | null` — design.md Decision 14. Used only by the Type-description filter, not rendered as a column.
+- [ ] 3.7 Add unit tests for `countryNameForCode()` and `typeDescriptionForCode()`: known code, unknown code, missing/empty input.
 
 ## 4. Drawer shell and top-right cluster
 
@@ -28,6 +34,8 @@
 - [x] 4.5 Update `MapView.module.css`: shrink `.controls` to the 3-item cluster's layout; remove now-unused per-button styles that move to the drawer's own CSS modules.
 - [x] 4.6 Confirm `ColorModeLegendDock`'s `right: 210px` offset (sized to clear the old button column) is revisited — it should clear the new, much narrower 3-item cluster instead; adjust the constant/comment in `ColorModeLegendDock.module.css` accordingly.
 - [x] 4.7 In `LayerDrawer.module.css`: below the `640px` breakpoint, drawer expands to `width: 100vw`; in `MapView.tsx`/`.module.css`, hide the top-right cluster while `drawerOpen` is true at that breakpoint (design.md Decision 12), matching the reference file's mobile CSS as a starting point.
+- [ ] 4.8 Add a drag handle to `LayerDrawer.tsx`'s left edge (rendered/active only at/above the `640px` breakpoint): `pointerdown`/`pointermove`/`pointerup` handlers adjusting a `--drawer-w` CSS custom property, clamped to `[360px, min(900px, 90vw)]` — design.md Decision 16.
+- [ ] 4.9 Persist the resized width to `localStorage` under its own key (same convention as the columns/filters keys), restored on mount; add unit/integration coverage for the clamp bounds and persistence round-trip.
 
 ## 5. Accordion primitive
 
@@ -67,6 +75,10 @@
 - [x] 10.2 Implement the tab nav (Search / Filters / Columns), each tab's panel visible/hidden via a `hidden` attribute, matching the reference file's `.tabnav`/`.tabpanel` structure.
 - [x] 10.3 Search tab: text input filtering the row set by callsign, registration, and hex ID (case-insensitive substring match).
 - [x] 10.4 Filters tab: at minimum altitude range and distance range numeric filters, plus a military-only filter (using the new `isMilitary` field from task 1).
+- [ ] 10.4a Expand the Filters tab to the full field set from design.md Decision 14: Callsign, Squawk, Registration, ICAO hex ID, Type code, Type description (via task 3.6's lookup), Route, Country of registration (via task 3.5's lookup), and Category (task 1.5) text filters — each independent and simultaneously combinable with every other active filter (including altitude/distance range).
+- [ ] 10.4b Add `components/map/drawer/SourceChipRow.tsx` + `.module.css`: a multi-select row of colored toggle chips for the 7 source buckets (ADS-B, UAT/ADS-R, MLAT, TIS-B, Mode-S, Other, ACARS) per design.md Decision 14's bucket mapping — the ACARS chip renders disabled/no-op (no data source). Selecting one or more chips filters to aircraft whose `sourceType` bucket matches; none selected = no filtering by source.
+- [ ] 10.4c Add a DB-flags chip row (Military, PIA, LADD) using `isMilitary`/`isPia`/`isLadd` (tasks 1.2/1.6) — replaces the plain military-only boolean from 10.4; matches if any selected flag is set, none selected = no filtering by DB flags.
+- [ ] 10.4d Extend the persistence/reset logic from 10.5a to cover every new filter field and both chip rows' selection state (same `localStorage` keys already used for filters — no new keys needed unless the data shape requires it).
 - [x] 10.5 Columns tab: checkboxes for every `COLUMNS` entry, toggling visibility; "reset to defaults" and "show all" actions; persist the current visible-column set to `localStorage` under a new key (mirroring `theme.ts`'s `THEME_STORAGE_KEY` pattern), restored on mount.
 - [x] 10.5a Persist Search tab's text and Filters tab's current values to their own `localStorage` keys (design.md Decision 13), restored on mount alongside columns. Add a "Clear all" action (Columns tab, alongside 10.5's reset actions) that resets search/filters/columns to defaults and removes all three `localStorage` keys in one action.
 - [x] 10.6 Route/Airline resolution: for each row needing a route, call `getCachedFlightRoute()` (task 2) — no per-row-per-poll re-fetch of an already-cached key, and no additional throttling beyond that shared cache (design.md Decision 9); derive Airline synchronously via `airlineLookup.ts` (no network call).
@@ -77,6 +89,8 @@
 - [x] 11.2 Implement click-to-sort on column headers: first click on a new column sorts ascending, clicking the active sort column again reverses to descending, per `plane-listing-panel`'s spec.
 - [x] 11.3 Empty state: render a single "no aircraft match" (or "no aircraft tracked") row spanning all visible columns when the filtered row set is empty.
 - [x] 11.4 Row count / status line ("Showing N of M aircraft") above or below the table, matching the reference file's `.table-status`.
+- [ ] 11.5 In `PlaneTable.module.css`: add a CSS class per source bucket (ADS-B, UAT/ADS-R, MLAT, TIS-B, Mode-S, Other) giving each table row a background tint per design.md Decision 15; apply the class based on each row's resolved `sourceType` bucket (same bucketing as task 10.4b).
+- [ ] 11.6 Render `SourceChipRow` (task 10.4b) pinned beneath `PlaneTable`, visible regardless of the active Search/Filters/Columns tab, sharing the exact same selection state as the Filters tab's copy — clicking a chip here toggles the same Source filter.
 
 ## 12. Verification
 
@@ -89,3 +103,6 @@
 - [ ] 12.7 Manually verify Route/Airline lookups: Airline resolves instantly with no network call; selecting an aircraft on the map (`AircraftOverlay`) and seeing its route listed in the table for the same callsign do not trigger two separate `adsb.im` requests — confirm the cache is shared (verify via browser network tab), and that no artificial delay/staggering was introduced versus today's behavior.
 - [ ] 12.8 Manually verify the drawer/table on a narrow/mobile viewport per the reference file's mobile breakpoint behavior.
 - [x] 12.9 Run `npm run lint`, `npm test`, and `npx tsc --noEmit` — confirm all clean.
+- [ ] 12.10 Manually verify every new Filters-tab field (Callsign, Squawk, Registration, ICAO hex ID, Type code, Type description, Route, Country of registration, Category) narrows the table correctly, alone and combined with others; verify Source and DB-flags chip rows filter correctly and the ACARS chip is inert.
+- [ ] 12.11 Manually verify table rows are visibly tinted by source bucket, and the pinned chip row beneath the table stays visible across all three tabs and toggles the same filter state as the Filters tab's copy.
+- [ ] 12.12 Manually verify dragging the drawer's left-edge handle resizes it within bounds, the width persists across close/reopen and reload, and the handle disappears at the mobile breakpoint.

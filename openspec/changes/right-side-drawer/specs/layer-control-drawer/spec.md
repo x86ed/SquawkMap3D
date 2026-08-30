@@ -105,3 +105,18 @@ Below a mobile viewport-width breakpoint, the drawer SHALL expand to cover the e
 #### Scenario: Cluster stays visible above the mobile breakpoint
 - **WHEN** the viewport width is at or above the mobile breakpoint
 - **THEN** the top-right cluster remains visible regardless of whether the drawer is open or closed
+
+### Requirement: Drawer width is resizable via a drag handle, and persists
+At or above the mobile breakpoint, the drawer SHALL display a drag handle on its left edge that lets the user resize its width by dragging. The resulting width SHALL persist across drawer close/reopen and page reloads, within a minimum and maximum bound.
+
+#### Scenario: Dragging the handle resizes the drawer
+- **WHEN** the user drags the left-edge handle
+- **THEN** the drawer's width changes to follow the drag, staying within its minimum and maximum bounds
+
+#### Scenario: Resized width persists across reopen and reload
+- **WHEN** the user resizes the drawer, then closes and reopens it, or reloads the page and reopens it
+- **THEN** the drawer opens at the previously resized width
+
+#### Scenario: Resize handle is absent on the mobile full-screen breakpoint
+- **WHEN** the viewport width is below the mobile breakpoint
+- **THEN** no resize handle is shown, since the drawer is already forced to full viewport width
