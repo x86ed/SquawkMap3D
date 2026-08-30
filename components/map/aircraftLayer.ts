@@ -1,19 +1,22 @@
 import type { Layer } from "@deck.gl/core";
-import { IconLayer, PathLayer, ScatterplotLayer } from "@deck.gl/layers";
+import { IconLayer, PathLayer } from "@deck.gl/layers";
 import type { Aircraft, TrackPoint } from "./aircraft";
 import {
+  brightenColor,
   type ColorMode,
-  hexColorToRgb,
+  glowIconKey,
   resolveAircraftColor,
   resolveIconKey,
   resolveTrackPointColor,
   ROTOR_ACCENT_KEY,
   type IconAtlas,
 } from "./aircraftIcons";
-import { computeRarityTier, RARITY_TIER_STYLES } from "./aircraftRarity";
 import {
-  AIRCRAFT_SELECTION_GLOW_ALPHA,
-  AIRCRAFT_SELECTION_GLOW_RADIUS_PIXELS,
+  AIRCRAFT_GLOW_BRIGHTEN_AMOUNT,
+  AIRCRAFT_ICON_GLOW_ALPHA,
+  AIRCRAFT_ICON_GLOW_SIZE_PIXELS,
+  AIRCRAFT_TRACK_GLOW_ALPHA,
+  AIRCRAFT_TRACK_GLOW_WIDTH_PIXELS,
   TERRAIN_EXAGGERATION,
 } from "./constants";
 
@@ -21,6 +24,8 @@ export const AIRCRAFT_ICON_LAYER_ID = "aircraft-icons";
 export const AIRCRAFT_TRACK_LAYER_ID = "aircraft-tracks";
 export const AIRCRAFT_SELECTION_GLOW_LAYER_ID = "aircraft-selection-glow";
 export const AIRCRAFT_ROTOR_ACCENT_LAYER_ID = "aircraft-rotor-accent";
+export const AIRCRAFT_ICON_GLOW_LAYER_ID = "aircraft-icon-glow";
+export const AIRCRAFT_TRACK_GLOW_LAYER_ID = "aircraft-track-glow";
 
 const ROTORCRAFT_CATEGORY = "A7";
 const ROTOR_ACCENT_SIZE_PIXELS = 22;
@@ -70,7 +75,6 @@ export function buildAircraftLayers(params: {
   aircraft: Aircraft[];
   tracks: ReadonlyMap<string, TrackPoint[]>;
   iconAtlas: IconAtlas | null;
-  selectedHex: string | null;
   colorMode: ColorMode;
   onAircraftClick: (hex: string | null) => void;
   onAircraftHover: (
@@ -79,8 +83,7 @@ export function buildAircraftLayers(params: {
     y: number,
   ) => void;
 }): Layer[] {
-  const { aircraft, tracks, iconAtlas, selectedHex, colorMode, onAircraftClick, onAircraftHover } =
-    params;
+  const { aircraft, tracks, iconAtlas, colorMode, onAircraftClick, onAircraftHover } = params;
   if (!iconAtlas) return [];
 
   const positioned = aircraft.filter(
@@ -140,25 +143,39 @@ export function buildAircraftLayers(params: {
     onHover: (info) => onAircraftHover(info.object ?? null, info.x, info.y),
   });
 
-  const selectedAircraft = selectedHex
-    ? positioned.find((a) => a.hex === selectedHex)
-    : undefined;
+  // Selection glow highlight (`AIRCRAFT_SELECTION_GLOW_LAYER_ID`) is no
+  // longer built here — it now pulses continuously while selected, which
+  // requires a per-frame rebuild `buildAircraftLayers()`'s own ~1s
+  // feeder-poll cadence can't provide. It lives on its own dedicated,
+  // requestAnimationFrame-driven overlay instead (selectionPulse.ts's
+  // buildSelectionPulseLayer(), wired up in MapView.tsx — see
+  // aircraft-selection-pulse's design.md Decision 1).
 
-  // Glow highlight (design.md Decision 4): a second, larger, semi-transparent
-  // ScatterplotLayer circle rendered underneath the icon at the same
-  // position, colored by the selected aircraft's computed rarity tier. Only
-  // ever zero or one element — no highlight when nothing is selected or the
-  // selected aircraft has dropped out of the current positioned set.
-  const glowLayer = new ScatterplotLayer<Aircraft & { lat: number; lon: number }>({
-    id: AIRCRAFT_SELECTION_GLOW_LAYER_ID,
-    data: selectedAircraft ? [selectedAircraft] : [],
+  // Always-on per-aircraft icon glow (design.md Decision 3) — unlike the
+  // selection-pulse ring (selected aircraft only, fixed rarity color), this
+  // renders for every currently rendered aircraft (`positioned`, same array
+  // `iconLayer` uses), colored as a brightened variant of that same
+  // aircraft's own current `resolveAircraftColor` result, so it always
+  // matches the active color mode. Renders the aircraft's own blurred
+  // silhouette (`glowIconKey`'s atlas entry, aircraftIcons.ts), not a plain
+  // circle — larger and lower-alpha than the crisp icon so it reads as a
+  // halo behind it, and lower-alpha than the selection glow so a selected
+  // aircraft's rarity ring still stands out.
+  const iconGlowLayer = new IconLayer<Aircraft & { lat: number; lon: number }>({
+    id: AIRCRAFT_ICON_GLOW_LAYER_ID,
+    data: positioned,
+    iconAtlas: iconAtlas.image,
+    iconMapping: iconAtlas.mapping,
+    getIcon: (d) => glowIconKey(resolveIconKey(d).key),
     getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
-    getFillColor: (d) => {
-      const [r, g, b] = hexColorToRgb(RARITY_TIER_STYLES[computeRarityTier(d)].color);
-      return [r, g, b, AIRCRAFT_SELECTION_GLOW_ALPHA];
+    getAngle: (d) => -(d.track ?? 0),
+    getColor: (d) => {
+      const [r, g, b] = brightenColor(resolveAircraftColor(d, colorMode), AIRCRAFT_GLOW_BRIGHTEN_AMOUNT);
+      return [r, g, b, AIRCRAFT_ICON_GLOW_ALPHA];
     },
-    getRadius: AIRCRAFT_SELECTION_GLOW_RADIUS_PIXELS,
-    radiusUnits: "pixels",
+    getSize: AIRCRAFT_ICON_GLOW_SIZE_PIXELS,
+    sizeUnits: "pixels",
+    billboard: false,
     pickable: false,
   });
 
@@ -189,6 +206,24 @@ export function buildAircraftLayers(params: {
     getPath: (d) => d.path,
     getColor: (d) => d.color,
     getWidth: 2,
+    widthUnits: "pixels",
+    pickable: false,
+  });
+
+  // Always-on track glow (design.md Decision 4) — a second, wider,
+  // lower-opacity pass over the exact same `segments` array already built
+  // above for `trackLayer` (no new loop), colored as a brightened variant of
+  // each segment's own resolved color, purely additive beneath the crisp
+  // original line.
+  const trackGlowLayer = new PathLayer<TrackSegment>({
+    id: AIRCRAFT_TRACK_GLOW_LAYER_ID,
+    data: segments,
+    getPath: (d) => d.path,
+    getColor: (d) => {
+      const [r, g, b] = brightenColor(d.color, AIRCRAFT_GLOW_BRIGHTEN_AMOUNT);
+      return [r, g, b, AIRCRAFT_TRACK_GLOW_ALPHA];
+    },
+    getWidth: AIRCRAFT_TRACK_GLOW_WIDTH_PIXELS,
     widthUnits: "pixels",
     pickable: false,
   });
@@ -224,8 +259,12 @@ export function buildAircraftLayers(params: {
     pickable: false,
   });
 
-  // Glow beneath the trail/icons (design.md Decision 4), trail beneath
-  // icons, rotor accent and icons on top (rotor drawn just before the icon
-  // so the fuselage silhouette isn't hidden underneath it).
-  return [glowLayer, trackLayer, rotorLayer, iconLayer];
+  // Paint order, back to front: the always-on icon glow and track glow
+  // (`iconGlowLayer`, `trackGlowLayer`), both smaller/dimmer than the
+  // selected-aircraft selection-pulse ring (which now lives on its own
+  // overlay, painted separately — see selectionPulse.ts); then the crisp
+  // track line, rotor accent, and icons on top, unchanged from before (rotor
+  // drawn just before the icon so the fuselage silhouette isn't hidden
+  // underneath it).
+  return [iconGlowLayer, trackGlowLayer, trackLayer, rotorLayer, iconLayer];
 }

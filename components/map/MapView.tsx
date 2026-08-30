@@ -27,6 +27,8 @@ import {
 } from "./aircraft";
 import { buildAircraftIconAtlas, type ColorMode, type IconAtlas } from "./aircraftIcons";
 import { buildAircraftLayers } from "./aircraftLayer";
+import { computeRarityTier, RARITY_TIER_STYLES } from "./aircraftRarity";
+import { buildSelectionPulseLayer, type SelectionPulseTarget } from "./selectionPulse";
 import { AircraftColorDock } from "./controls/AircraftColorDock";
 import { AircraftHoverTooltip } from "./overlay/AircraftHoverTooltip";
 import { ColorModeLegendDock } from "./overlay/ColorModeLegendDock";
@@ -219,6 +221,21 @@ export default function MapView() {
   const rangeOutlineSweepStartRef = useRef(0);
   const rangeOutlineSweepAngleRef = useRef(0);
 
+  // Third, dedicated overlay (aircraft-selection-pulse's design.md Decision
+  // 2) — same "kept separate from the poll-driven aircraft overlay" reason
+  // as rangeOutlineOverlayRef above, but its own independent lifecycle
+  // (runs only while an aircraft is selected, unrelated to the range-outline
+  // toggle).
+  const selectionPulseOverlayRef = useRef<MapboxOverlay | null>(null);
+  const selectionPulseRafRef = useRef<number | null>(null);
+  const selectionPulseStartRef = useRef(0);
+  // Selected aircraft's last-known position/rarity color, written once per
+  // feeder poll in refreshAircraft() (same cadence/source as the existing
+  // "recenter camera on selection" lookup); the rAF loop below only reads
+  // it, position updates stay poll-cadence while radius/alpha animate every
+  // frame in between (design.md Decision 2).
+  const selectedAircraftPulseRef = useRef<SelectionPulseTarget | null>(null);
+
   const [theme, setTheme] = useState<MapTheme>(() => getInitialTheme());
   const [pilotMode, setPilotMode] = useState(false);
   const [militaryVisible, setMilitaryVisible] = useState(false);
@@ -302,17 +319,35 @@ export default function MapView() {
     if (next === null) {
       setSelectedAircraftInfo(null);
       clearFlightRouteCache();
-    } else if (
-      followSelectedAircraftRef.current &&
-      picked?.lat !== undefined &&
-      picked?.lon !== undefined &&
-      mapRef.current
-    ) {
-      mapRef.current.easeTo({
-        center: [picked.lon, picked.lat],
-        offset: getAircraftFocusOffset(),
-        duration: FOLLOW_SELECTED_AIRCRAFT_EASE_MS,
-      });
+      selectedAircraftPulseRef.current = null;
+      stopSelectionPulse();
+    } else {
+      // Seed the pulse ring's position immediately from the click's own
+      // picked aircraft, same "don't wait for the next tick" reasoning as
+      // the follow-camera recenter below — refreshAircraft() below will
+      // then keep it updated every poll.
+      if (picked?.lat !== undefined && picked?.lon !== undefined) {
+        selectedAircraftPulseRef.current = {
+          lon: picked.lon,
+          lat: picked.lat,
+          altitude: picked.altitude,
+          rarityColorHex: RARITY_TIER_STYLES[computeRarityTier(picked)].color,
+        };
+      }
+      startSelectionPulse();
+
+      if (
+        followSelectedAircraftRef.current &&
+        picked?.lat !== undefined &&
+        picked?.lon !== undefined &&
+        mapRef.current
+      ) {
+        mapRef.current.easeTo({
+          center: [picked.lon, picked.lat],
+          offset: getAircraftFocusOffset(),
+          duration: FOLLOW_SELECTED_AIRCRAFT_EASE_MS,
+        });
+      }
     }
 
     // Rebuild layers immediately (clearing/showing the glow highlight)
@@ -341,13 +376,14 @@ export default function MapView() {
       setSelectedAircraftHex(null);
       setSelectedAircraftInfo(null);
       clearFlightRouteCache();
+      selectedAircraftPulseRef.current = null;
+      stopSelectionPulse();
     }
 
     const layers = buildAircraftLayers({
       aircraft,
       tracks: getAllTracks(),
       iconAtlas: aircraftIconAtlasRef.current,
-      selectedHex: selectedAircraftHexRef.current,
       colorMode: colorModeRef.current,
       onAircraftClick: (hex) =>
         handleAircraftClick(hex, hex ? aircraft.find((a) => a.hex === hex) : undefined),
@@ -362,6 +398,19 @@ export default function MapView() {
       ? aircraft.find((a) => a.hex === selectedAircraftHexRef.current)
       : undefined;
     if (!selected) return;
+
+    // Last-known position/rarity color for the selection-pulse ring
+    // (aircraft-selection-pulse's design.md Decision 2) — only updated when
+    // a real position is present this poll, so a momentarily positionless
+    // report doesn't blank out the ring's last-known spot.
+    if (selected.lat !== undefined && selected.lon !== undefined) {
+      selectedAircraftPulseRef.current = {
+        lon: selected.lon,
+        lat: selected.lat,
+        altitude: selected.altitude,
+        rarityColorHex: RARITY_TIER_STYLES[computeRarityTier(selected)].color,
+      };
+    }
 
     // Follow: recenter on every subsequent poll while locked (design.md
     // Decision 13's "Map recenters on every refresh while following") — in
@@ -466,6 +515,45 @@ export default function MapView() {
     clearRangeOutlineFlashTimestamps();
   };
 
+  // Selection-pulse ring's own rAF loop (aircraft-selection-pulse's
+  // design.md Decisions 1-2) — mirrors rangeOutlineSweepFrame/
+  // startRangeOutlineSweep/stopRangeOutlineSweep above, but runs only while
+  // an aircraft is selected rather than while a visibility toggle is on.
+  const selectionPulseFrame = (nowMs: number) => {
+    const overlay = selectionPulseOverlayRef.current;
+    if (!overlay) return;
+
+    const layers = buildSelectionPulseLayer({
+      selected: selectedAircraftPulseRef.current,
+      nowMs,
+      pulseStartMs: selectionPulseStartRef.current,
+    });
+    overlay.setProps({ layers });
+
+    selectionPulseRafRef.current = requestAnimationFrame(selectionPulseFrame);
+  };
+
+  const startSelectionPulse = () => {
+    // Always reset phase — called both on a fresh selection and when
+    // switching selection to a different aircraft while the loop is
+    // already running, and either case should restart the pulse at the
+    // same small/full-alpha phase (design.md Decision 3), not resume
+    // mid-cycle.
+    selectionPulseStartRef.current = performance.now();
+    if (selectionPulseRafRef.current !== null) return; // loop already running
+    selectionPulseRafRef.current = requestAnimationFrame(selectionPulseFrame);
+  };
+
+  const stopSelectionPulse = () => {
+    if (selectionPulseRafRef.current !== null) {
+      cancelAnimationFrame(selectionPulseRafRef.current);
+      selectionPulseRafRef.current = null;
+    }
+    // Clears the ring immediately rather than leaving the last frame
+    // painted (mirrors stopRangeOutlineSweep's own layers-clear above).
+    selectionPulseOverlayRef.current?.setProps({ layers: [] });
+  };
+
   const handleLocationResolved = (coords: GeoCoords | null) => {
     userLocationRef.current = coords;
     setSiteLocation(coords);
@@ -559,6 +647,10 @@ export default function MapView() {
     const rangeOutlineOverlay = new MapboxOverlay({ interleaved: false, layers: [] });
     rangeOutlineOverlayRef.current = rangeOutlineOverlay;
     map.addControl(rangeOutlineOverlay);
+
+    const selectionPulseOverlay = new MapboxOverlay({ interleaved: false, layers: [] });
+    selectionPulseOverlayRef.current = selectionPulseOverlay;
+    map.addControl(selectionPulseOverlay);
 
     const deckOverlay = new MapboxOverlay({
       interleaved: false,
@@ -780,6 +872,7 @@ export default function MapView() {
       clearInterval(rangeOutlineAircraftIntervalId);
       window.removeEventListener("keydown", handleKeyDown);
       stopRangeOutlineSweep();
+      stopSelectionPulse();
       map.remove();
       mapRef.current = null;
     };

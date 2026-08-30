@@ -160,6 +160,33 @@ export const RANGE_OUTLINE_SWEEP_PERIOD_MS = 8_000;
 export const AIRCRAFT_SELECTION_GLOW_RADIUS_PIXELS = 32;
 export const AIRCRAFT_SELECTION_GLOW_ALPHA = 120;
 
+// Selection-glow pulse (components/map/selectionPulse.ts, see
+// aircraft-selection-pulse's design.md Decision 3) — the two constants above
+// are the pulse's baseline/midpoint; these add oscillation on top: one full
+// cycle every PERIOD_MS, growing by up to RADIUS_AMPLITUDE_PIXELS while
+// fading by up to ALPHA_AMPLITUDE at the wave's peak, then back down.
+export const AIRCRAFT_SELECTION_PULSE_PERIOD_MS = 1400;
+export const AIRCRAFT_SELECTION_PULSE_RADIUS_AMPLITUDE_PIXELS = 10;
+export const AIRCRAFT_SELECTION_PULSE_ALPHA_AMPLITUDE = 50;
+
+// Always-on icon/track glow (components/map/aircraftLayer.ts's icon-glow and
+// track-glow layers, see design.md Decisions 2-4) — distinct from and
+// unrelated to the selected-aircraft AIRCRAFT_SELECTION_GLOW_* block above:
+// this glow renders for every rendered aircraft/track segment (not just the
+// selected one), colored as a brightened variant of that element's own
+// active-color-mode draw color (not a fixed rarity color). Alpha'd subtler
+// than the selection glow so a selected aircraft's own rarity-colored ring
+// still stands out layered outside it.
+export const AIRCRAFT_GLOW_BRIGHTEN_AMOUNT = 0.4;
+// Icon glow renders the aircraft's own blurred silhouette (aircraftIcons.ts's
+// glowIconKey atlas entries), not a circle — sized larger than the 40px
+// crisp icon so the pre-baked blur reads as a halo around it rather than
+// being hidden underneath.
+export const AIRCRAFT_ICON_GLOW_SIZE_PIXELS = 64;
+export const AIRCRAFT_ICON_GLOW_ALPHA = 90;
+export const AIRCRAFT_TRACK_GLOW_WIDTH_PIXELS = 6;
+export const AIRCRAFT_TRACK_GLOW_ALPHA = 90;
+
 // "Follow selected aircraft" per-poll recenter duration (design.md Decision
 // 13) — short enough to track a ~1s-polled aircraft without visibly lagging
 // behind it, long enough to still read as an eased pan rather than a jump.
