@@ -1,5 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+// Must be imported before anything from "../components/map/layers" below:
+// aircraftIcons.ts and layers.ts import from each other (AIRPORT_FILL_COLOR,
+// ALTITUDE_COLOR_STOPS), and aircraftIcons.ts reads AIRPORT_FILL_COLOR at
+// module top-level. Node's ESM loader evaluates whichever side of a cycle is
+// entered first; entering via layers.ts first hits that read before
+// layers.ts has reached the point where AIRPORT_FILL_COLOR is assigned
+// (TDZ ReferenceError). No other existing test file imports layers.ts as
+// its first custom import, so this ordering landmine was previously latent.
+import "../components/map/aircraftIcons";
 import {
   addCustomLayers,
   MILITARY_FILL_LAYER_ID,
