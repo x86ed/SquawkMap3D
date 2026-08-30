@@ -2,11 +2,9 @@
 
 ## Purpose
 TBD - created by archiving change aircraft-info-overlay. Update Purpose after archive.
-
 ## Requirements
-
 ### Requirement: Overlay opens and closes with aircraft selection
-The map SHALL show a full-width bottom drawer ("the overlay") whenever an aircraft is selected, and SHALL hide it whenever no aircraft is selected. The overlay SHALL provide its own close control, and closing it SHALL deselect the aircraft (consistent with the `aircraft-tracks-layer` capability's selection/deselection requirements).
+The map SHALL show a bottom drawer ("the overlay") whenever an aircraft is selected, and SHALL hide it whenever no aircraft is selected. While the right-hand layer-control drawer (per the `layer-control-drawer` capability) is closed, the overlay SHALL span the full viewport width; while that drawer is open, the overlay's right edge SHALL stop at the layer-control drawer's left edge instead of continuing to span the full viewport width. The overlay SHALL provide its own close control, and closing it SHALL deselect the aircraft (consistent with the `aircraft-tracks-layer` capability's selection/deselection requirements).
 
 #### Scenario: Overlay opens on selection
 - **WHEN** the user selects an aircraft
@@ -23,6 +21,18 @@ The map SHALL show a full-width bottom drawer ("the overlay") whenever an aircra
 #### Scenario: Switching selected aircraft updates the open overlay
 - **WHEN** the user selects a different aircraft while the overlay is already open
 - **THEN** the overlay remains open and updates to show the newly-selected aircraft's information, without a visible close/reopen flash
+
+#### Scenario: Overlay spans the full viewport width when the layer-control drawer is closed
+- **WHEN** an aircraft is selected and the right-hand layer-control drawer is closed
+- **THEN** the overlay's bottom drawer spans the full viewport width, edge to edge
+
+#### Scenario: Overlay stops at the layer-control drawer's left edge when it's open
+- **WHEN** an aircraft is selected and the user opens the right-hand layer-control drawer
+- **THEN** the overlay's bottom drawer's right edge moves to the layer-control drawer's left edge, no longer extending underneath it
+
+#### Scenario: Overlay's content scales to the narrower available width
+- **WHEN** the overlay is open, the right-hand layer-control drawer is open, and the overlay's content would not otherwise fit in the remaining width
+- **THEN** the overlay's content (per the "Overlay is composed of four independent components" requirement's layout) scales down to fit the remaining width, the same way it already scales down for a narrow browser window, without a horizontal scrollbar
 
 ### Requirement: Overlay is composed of four independent components
 The overlay SHALL be composed of four distinct, independently-defined UI components — `PlaneCard`, `RecordPanelHero`, `TelemetryMarquee`, and `FlightInfoPane` — each implemented as its own component (own file, own props), not merged into a single monolithic drawer component. Each component SHALL render correctly given only the slice of the selected aircraft's data it needs, without depending on the others' internal state.
@@ -128,3 +138,4 @@ The overlay SHALL use a responsive layout that arranges `RecordPanelHero`, `Plan
 #### Scenario: Route/timeline shows an explicit no-data state when no route is found
 - **WHEN** the overlay is open for an aircraft whose callsign the feeder's tar1090 route lookup does not resolve to a route (e.g. general aviation with no filed route), or the route lookup fails or is unavailable for any reason
 - **THEN** `FlightInfoPane`'s route-progress and timeline elements render an explicit "no route data available" state, rather than an error or fabricated values — this is an expected, legitimate per-aircraft outcome, not exclusively an error condition
+
