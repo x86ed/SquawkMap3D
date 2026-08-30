@@ -151,9 +151,15 @@ export function PlaneListingPanel({ siteLocation }: { siteLocation: GeoCoords | 
 
   const [activeTab, setActiveTab] = useState<Tab>("search");
   const [search, setSearch] = useState<string>(() => readStoredJson<string>(SEARCH_STORAGE_KEY) ?? "");
-  const [filters, setFilters] = useState<Filters>(
-    () => readStoredJson<Filters>(FILTERS_STORAGE_KEY) ?? DEFAULT_FILTERS,
-  );
+  const [filters, setFilters] = useState<Filters>(() => ({
+    // Spread over `DEFAULT_FILTERS` (not just `?? DEFAULT_FILTERS`) so a
+    // filters object persisted by an older build of this panel — missing
+    // fields this change adds (source buckets, DB flags, the new text
+    // filters) — still restores with valid defaults for those, rather than
+    // `undefined` values breaking `.length`/`.includes` calls below.
+    ...DEFAULT_FILTERS,
+    ...(readStoredJson<Partial<Filters>>(FILTERS_STORAGE_KEY) ?? {}),
+  }));
   const [visibleColumnKeys, setVisibleColumnKeys] = useState<ColumnKey[]>(() => {
     const stored = readStoredJson<ColumnKey[]>(COLUMNS_STORAGE_KEY);
     if (!stored) return DEFAULT_VISIBLE_COLUMN_KEYS;
