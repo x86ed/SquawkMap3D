@@ -7,42 +7,18 @@ import {
   type ReactNode,
 } from "react";
 import styles from "./LayerDrawer.module.css";
+import {
+  DRAWER_DEFAULT_WIDTH,
+  clampDrawerWidth,
+  readStoredDrawerWidth,
+  writeStoredDrawerWidth,
+} from "./drawerWidth";
 
-const DRAWER_WIDTH_STORAGE_KEY = "squawkmap3d:layerDrawer:width";
-const DRAWER_MIN_WIDTH = 360;
-const DRAWER_DEFAULT_WIDTH = 452;
 /** Matches `LayerDrawer.module.css`'s own `@media (max-width: 640px)` full-
  * screen breakpoint (design.md Decision 12) — the resize handle only makes
  * sense strictly above that width, where the drawer isn't already forced to
  * 100vw (design.md Decision 16). */
 const DESKTOP_MEDIA_QUERY = "(min-width: 641px)";
-
-function clampDrawerWidth(width: number): number {
-  if (typeof window === "undefined") return width;
-  const max = Math.min(900, window.innerWidth * 0.9);
-  return Math.min(Math.max(width, DRAWER_MIN_WIDTH), max);
-}
-
-function readStoredWidth(): number | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(DRAWER_WIDTH_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredWidth(width: number): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(DRAWER_WIDTH_STORAGE_KEY, String(Math.round(width)));
-  } catch {
-    // localStorage unavailable (e.g. private browsing) — width just won't persist.
-  }
-}
 
 /**
  * Right-hand slide-out drawer shell (layer-control-drawer's "Right-hand
@@ -70,8 +46,8 @@ export function LayerDrawer({
   const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   useEffect(() => {
-    const stored = readStoredWidth();
-    if (stored !== null) setWidth(clampDrawerWidth(stored));
+    const stored = readStoredDrawerWidth();
+    if (stored !== null) setWidth(clampDrawerWidth(stored, window.innerWidth));
   }, []);
 
   useEffect(() => {
@@ -95,13 +71,13 @@ export function LayerDrawer({
     // left (negative clientX delta) widens the drawer, dragging right
     // narrows it (design.md Decision 16).
     const deltaX = event.clientX - dragState.startX;
-    setWidth(clampDrawerWidth(dragState.startWidth - deltaX));
+    setWidth(clampDrawerWidth(dragState.startWidth - deltaX, window.innerWidth));
   };
 
   const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (!dragStateRef.current) return;
     dragStateRef.current = null;
-    writeStoredWidth(width);
+    writeStoredDrawerWidth(width);
     event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
