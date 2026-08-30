@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { countryCodeForRegistration } from "../components/map/registrationCountry";
+import { countryCodeForRegistration, countryNameForCode } from "../components/map/registrationCountry";
 
 test("known single-letter prefix resolves", () => {
   assert.equal(countryCodeForRegistration("N12345"), "US");
