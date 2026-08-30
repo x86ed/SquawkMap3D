@@ -14,6 +14,19 @@ export interface ResolvedIcon {
 
 export const GENERIC_ICON_KEY = "generic";
 
+// Suffix identifying an atlas entry as the blurred glow variant of a normal
+// icon key, rather than a second, unrelated atlas key namespace — lets
+// aircraftLayer.ts's icon-glow layer render the exact same silhouette as the
+// crisp icon (just larger/blurred/tinted), instead of an unrelated shape
+// like a plain circle.
+export const GLOW_ICON_KEY_SUFFIX = "__GLOW";
+
+/** Maps a normal atlas icon key to its pre-baked blurred glow variant's key
+ * (see `GLOW_ICON_KEY_SUFFIX` and `buildAircraftIconAtlas`). */
+export function glowIconKey(key: string): string {
+  return `${key}${GLOW_ICON_KEY_SUFFIX}`;
+}
+
 const TYPE_SHAPE_URL = (typeDesignator: string) =>
   `/aircraft-shapes/${encodeURIComponent(typeDesignator)}.svg`;
 
@@ -100,6 +113,18 @@ const CELL_SIZE = 96;
 // (which samples slightly outside a tightly-packed sprite when scaling)
 // doesn't bleed into a neighboring icon in the atlas.
 const CELL_PADDING = 6;
+
+// Canvas 2D `filter: blur(...)` radius (px, at the 96px atlas cell's native
+// resolution) baked into each icon's glow variant. The glow layer's soft
+// edge comes entirely from this pre-baked alpha falloff — `mask: true`
+// (below) treats the atlas texture's alpha as per-pixel coverage, so a
+// blurred solid-white silhouette becomes a soft-edged glow of whatever color
+// the glow layer's `getColor` supplies, shaped exactly like the icon itself.
+const GLOW_BLUR_PX = 6;
+// The glow silhouette is drawn at this fraction of the normal icon's
+// drawable size, leaving headroom inside the cell for GLOW_BLUR_PX to spread
+// into without being clipped at the cell edge.
+const GLOW_SHRINK = 0.7;
 
 function loadImage(url: string): Promise<HTMLImageElement | null> {
   return new Promise((resolve) => {
@@ -221,8 +246,11 @@ function drawRotorAccent(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
  * Builds a single combined icon atlas (canvas image + deck.gl `iconMapping`)
  * from every vendored type shape, every category fallback silhouette, and
  * one generic marker — built once at layer-mount time, not per-frame or
- * per-aircraft (see design.md Decision 6). Must run client-side (uses
- * `Image`/`document.createElement("canvas")`).
+ * per-aircraft (see design.md Decision 6). Every entry also gets a second,
+ * blurred glow variant under `glowIconKey(key)` (see `GLOW_ICON_KEY_SUFFIX`),
+ * so the icon-glow layer can render each aircraft's own silhouette rather
+ * than an unrelated shape. Must run client-side (uses `Image`/
+ * `document.createElement("canvas")`).
  */
 export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
   const manifestResponse = await fetch("/aircraft-shapes/manifest.json").catch(() => null);
@@ -231,11 +259,19 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
     : [];
 
   const categoryKeys = Object.keys(AIRCRAFT_CATEGORY_FALLBACK_ICON);
-  const entries: Array<{ key: string; url: string | null }> = [
+  const baseEntries: Array<{ key: string; url: string | null }> = [
     ...typeDesignators.map((t) => ({ key: t, url: TYPE_SHAPE_URL(t) })),
     ...categoryKeys.map((c) => ({ key: c, url: AIRCRAFT_CATEGORY_FALLBACK_ICON[c] })),
     { key: GENERIC_ICON_KEY, url: null },
     { key: ROTOR_ACCENT_KEY, url: null },
+  ];
+
+  // Every base entry gets a second, blurred "glow" entry (see
+  // `GLOW_ICON_KEY_SUFFIX`) so the icon-glow layer can render each aircraft's
+  // own silhouette instead of an unrelated shape like a plain circle.
+  const entries: Array<{ key: string; url: string | null; glow: boolean }> = [
+    ...baseEntries.map((e) => ({ ...e, glow: false })),
+    ...baseEntries.map((e) => ({ key: glowIconKey(e.key), url: e.url, glow: true })),
   ];
 
   const columns = Math.max(1, Math.ceil(Math.sqrt(entries.length)));
@@ -246,9 +282,12 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("2D canvas context unavailable");
 
-  const images = await Promise.all(
-    entries.map((entry) => (entry.url ? loadShapeImage(entry.url) : Promise.resolve(null))),
+  // Loaded once per unique base entry/URL, then reused for both that entry's
+  // normal and glow cells — avoids fetching every vendored shape SVG twice.
+  const baseImages = await Promise.all(
+    baseEntries.map((entry) => (entry.url ? loadShapeImage(entry.url) : Promise.resolve(null))),
   );
+  const imageByKey = new Map(baseEntries.map((entry, i) => [entry.key, baseImages[i]]));
 
   const mapping: Record<string, IconAtlasEntry> = {};
   const drawable = CELL_SIZE - CELL_PADDING * 2;
@@ -261,12 +300,23 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
     const cx = x + CELL_SIZE / 2;
     const cy = y + CELL_SIZE / 2;
 
-    const image = images[i];
+    const baseKey = entry.glow ? entry.key.slice(0, -GLOW_ICON_KEY_SUFFIX.length) : entry.key;
+    const image = imageByKey.get(baseKey) ?? null;
+    const drawableForEntry = entry.glow ? drawable * GLOW_SHRINK : drawable;
+
+    if (entry.glow) {
+      ctx.save();
+      ctx.filter = `blur(${GLOW_BLUR_PX}px)`;
+    }
+
     if (image && image.naturalWidth > 0 && image.naturalHeight > 0) {
-      const scale = Math.min(drawable / image.naturalWidth, drawable / image.naturalHeight);
+      const scale = Math.min(
+        drawableForEntry / image.naturalWidth,
+        drawableForEntry / image.naturalHeight,
+      );
       const w = image.naturalWidth * scale;
       const h = image.naturalHeight * scale;
-      const offsetDeg = ICON_ORIENTATION_OFFSET_DEG[entry.key] ?? 0;
+      const offsetDeg = ICON_ORIENTATION_OFFSET_DEG[baseKey] ?? 0;
       if (offsetDeg) {
         ctx.save();
         ctx.translate(cx, cy);
@@ -276,10 +326,14 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
       } else {
         ctx.drawImage(image, cx - w / 2, cy - h / 2, w, h);
       }
-    } else if (entry.key === ROTOR_ACCENT_KEY) {
-      drawRotorAccent(ctx, cx, cy, drawable);
+    } else if (baseKey === ROTOR_ACCENT_KEY) {
+      drawRotorAccent(ctx, cx, cy, drawableForEntry);
     } else {
-      drawGenericMarker(ctx, cx, cy, drawable);
+      drawGenericMarker(ctx, cx, cy, drawableForEntry);
+    }
+
+    if (entry.glow) {
+      ctx.restore();
     }
 
     mapping[entry.key] = {

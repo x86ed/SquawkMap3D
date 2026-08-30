@@ -4,6 +4,7 @@ import type { Aircraft, TrackPoint } from "./aircraft";
 import {
   brightenColor,
   type ColorMode,
+  glowIconKey,
   hexColorToRgb,
   resolveAircraftColor,
   resolveIconKey,
@@ -15,7 +16,7 @@ import { computeRarityTier, RARITY_TIER_STYLES } from "./aircraftRarity";
 import {
   AIRCRAFT_GLOW_BRIGHTEN_AMOUNT,
   AIRCRAFT_ICON_GLOW_ALPHA,
-  AIRCRAFT_ICON_GLOW_RADIUS_PIXELS,
+  AIRCRAFT_ICON_GLOW_SIZE_PIXELS,
   AIRCRAFT_SELECTION_GLOW_ALPHA,
   AIRCRAFT_SELECTION_GLOW_RADIUS_PIXELS,
   AIRCRAFT_TRACK_GLOW_ALPHA,
@@ -175,18 +176,26 @@ export function buildAircraftLayers(params: {
   // renders for every currently rendered aircraft (`positioned`, same array
   // `iconLayer` uses), colored as a brightened variant of that same
   // aircraft's own current `resolveAircraftColor` result, so it always
-  // matches the active color mode. Smaller radius/lower alpha than the
-  // selection glow so a selected aircraft's rarity ring still stands out.
-  const iconGlowLayer = new ScatterplotLayer<Aircraft & { lat: number; lon: number }>({
+  // matches the active color mode. Renders the aircraft's own blurred
+  // silhouette (`glowIconKey`'s atlas entry, aircraftIcons.ts), not a plain
+  // circle — larger and lower-alpha than the crisp icon so it reads as a
+  // halo behind it, and lower-alpha than the selection glow so a selected
+  // aircraft's rarity ring still stands out.
+  const iconGlowLayer = new IconLayer<Aircraft & { lat: number; lon: number }>({
     id: AIRCRAFT_ICON_GLOW_LAYER_ID,
     data: positioned,
+    iconAtlas: iconAtlas.image,
+    iconMapping: iconAtlas.mapping,
+    getIcon: (d) => glowIconKey(resolveIconKey(d).key),
     getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
-    getFillColor: (d) => {
+    getAngle: (d) => -(d.track ?? 0),
+    getColor: (d) => {
       const [r, g, b] = brightenColor(resolveAircraftColor(d, colorMode), AIRCRAFT_GLOW_BRIGHTEN_AMOUNT);
       return [r, g, b, AIRCRAFT_ICON_GLOW_ALPHA];
     },
-    getRadius: AIRCRAFT_ICON_GLOW_RADIUS_PIXELS,
-    radiusUnits: "pixels",
+    getSize: AIRCRAFT_ICON_GLOW_SIZE_PIXELS,
+    sizeUnits: "pixels",
+    billboard: false,
     pickable: false,
   });
 

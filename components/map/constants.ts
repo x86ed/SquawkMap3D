@@ -165,11 +165,15 @@ export const AIRCRAFT_SELECTION_GLOW_ALPHA = 120;
 // unrelated to the selected-aircraft AIRCRAFT_SELECTION_GLOW_* block above:
 // this glow renders for every rendered aircraft/track segment (not just the
 // selected one), colored as a brightened variant of that element's own
-// active-color-mode draw color (not a fixed rarity color). Sized/alpha'd
-// smaller and subtler than the selection glow so a selected aircraft's own
-// larger rarity-colored ring still stands out layered outside this one.
+// active-color-mode draw color (not a fixed rarity color). Alpha'd subtler
+// than the selection glow so a selected aircraft's own rarity-colored ring
+// still stands out layered outside it.
 export const AIRCRAFT_GLOW_BRIGHTEN_AMOUNT = 0.4;
-export const AIRCRAFT_ICON_GLOW_RADIUS_PIXELS = 24;
+// Icon glow renders the aircraft's own blurred silhouette (aircraftIcons.ts's
+// glowIconKey atlas entries), not a circle — sized larger than the 40px
+// crisp icon so the pre-baked blur reads as a halo around it rather than
+// being hidden underneath.
+export const AIRCRAFT_ICON_GLOW_SIZE_PIXELS = 64;
 export const AIRCRAFT_ICON_GLOW_ALPHA = 90;
 export const AIRCRAFT_TRACK_GLOW_WIDTH_PIXELS = 6;
 export const AIRCRAFT_TRACK_GLOW_ALPHA = 90;
