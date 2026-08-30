@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import styles from "./LayerDrawer.module.css";
 
 const DRAWER_WIDTH_STORAGE_KEY = "squawkmap3d:layerDrawer:width";
@@ -58,6 +65,46 @@ export function LayerDrawer({
   subtitle?: string;
   children: ReactNode;
 }) {
+  const [width, setWidth] = useState<number>(DRAWER_DEFAULT_WIDTH);
+  const [isDesktop, setIsDesktop] = useState(false);
+  const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  useEffect(() => {
+    const stored = readStoredWidth();
+    if (stored !== null) setWidth(clampDrawerWidth(stored));
+  }, []);
+
+  useEffect(() => {
+    const mql = window.matchMedia(DESKTOP_MEDIA_QUERY);
+    const update = () => setIsDesktop(mql.matches);
+    update();
+    mql.addEventListener("change", update);
+    return () => mql.removeEventListener("change", update);
+  }, []);
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    dragStateRef.current = { startX: event.clientX, startWidth: width };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const dragState = dragStateRef.current;
+    if (!dragState) return;
+    // The handle sits on the drawer's left edge, facing the map — dragging
+    // left (negative clientX delta) widens the drawer, dragging right
+    // narrows it (design.md Decision 16).
+    const deltaX = event.clientX - dragState.startX;
+    setWidth(clampDrawerWidth(dragState.startWidth - deltaX));
+  };
+
+  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!dragStateRef.current) return;
+    dragStateRef.current = null;
+    writeStoredWidth(width);
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+
   return (
     <div
       className={styles.drawer}
@@ -65,7 +112,19 @@ export function LayerDrawer({
       role="dialog"
       aria-label="Layers and traffic panel"
       aria-hidden={!open}
+      style={{ "--drawer-w": `${width}px` } as CSSProperties}
     >
+      {isDesktop && (
+        <div
+          className={styles.resizeHandle}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize panel"
+        />
+      )}
       <div className={styles.head}>
         <div>
           <h1 className={styles.title}>Layers &amp; Traffic</h1>
