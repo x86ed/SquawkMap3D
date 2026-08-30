@@ -62,6 +62,22 @@ function routeCacheKey(hex: string, callsign: string): string {
   return `${hex}:${callsign}`;
 }
 
+function filtersEqual(a: Filters, b: Filters): boolean {
+  return (
+    a.militaryOnly === b.militaryOnly &&
+    a.altMin === b.altMin &&
+    a.altMax === b.altMax &&
+    a.distMin === b.distMin &&
+    a.distMax === b.distMax
+  );
+}
+
+function columnSetsEqual(a: ColumnKey[], b: ColumnKey[]): boolean {
+  if (a.length !== b.length) return false;
+  const bSet = new Set(b);
+  return a.every((key) => bSet.has(key));
+}
+
 /**
  * The drawer's plane-listing panel (plane-listing-panel spec) — owns its
  * own `fetchAircraft()` poll, independent of `MapView.tsx`'s aircraft-icon
@@ -103,9 +119,30 @@ export function PlaneListingPanel({ siteLocation }: { siteLocation: GeoCoords | 
     };
   }, []);
 
-  useEffect(() => writeStoredJson(SEARCH_STORAGE_KEY, search), [search]);
-  useEffect(() => writeStoredJson(FILTERS_STORAGE_KEY, filters), [filters]);
-  useEffect(() => writeStoredJson(COLUMNS_STORAGE_KEY, visibleColumnKeys), [visibleColumnKeys]);
+  // Each persistence effect removes its key rather than writing when the
+  // current value equals its default — otherwise `handleClearAll` below
+  // removing all three keys would immediately be undone by these same
+  // effects re-writing the (now-default) values back on the next render,
+  // violating "no persisted state for this panel remains in localStorage"
+  // (plane-listing-panel spec's "Clear all resets and wipes persisted state
+  // in one action" scenario).
+  useEffect(() => {
+    if (search === "") removeStored(SEARCH_STORAGE_KEY);
+    else writeStoredJson(SEARCH_STORAGE_KEY, search);
+  }, [search]);
+
+  useEffect(() => {
+    if (filtersEqual(filters, DEFAULT_FILTERS)) removeStored(FILTERS_STORAGE_KEY);
+    else writeStoredJson(FILTERS_STORAGE_KEY, filters);
+  }, [filters]);
+
+  useEffect(() => {
+    if (columnSetsEqual(visibleColumnKeys, DEFAULT_VISIBLE_COLUMN_KEYS)) {
+      removeStored(COLUMNS_STORAGE_KEY);
+    } else {
+      writeStoredJson(COLUMNS_STORAGE_KEY, visibleColumnKeys);
+    }
+  }, [visibleColumnKeys]);
 
   // Route resolution (tasks.md 10.6): for every aircraft with a callsign and
   // position not yet asked for locally, fetch once via the shared cache
