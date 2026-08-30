@@ -36,6 +36,9 @@
 - [x] 4.7 In `LayerDrawer.module.css`: below the `640px` breakpoint, drawer expands to `width: 100vw`; in `MapView.tsx`/`.module.css`, hide the top-right cluster while `drawerOpen` is true at that breakpoint (design.md Decision 12), matching the reference file's mobile CSS as a starting point.
 - [x] 4.8 Add a drag handle to `LayerDrawer.tsx`'s left edge (rendered/active only at/above the `640px` breakpoint): `pointerdown`/`pointermove`/`pointerup` handlers adjusting a `--drawer-w` CSS custom property, clamped to `[360px, min(900px, 90vw)]` — design.md Decision 16.
 - [x] 4.9 Persist the resized width to `localStorage` under its own key (same convention as the columns/filters keys), restored on mount; add unit/integration coverage for the clamp bounds and persistence round-trip.
+- [ ] 4.10 Add `components/map/drawer/DrawerTabs.tsx` + `.module.css`: a top-level, mutually-exclusive tab bar with two tabs, "Layers" and "Aircraft" — design.md Decision 17. Visually distinct from (and rendered above) the Aircraft tab's own nested Search/Filters/Columns sub-tab-nav.
+- [ ] 4.11 In `LayerDrawer.tsx`: add `activeTab` state (`'layers' | 'aircraft'`, in-memory `useState`, default `'layers'`, not persisted — design.md Decision 17), render `DrawerTabs` directly below the drawer header, and conditionally render the view-controls row + accordion (section 8's content) under the Layers tab vs `PlaneListingPanel` (section 10) under the Aircraft tab.
+- [ ] 4.12 Update `PlaneListingPanel`'s mount condition (wherever it's rendered per 4.11) to `drawerOpen && activeTab === 'aircraft'`, not just `drawerOpen` — supersedes task 10.1's original mount condition; the poll must stop when the user switches to the Layers tab, not just when the drawer closes.
 
 ## 5. Accordion primitive
 
@@ -106,3 +109,4 @@
 - [ ] 12.10 Manually verify every new Filters-tab field (Callsign, Squawk, Registration, ICAO hex ID, Type code, Type description, Route, Country of registration, Category) narrows the table correctly, alone and combined with others; verify Source and DB-flags chip rows filter correctly and the ACARS chip is inert.
 - [ ] 12.11 Manually verify table rows are visibly tinted by source bucket, and the pinned chip row beneath the table stays visible across all three tabs and toggles the same filter state as the Filters tab's copy.
 - [ ] 12.12 Manually verify dragging the drawer's left-edge handle resizes it within bounds, the width persists across close/reopen and reload, and the handle disappears at the mobile breakpoint.
+- [ ] 12.13 Manually verify the Layers and Aircraft top-level tabs each show only their own content, switching between them preserves each tab's own state (accordion expand/collapse, search/filter/column state), and the aircraft feed poll stops when the Layers tab is active.

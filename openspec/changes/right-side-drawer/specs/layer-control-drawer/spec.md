@@ -27,11 +27,7 @@ The map SHALL display a button immediately next to the day/night slider, in the 
 - **THEN** the right-hand drawer slides closed
 
 ### Requirement: Right-hand slide-out drawer
-The map SHALL provide a drawer that slides in from the right edge of the viewport, containing the layer-control accordion and the plane-listing panel, and that can be dismissed via the drawer-toggle button or an explicit close control inside the drawer.
-
-#### Scenario: Drawer contains layer controls and plane listing
-- **WHEN** the drawer is open
-- **THEN** the layer-control accordion and the plane-listing panel are both visible inside the drawer, stacked vertically
+The map SHALL provide a drawer that slides in from the right edge of the viewport, containing the layer-control accordion and the plane-listing panel as two separate top-level tabs, and that can be dismissed via the drawer-toggle button or an explicit close control inside the drawer.
 
 #### Scenario: Drawer has its own close control
 - **WHEN** the drawer is open
@@ -40,6 +36,25 @@ The map SHALL provide a drawer that slides in from the right edge of the viewpor
 #### Scenario: Opening/closing the drawer does not affect map or layer state
 - **WHEN** the user opens or closes the drawer
 - **THEN** the map's current view (center, zoom, pitch, bearing) and every layer's current visibility state remain unchanged
+
+### Requirement: Top-level Layers/Aircraft tab navigation
+The drawer body SHALL present two top-level, mutually-exclusive tabs — **Layers** and **Aircraft** — directly below the drawer header, so the layer-control accordion and the plane-listing panel never compete for the same vertical space. The Layers tab SHALL contain the view-controls row and the layer-control accordion (Aviation/Location/Environmental groups); the Aircraft tab SHALL contain the entire plane-listing panel (its own Search/Filters/Columns sub-tabs, the table, and the pinned source legend). Only one top-level tab's content is visible at a time.
+
+#### Scenario: Layers tab shows view controls and the accordion
+- **WHEN** the drawer is open and the Layers tab is active
+- **THEN** the view-controls row and the Aviation/Location/Environmental accordion groups are visible, and the plane-listing panel is not
+
+#### Scenario: Aircraft tab shows the plane listing panel
+- **WHEN** the drawer is open and the Aircraft tab is active
+- **THEN** the plane-listing panel (search/filters/columns and the table) is visible, and the layer-control accordion and view-controls row are not
+
+#### Scenario: Switching top-level tabs preserves each tab's own state
+- **WHEN** the user switches from Layers to Aircraft and back
+- **THEN** the accordion's expanded/collapsed groups and the plane-listing panel's search/filter/column state are unchanged from before the switch
+
+#### Scenario: Aircraft-tab polling only runs while that tab is active
+- **WHEN** the drawer is open but the Layers tab is active (not Aircraft)
+- **THEN** the plane-listing panel's aircraft-feed poll is not running, the same as when the drawer is fully closed
 
 ### Requirement: Accordion-grouped layer controls
 The drawer SHALL present layer-visibility toggles grouped into collapsible accordion sections, each independently expandable/collapsible, organized as follows:

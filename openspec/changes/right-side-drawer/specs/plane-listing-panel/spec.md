@@ -1,18 +1,18 @@
 ## ADDED Requirements
 
 ### Requirement: Plane listing panel shows currently-tracked aircraft
-The drawer SHALL display a panel, below the layer-control accordion, listing every aircraft currently reported by the configured feeder, kept up to date as the feeder's reported aircraft change.
+The drawer SHALL display a panel, in its own "Aircraft" top-level tab (separate from the layer-control accordion's "Layers" tab — see `layer-control-drawer`'s top-level tab requirement), listing every aircraft currently reported by the configured feeder, kept up to date as the feeder's reported aircraft change.
 
 #### Scenario: Aircraft appear in the listing
-- **WHEN** the drawer is open, a feeder is configured, and the feeder reports one or more aircraft
+- **WHEN** the drawer is open, the Aircraft tab is active, a feeder is configured, and the feeder reports one or more aircraft
 - **THEN** each reported aircraft appears as a row in the listing
 
 #### Scenario: Listing updates as aircraft come and go
-- **WHEN** the drawer remains open and the feeder's reported aircraft change (a new aircraft appears, or a previously-listed aircraft is no longer reported)
+- **WHEN** the drawer remains open with the Aircraft tab active and the feeder's reported aircraft change (a new aircraft appears, or a previously-listed aircraft is no longer reported)
 - **THEN** the listing adds the newly-reported aircraft and removes the no-longer-reported aircraft, without requiring the user to manually refresh
 
 #### Scenario: No feeder configured or no aircraft reported
-- **WHEN** the drawer is open and no feeder is configured, or the feeder currently reports zero aircraft
+- **WHEN** the drawer is open, the Aircraft tab is active, and no feeder is configured, or the feeder currently reports zero aircraft
 - **THEN** the listing shows an empty state, rather than erroring or showing stale/placeholder rows
 
 ### Requirement: Tabbed search, filters, and column configuration
