@@ -12,9 +12,9 @@
   flex-direction: column;
   padding: 10px 20px 20px;
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #f1f5f9;
-  background: linear-gradient(180deg, #29292d, #111216 62%, #1b1c21);
-  border-top: 1px solid rgba(63, 63, 70, 0.42);
+  color: var(--text);
+  background: linear-gradient(180deg, var(--panel-2), var(--panel) 62%, var(--panel-2));
+  border-top: 1px solid var(--border);
   box-shadow:
     0 -10px 15px -3px rgba(2, 6, 23, 0.35),
     0 -4px 6px -4px rgba(2, 6, 23, 0.35);
@@ -43,14 +43,14 @@
 
 .dragHandle:hover .dragHandleGrip,
 .dragHandle:focus-visible .dragHandleGrip {
-  background: rgba(226, 232, 240, 0.6);
+  background: color-mix(in srgb, var(--text) 60%, transparent);
 }
 
 .dragHandleGrip {
   width: 40px;
   height: 4px;
   border-radius: 2px;
-  background: rgba(148, 163, 184, 0.35);
+  background: color-mix(in srgb, var(--text-dim) 35%, transparent);
   transition: background 150ms ease;
 }
 
