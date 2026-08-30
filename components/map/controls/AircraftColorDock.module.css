@@ -1,7 +1,7 @@
 .dock {
   position: fixed;
   left: 12px;
-  bottom: 12px;
+  bottom: calc(12px + var(--collision-offset, 0px));
   z-index: 4;
   display: flex;
   flex-direction: column;
@@ -14,11 +14,17 @@
    45vh is that drawer's own default height (AircraftOverlay.module.css),
    matched here so the two never overlap. */
 .dock[data-drawer-open="true"] {
-  bottom: calc(45vh + 12px);
+  bottom: calc(45vh + 12px + var(--collision-offset, 0px));
 }
 
 @media (max-width: 760px) {
   .dock[data-drawer-open="true"] {
-    bottom: calc(80vh + 12px);
+    bottom: calc(80vh + 12px + var(--collision-offset, 0px));
+  }
+}
+
+@media (max-width: 640px) {
+  .dock[data-layer-drawer-open="true"] {
+    display: none;
   }
 }

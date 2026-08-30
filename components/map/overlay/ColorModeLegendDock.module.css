@@ -26,3 +26,9 @@
     bottom: calc(80vh + 12px);
   }
 }
+
+@media (max-width: 640px) {
+  .dock[data-layer-drawer-open="true"] {
+    display: none;
+  }
+}
