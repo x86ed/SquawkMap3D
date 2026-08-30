@@ -160,6 +160,15 @@ export const RANGE_OUTLINE_SWEEP_PERIOD_MS = 8_000;
 export const AIRCRAFT_SELECTION_GLOW_RADIUS_PIXELS = 32;
 export const AIRCRAFT_SELECTION_GLOW_ALPHA = 120;
 
+// Selection-glow pulse (components/map/selectionPulse.ts, see
+// aircraft-selection-pulse's design.md Decision 3) — the two constants above
+// are the pulse's baseline/midpoint; these add oscillation on top: one full
+// cycle every PERIOD_MS, growing by up to RADIUS_AMPLITUDE_PIXELS while
+// fading by up to ALPHA_AMPLITUDE at the wave's peak, then back down.
+export const AIRCRAFT_SELECTION_PULSE_PERIOD_MS = 1400;
+export const AIRCRAFT_SELECTION_PULSE_RADIUS_AMPLITUDE_PIXELS = 10;
+export const AIRCRAFT_SELECTION_PULSE_ALPHA_AMPLITUDE = 50;
+
 // Always-on icon/track glow (components/map/aircraftLayer.ts's icon-glow and
 // track-glow layers, see design.md Decisions 2-4) — distinct from and
 // unrelated to the selected-aircraft AIRCRAFT_SELECTION_GLOW_* block above:
