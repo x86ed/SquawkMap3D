@@ -4,28 +4,62 @@ import { fetchAircraft, type Aircraft } from "../aircraft";
 import { AIRCRAFT_FEED_REFRESH_INTERVAL_MS } from "../constants";
 import type { GeoCoords } from "../geolocation";
 import { getCachedFlightRoute, type FlightRoute } from "../flightRoute";
+import { countryNameForCode } from "../registrationCountry";
+import { typeDescriptionForCode } from "../typeDescriptionLookup";
 import { buildPlaneListingRow, type PlaneListingRow } from "./aircraftDisplay";
 import { COLUMNS, DEFAULT_VISIBLE_COLUMN_KEYS, sortValue, type ColumnKey } from "./columns";
 import { PlaneTable, type SortState } from "./PlaneTable";
+import { SourceChipRow } from "./SourceChipRow";
+import { bucketForSourceType, type SourceBucket } from "./sourceBucket";
 
 const SEARCH_STORAGE_KEY = "squawkmap3d:planeListing:search";
 const FILTERS_STORAGE_KEY = "squawkmap3d:planeListing:filters";
 const COLUMNS_STORAGE_KEY = "squawkmap3d:planeListing:columns";
 
+/** DB-flags chip row keys (design.md Decision 14) — replaces the earlier
+ * plain "military only" boolean filter. */
+type DbFlag = "military" | "pia" | "ladd";
+
+const DB_FLAGS: { key: DbFlag; label: string }[] = [
+  { key: "military", label: "Military" },
+  { key: "pia", label: "PIA" },
+  { key: "ladd", label: "LADD" },
+];
+
 interface Filters {
-  militaryOnly: boolean;
   altMin: number | null;
   altMax: number | null;
   distMin: number | null;
   distMax: number | null;
+  callsign: string;
+  squawk: string;
+  registration: string;
+  hex: string;
+  typeCode: string;
+  typeDescription: string;
+  route: string;
+  country: string;
+  category: string;
+  sourceBuckets: SourceBucket[];
+  dbFlags: DbFlag[];
 }
 
 const DEFAULT_FILTERS: Filters = {
-  militaryOnly: false,
   altMin: null,
   altMax: null,
   distMin: null,
   distMax: null,
+  callsign: "",
+  squawk: "",
+  registration: "",
+  hex: "",
+  typeCode: "",
+  typeDescription: "",
+  route: "",
+  country: "",
+  category: "",
+  sourceBuckets: [],
+  dbFlags: [],
 };
 
 type Tab = "search" | "filters" | "columns";

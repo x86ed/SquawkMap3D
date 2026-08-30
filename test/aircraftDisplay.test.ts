@@ -55,6 +55,9 @@ test("buildPlaneListingRow carries through real telemetry fields unchanged", () 
     rssi: -12.5,
     sourceType: "adsb_icao",
     isMilitary: true,
+    category: "A3",
+    isPia: false,
+    isLadd: true,
     windDirection: 90,
     windSpeed: 20,
   });
@@ -69,6 +72,9 @@ test("buildPlaneListingRow carries through real telemetry fields unchanged", () 
   assert.equal(row.rssi, -12.5);
   assert.equal(row.sourceType, "adsb_icao");
   assert.equal(row.isMilitary, true);
+  assert.equal(row.category, "A3");
+  assert.equal(row.isPia, false);
+  assert.equal(row.isLadd, true);
   assert.equal(row.windDirection, 90);
   assert.equal(row.windSpeed, 20);
 });
