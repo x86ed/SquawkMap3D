@@ -31,3 +31,27 @@ test("empty registration resolves to null", () => {
 test("lowercase registration still resolves (case-insensitive)", () => {
   assert.equal(countryCodeForRegistration("n12345"), "US");
 });
+
+test("known country code resolves to its name", () => {
+  assert.equal(countryNameForCode("US"), "United States");
+});
+
+test("another known country code resolves to its name", () => {
+  assert.equal(countryNameForCode("AU"), "Australia");
+});
+
+test("unknown country code resolves to null", () => {
+  assert.equal(countryNameForCode("XX"), null);
+});
+
+test("missing country code resolves to null", () => {
+  assert.equal(countryNameForCode(undefined), null);
+});
+
+test("empty country code resolves to null", () => {
+  assert.equal(countryNameForCode(""), null);
+});
+
+test("malformed country code resolves to null instead of throwing", () => {
+  assert.equal(countryNameForCode("NOTACODE"), null);
+});

@@ -67,6 +67,11 @@ function getRegionDisplayNames(): Intl.DisplayNames | null {
 export function countryNameForCode(code: string | undefined): string | null {
   if (!code) return null;
   const displayNames = getRegionDisplayNames();
-  const resolved = displayNames?.of(code);
-  return resolved && resolved !== code ? resolved : null;
+  if (!displayNames) return null;
+  try {
+    const resolved = displayNames.of(code);
+    return resolved && resolved !== code ? resolved : null;
+  } catch {
+    return null;
+  }
 }
