@@ -80,7 +80,7 @@ scp "${SSH_OPTS[@]}" "$SCRIPT_DIR/squawkmap3d.nginx.conf" "$SSH_TARGET:$REMOTE_D
 # --- 4. Build and (re)run the container on the box ------------------------
 
 log "Building image on the feeder box (native arch, no cross-compilation)"
-remote "cd '$REMOTE_DIR' && docker build -t '$IMAGE_TAG' ."
+remote "cd '$REMOTE_DIR' && DOCKER_BUILDKIT=1 docker build -t '$IMAGE_TAG' ."
 
 log "Starting container $CONTAINER_NAME on port $FEEDER_PORT"
 remote "docker rm -f '$CONTAINER_NAME' >/dev/null 2>&1 || true"
