@@ -83,16 +83,16 @@ The XP, Registrations, and Flight Time columns SHALL render as an explicit place
 - **WHEN** the plane listing panel is first opened without any prior column customization
 - **THEN** the XP, Registrations, and Flight Time columns are not part of the default visible column set
 
-### Requirement: Airline and Route are derived without excessive third-party requests
-The Airline column SHALL be derived locally from the aircraft's callsign prefix. The Route column SHALL be looked up via this application's existing flight-route lookup, throttled so that a given callsign is looked up at most once per session rather than on every refresh.
+### Requirement: Airline and Route reuse this application's existing route cache, with no additional throttling
+The Airline column SHALL be derived locally from the aircraft's callsign prefix, with no network request. The Route column SHALL be looked up via this application's existing flight-route lookup and its existing per-aircraft cache (the same cache the selected-aircraft info overlay already uses), so a given aircraft's route is looked up at most once per cache lifetime rather than once per refresh — matching this application's current route-lookup behavior exactly, not adding any new rate-limiting, debouncing, or request-staggering beyond that existing cache.
 
 #### Scenario: Airline resolves from a known callsign prefix
 - **WHEN** an aircraft's callsign's ICAO airline-designator prefix matches a known entry
 - **THEN** the Airline column renders that airline's name without an additional network request
 
-#### Scenario: Route is looked up once per distinct callsign
-- **WHEN** the same callsign appears across multiple successive listing refreshes
-- **THEN** the route lookup for that callsign is performed at most once (until the callsign changes), with subsequent refreshes reusing the cached result
+#### Scenario: Route is looked up once per distinct aircraft and shared with the selected-aircraft overlay
+- **WHEN** the same aircraft appears across multiple successive listing refreshes, or is looked up by both the plane listing panel and the selected-aircraft info overlay
+- **THEN** the route lookup for that aircraft is performed at most once (until its cache entry is cleared), with subsequent lookups from either consumer reusing the same cached result
 
 #### Scenario: Unresolvable airline or route renders empty
 - **WHEN** an aircraft's callsign prefix has no known airline match, or the route lookup finds no plausible route
