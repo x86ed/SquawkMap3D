@@ -384,6 +384,22 @@ export function hexColorToRgb(hex: string): [number, number, number] {
   return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
 }
 
+/** Blends an `[r, g, b]` triple toward white by `amount` (0-1), each channel
+ * becoming `channel + (255 - channel) * amount`, rounded. Shared by
+ * `aircraftLayer.ts`'s new always-on icon-glow and track-glow layers
+ * (design.md Decision 2) to turn an element's own current draw color into a
+ * "brighter" variant of itself, without an RGB→HSL→RGB round-trip. */
+export function brightenColor(
+  rgb: [number, number, number],
+  amount: number,
+): [number, number, number] {
+  return [
+    Math.round(rgb[0] + (255 - rgb[0]) * amount),
+    Math.round(rgb[1] + (255 - rgb[1]) * amount),
+    Math.round(rgb[2] + (255 - rgb[2]) * amount),
+  ];
+}
+
 /**
  * A rarity tier's accent color, resolved directly from a type designator
  * rather than a full `Aircraft` object — `computeRarityTier`/

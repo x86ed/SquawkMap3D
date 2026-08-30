@@ -2,6 +2,7 @@ import type { Layer } from "@deck.gl/core";
 import { IconLayer, PathLayer, ScatterplotLayer } from "@deck.gl/layers";
 import type { Aircraft, TrackPoint } from "./aircraft";
 import {
+  brightenColor,
   type ColorMode,
   hexColorToRgb,
   resolveAircraftColor,
@@ -12,8 +13,13 @@ import {
 } from "./aircraftIcons";
 import { computeRarityTier, RARITY_TIER_STYLES } from "./aircraftRarity";
 import {
+  AIRCRAFT_GLOW_BRIGHTEN_AMOUNT,
+  AIRCRAFT_ICON_GLOW_ALPHA,
+  AIRCRAFT_ICON_GLOW_RADIUS_PIXELS,
   AIRCRAFT_SELECTION_GLOW_ALPHA,
   AIRCRAFT_SELECTION_GLOW_RADIUS_PIXELS,
+  AIRCRAFT_TRACK_GLOW_ALPHA,
+  AIRCRAFT_TRACK_GLOW_WIDTH_PIXELS,
   TERRAIN_EXAGGERATION,
 } from "./constants";
 
@@ -21,6 +27,8 @@ export const AIRCRAFT_ICON_LAYER_ID = "aircraft-icons";
 export const AIRCRAFT_TRACK_LAYER_ID = "aircraft-tracks";
 export const AIRCRAFT_SELECTION_GLOW_LAYER_ID = "aircraft-selection-glow";
 export const AIRCRAFT_ROTOR_ACCENT_LAYER_ID = "aircraft-rotor-accent";
+export const AIRCRAFT_ICON_GLOW_LAYER_ID = "aircraft-icon-glow";
+export const AIRCRAFT_TRACK_GLOW_LAYER_ID = "aircraft-track-glow";
 
 const ROTORCRAFT_CATEGORY = "A7";
 const ROTOR_ACCENT_SIZE_PIXELS = 22;
