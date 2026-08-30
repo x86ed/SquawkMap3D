@@ -39,3 +39,34 @@ export function countryCodeForRegistration(registration: string | undefined): st
   }
   return null;
 }
+
+let regionDisplayNames: Intl.DisplayNames | null | undefined;
+
+function getRegionDisplayNames(): Intl.DisplayNames | null {
+  if (regionDisplayNames === undefined) {
+    try {
+      regionDisplayNames = new Intl.DisplayNames(["en"], { type: "region" });
+    } catch {
+      regionDisplayNames = null;
+    }
+  }
+  return regionDisplayNames;
+}
+
+/**
+ * Resolves an ISO 3166-1 alpha-2 country code to its full English name, for
+ * the Country-of-registration filter (design.md Decision 14) — matching
+ * against either the code or this name. Uses `Intl.DisplayNames` (same
+ * technique `airportPopup.ts`'s own `countryNameForCode` already uses for
+ * the reverse direction), rather than vendoring a second copy of ISO
+ * 3166-1's ~250 country names alongside `registrationPrefixes.json`. Unlike
+ * `airportPopup.ts`'s version, this returns `null` (not the raw code) when
+ * unresolved, so an unresolved code doesn't create a bogus text match in the
+ * filter.
+ */
+export function countryNameForCode(code: string | undefined): string | null {
+  if (!code) return null;
+  const displayNames = getRegionDisplayNames();
+  const resolved = displayNames?.of(code);
+  return resolved && resolved !== code ? resolved : null;
+}
