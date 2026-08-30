@@ -49,7 +49,7 @@
 
 ## 8. Plane listing panel: data and columns
 
-- [ ] 8.1 Add `components/map/drawer/columns.ts`: `COLUMNS` array (key, label, `def` default-visible flag, `align`, `sortable`) for all 26 columns per the acceptance criteria, with XP/Registrations/Flight Time marked `def: false` (Decision 6/9 in design.md).
+- [ ] 8.1 Add `components/map/drawer/columns.ts`: `COLUMNS` array (key, label, `def` default-visible flag, `align`, `sortable`) for all 26 columns per the acceptance criteria, with XP/Registrations/Flight Time marked `def: false` and a comment noting they're stubbed for now pending a follow-up change (design.md Decision 6).
 - [ ] 8.2 Add `components/map/drawer/aircraftDisplay.ts`: given an `Aircraft`, `siteLocation`, a route cache, and the rarity/flag/airline lookups, produce a fully-derived display row (adds `distanceNm` via `@turf/turf`'s `distance()`, `countryCode` via `registrationCountry.ts`, `rarityTier`/`rarityValue` via `aircraftRarity.ts`, `airlineName` via `airlineLookup.ts`, `route` via the cache from task 9).
 - [ ] 8.3 Add `formatCell(row, columnKey)` in `columns.ts` (or a sibling module) covering every column's display formatting (units, empty-state dashes, flag image tag, rarity badge styling reusing `RARITY_TIER_STYLES`).
 
