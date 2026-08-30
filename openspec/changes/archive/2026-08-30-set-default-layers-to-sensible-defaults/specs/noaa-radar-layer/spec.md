@@ -1,14 +1,4 @@
-# noaa-radar-layer Specification
-
-## Purpose
-TBD - created by archiving change add-missing-map-layers. Update Purpose after archive.
-## Requirements
-### Requirement: NOAA Radar layer rendered as raster tiles
-The map SHALL support a raster tile overlay of NOAA/NWS-hosted national radar mosaic imagery when the layer is enabled, sourced independently of the NEXRAD layer.
-
-#### Scenario: Layer loads successfully
-- **WHEN** the NOAA Radar layer is enabled
-- **THEN** NOAA-hosted radar tiles are requested and rendered as an overlay on the map
+## MODIFIED Requirements
 
 ### Requirement: NOAA Radar layer is toggleable
 
@@ -25,4 +15,3 @@ The user SHALL be able to show or hide the NOAA Radar layer independently of any
 #### Scenario: Hidden by default on initial load
 - **WHEN** the map loads for the first time in a session, with no prior toggle interaction
 - **THEN** the NOAA Radar layer renders hidden until the user explicitly turns it on
-

@@ -219,7 +219,10 @@ export function getAirportIconDisplayHeight(zoom: number): number {
 /** Initial visibility for each toggleable custom layer, keyed by the same
  * names used in `MapView.tsx`'s state/ref pairs. Passed through on every
  * `addCustomLayers` call (initial load and every `style.load`) so a user's
- * toggle choices survive a theme-triggered style swap. */
+ * toggle choices survive a theme-triggered style swap. When a key is
+ * omitted, `military`, `specialUseAirspace`, `terrainOutline`, `rainViewer`,
+ * `nexrad`, `noaaInfrared`, `noaaRadar`, and `dwdRadolan` default to `false`
+ * (hidden); every other field defaults to `true` (visible). */
 export interface CustomLayerVisibility {
   military?: boolean;
   airports?: boolean;
@@ -269,7 +272,7 @@ export function addCustomLayers(
   theme: MapTheme,
   visibility: CustomLayerVisibility = {},
 ): void {
-  const militaryVisible = visibility.military ?? true;
+  const militaryVisible = visibility.military ?? false;
   const airportsVisible = visibility.airports ?? true;
   if (!map.getSource(FAA_SECTIONAL_SOURCE_ID)) {
     map.addSource(FAA_SECTIONAL_SOURCE_ID, {
@@ -416,7 +419,7 @@ export function addCustomLayers(
       data: { type: "FeatureCollection", features: [] },
     });
   }
-  const suaVisibility = (visibility.specialUseAirspace ?? true) ? "visible" : "none";
+  const suaVisibility = (visibility.specialUseAirspace ?? false) ? "visible" : "none";
   if (!map.getLayer(SUA_FILL_LAYER_ID)) {
     map.addLayer({
       id: SUA_FILL_LAYER_ID,
@@ -517,7 +520,7 @@ export function addCustomLayers(
       type: "line",
       source: TERRAIN_OUTLINE_SOURCE_ID,
       layout: {
-        visibility: (visibility.terrainOutline ?? true) ? "visible" : "none",
+        visibility: (visibility.terrainOutline ?? false) ? "visible" : "none",
       },
       paint: {
         "line-color": buildAltitudeColorLineExpression(),
@@ -541,7 +544,7 @@ export function addCustomLayers(
       id: NEXRAD_LAYER_ID,
       type: "raster",
       source: NEXRAD_SOURCE_ID,
-      layout: { visibility: (visibility.nexrad ?? true) ? "visible" : "none" },
+      layout: { visibility: (visibility.nexrad ?? false) ? "visible" : "none" },
       paint: { "raster-opacity": 0.75 },
     });
   }
@@ -559,7 +562,7 @@ export function addCustomLayers(
       id: NOAA_RADAR_LAYER_ID,
       type: "raster",
       source: NOAA_RADAR_SOURCE_ID,
-      layout: { visibility: (visibility.noaaRadar ?? true) ? "visible" : "none" },
+      layout: { visibility: (visibility.noaaRadar ?? false) ? "visible" : "none" },
       paint: { "raster-opacity": 0.75 },
     });
   }
@@ -580,7 +583,7 @@ export function addCustomLayers(
       type: "raster",
       source: NOAA_INFRARED_SOURCE_ID,
       layout: {
-        visibility: (visibility.noaaInfrared ?? true) ? "visible" : "none",
+        visibility: (visibility.noaaInfrared ?? false) ? "visible" : "none",
       },
     });
   }
@@ -599,7 +602,7 @@ export function addCustomLayers(
       type: "raster",
       source: DWD_RADOLAN_SOURCE_ID,
       layout: {
-        visibility: (visibility.dwdRadolan ?? true) ? "visible" : "none",
+        visibility: (visibility.dwdRadolan ?? false) ? "visible" : "none",
       },
       paint: { "raster-opacity": 0.75 },
     });
@@ -624,7 +627,7 @@ export function addCustomLayers(
       type: "raster",
       source: RAINVIEWER_SOURCE_ID,
       layout: {
-        visibility: (visibility.rainViewer ?? true) ? "visible" : "none",
+        visibility: (visibility.rainViewer ?? false) ? "visible" : "none",
       },
       paint: { "raster-opacity": 0.75 },
     });

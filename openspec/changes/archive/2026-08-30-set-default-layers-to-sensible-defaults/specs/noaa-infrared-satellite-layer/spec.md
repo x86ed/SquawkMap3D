@@ -1,14 +1,4 @@
-# noaa-infrared-satellite-layer Specification
-
-## Purpose
-TBD - created by archiving change add-missing-map-layers. Update Purpose after archive.
-## Requirements
-### Requirement: NOAA infrared satellite layer rendered as raster tiles
-The map SHALL support a raster tile overlay of NOAA GOES infrared satellite imagery when the layer is enabled.
-
-#### Scenario: Layer loads successfully
-- **WHEN** the NOAA infrared satellite layer is enabled
-- **THEN** infrared satellite tiles are requested and rendered as an overlay on the map
+## MODIFIED Requirements
 
 ### Requirement: NOAA infrared satellite layer is toggleable
 
@@ -25,4 +15,3 @@ The user SHALL be able to show or hide the NOAA infrared satellite layer indepen
 #### Scenario: Hidden by default on initial load
 - **WHEN** the map loads for the first time in a session, with no prior toggle interaction
 - **THEN** the NOAA infrared satellite layer renders hidden until the user explicitly turns it on
-
