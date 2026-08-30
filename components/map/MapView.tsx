@@ -158,6 +158,11 @@ export default function MapView() {
   const aircraftVisibleRef = useRef(true);
   const userLocationRef = useRef<GeoCoords | null>(null);
   const userLocationVisibleRef = useRef(true);
+  // Split out of the former combined user-location toggle (design.md
+  // Decision 5) — independent of `userLocationVisibleRef`, default `true`
+  // matching the marker's own pre-split default.
+  const rangeRingsVisibleRef = useRef(true);
+  const drawerOpenRef = useRef(false);
   const styleReadyRef = useRef(false);
   const deckOverlayRef = useRef<MapboxOverlay | null>(null);
   const aircraftIconAtlasRef = useRef<IconAtlas | null>(null);
@@ -215,6 +220,13 @@ export default function MapView() {
   const [dwdRadolanVisible, setDwdRadolanVisible] = useState(true);
   const [aircraftVisible, setAircraftVisible] = useState(true);
   const [userLocationVisible, setUserLocationVisible] = useState(true);
+  const [rangeRingsVisible, setRangeRingsVisible] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  // Mirrors `userLocationRef.current` (design.md Decision 7) — the one
+  // piece of aircraft-adjacent state lifted into MapView for the
+  // plane-listing panel's Distance column, since it changes rarely (only on
+  // location resolution/re-jump), unlike the aircraft feed itself.
+  const [siteLocation, setSiteLocation] = useState<GeoCoords | null>(null);
   const [selectedAircraftHex, setSelectedAircraftHex] = useState<string | null>(null);
   const [selectedAircraftInfo, setSelectedAircraftInfo] = useState<SelectedAircraftInfo | null>(
     null,
@@ -421,6 +433,7 @@ export default function MapView() {
 
   const handleLocationResolved = (coords: GeoCoords | null) => {
     userLocationRef.current = coords;
+    setSiteLocation(coords);
     // `resolveUserLocation()` can resolve before the map's "load"/"style.load"
     // handler (`setupStyleDependentState`) has run for the first time (e.g. a
     // fast feeder/geolocation result racing initial style load), and
@@ -436,7 +449,8 @@ export default function MapView() {
     // once "load"/"style.load" fires — no separate retry needed here.
     if (coords && mapRef.current && styleReadyRef.current) {
       addUserLocationLayers(mapRef.current, coords, AIRPORTS_LAYER_ID);
-      setUserLocationVisibility(mapRef.current, userLocationVisibleRef.current);
+      setUserLocationMarkerVisibility(mapRef.current, userLocationVisibleRef.current);
+      setRangeRingsVisibility(mapRef.current, rangeRingsVisibleRef.current);
       // Location can resolve asynchronously, after the range-outline layers
       // already exist — re-assert their position below airports/above the
       // range-circle rings this call just (re)added. See
@@ -572,7 +586,8 @@ export default function MapView() {
       void refreshTerrainOutline(map);
       setPilotModeVisibility(map, pilotModeRef.current);
       addUserLocationLayers(map, userLocationRef.current, AIRPORTS_LAYER_ID);
-      setUserLocationVisibility(map, userLocationVisibleRef.current);
+      setUserLocationMarkerVisibility(map, userLocationVisibleRef.current);
+      setRangeRingsVisibility(map, rangeRingsVisibleRef.current);
       // Re-assert stacking order every style reload too — a fresh style
       // swap re-adds every custom layer from scratch, same ordering
       // concerns as the initial add (see
@@ -909,8 +924,23 @@ export default function MapView() {
     userLocationVisibleRef.current = next;
     setUserLocationVisible(next);
     if (mapRef.current) {
-      setUserLocationVisibility(mapRef.current, next);
+      setUserLocationMarkerVisibility(mapRef.current, next);
     }
+  };
+
+  const handleRangeRingsToggle = () => {
+    const next = !rangeRingsVisible;
+    rangeRingsVisibleRef.current = next;
+    setRangeRingsVisible(next);
+    if (mapRef.current) {
+      setRangeRingsVisibility(mapRef.current, next);
+    }
+  };
+
+  const handleDrawerToggle = () => {
+    const next = !drawerOpen;
+    drawerOpenRef.current = next;
+    setDrawerOpen(next);
   };
 
   const handleJumpToLocation = () => {
