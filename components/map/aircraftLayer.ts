@@ -251,10 +251,10 @@ export function buildAircraftLayers(params: {
   // returned (tasks.md 6.2) — skipping the segment/band/dot-building loops
   // and layer construction entirely while hidden avoids wasted per-poll work
   // for elements nothing renders.
-  let trackLayer: PathLayer<TrackSegment> | null = null;
-  let trackGlowLayer: PathLayer<TrackSegment> | null = null;
-  let curtainLayer: PathLayer<CurtainBand> | null = null;
-  let droplineLayer: ScatterplotLayer<DroplineDot> | null = null;
+  let trackLayer: Layer | null = null;
+  let trackGlowLayer: Layer | null = null;
+  let curtainLayer: Layer | null = null;
+  let droplineLayer: Layer | null = null;
 
   if (tracksVisible) {
     const segments: TrackSegment[] = [];
