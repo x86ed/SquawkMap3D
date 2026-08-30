@@ -13,6 +13,7 @@ import {
   readStoredDrawerWidth,
   writeStoredDrawerWidth,
 } from "./drawerWidth";
+import { DrawerTabs, type DrawerTabKey } from "./DrawerTabs";
 
 /** Matches `LayerDrawer.module.css`'s own `@media (max-width: 640px)` full-
  * screen breakpoint (design.md Decision 12) — the resize handle only makes
@@ -34,12 +35,20 @@ export function LayerDrawer({
   open,
   onClose,
   subtitle,
-  children,
+  layersContent,
+  aircraftContent,
 }: {
   open: boolean;
   onClose: () => void;
   subtitle?: string;
-  children: ReactNode;
+  /** Layers tab content (view-controls row + accordion) — design.md
+   * Decision 17. Stays mounted (hidden via CSS) while the Aircraft tab is
+   * active, so accordion expand/collapse state survives switching tabs. */
+  layersContent: ReactNode;
+  /** Aircraft tab content (`PlaneListingPanel`) — only actually rendered
+   * into the DOM while `open && activeTab === "aircraft"` (design.md
+   * Decision 17), so its poll stops the moment the Layers tab is active. */
+  aircraftContent: ReactNode;
 }) {
   const [width, setWidth] = useState<number>(() => {
     const stored = readStoredDrawerWidth();
@@ -47,6 +56,7 @@ export function LayerDrawer({
     return typeof window === "undefined" ? stored : clampDrawerWidth(stored, window.innerWidth);
   });
   const [isDesktop, setIsDesktop] = useState(false);
+  const [activeTab, setActiveTab] = useState<DrawerTabKey>("layers");
   const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   useEffect(() => {
@@ -117,7 +127,13 @@ export function LayerDrawer({
           </svg>
         </button>
       </div>
-      <div className={styles.body}>{children}</div>
+      <div className={styles.body}>
+        <DrawerTabs active={activeTab} onChange={setActiveTab} />
+        <div className={styles.tabPanel} hidden={activeTab !== "layers"}>
+          {layersContent}
+        </div>
+        {open && activeTab === "aircraft" && aircraftContent}
+      </div>
     </div>
   );
 }
