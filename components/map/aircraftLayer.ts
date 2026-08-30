@@ -170,6 +170,26 @@ export function buildAircraftLayers(params: {
     pickable: false,
   });
 
+  // Always-on per-aircraft icon glow (design.md Decision 3) — unlike
+  // `glowLayer` above (selected aircraft only, fixed rarity color), this
+  // renders for every currently rendered aircraft (`positioned`, same array
+  // `iconLayer` uses), colored as a brightened variant of that same
+  // aircraft's own current `resolveAircraftColor` result, so it always
+  // matches the active color mode. Smaller radius/lower alpha than the
+  // selection glow so a selected aircraft's rarity ring still stands out.
+  const iconGlowLayer = new ScatterplotLayer<Aircraft & { lat: number; lon: number }>({
+    id: AIRCRAFT_ICON_GLOW_LAYER_ID,
+    data: positioned,
+    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
+    getFillColor: (d) => {
+      const [r, g, b] = brightenColor(resolveAircraftColor(d, colorMode), AIRCRAFT_GLOW_BRIGHTEN_AMOUNT);
+      return [r, g, b, AIRCRAFT_ICON_GLOW_ALPHA];
+    },
+    getRadius: AIRCRAFT_ICON_GLOW_RADIUS_PIXELS,
+    radiusUnits: "pixels",
+    pickable: false,
+  });
+
   // Rarity mode needs each track point's owning aircraft's typeDesignator
   // (see aircraftIcons.ts's rarityToColorByTypeDesignator doc comment) —
   // TrackPoint itself carries no type info, only what was true at that poll.
@@ -197,6 +217,24 @@ export function buildAircraftLayers(params: {
     getPath: (d) => d.path,
     getColor: (d) => d.color,
     getWidth: 2,
+    widthUnits: "pixels",
+    pickable: false,
+  });
+
+  // Always-on track glow (design.md Decision 4) — a second, wider,
+  // lower-opacity pass over the exact same `segments` array already built
+  // above for `trackLayer` (no new loop), colored as a brightened variant of
+  // each segment's own resolved color, purely additive beneath the crisp
+  // original line.
+  const trackGlowLayer = new PathLayer<TrackSegment>({
+    id: AIRCRAFT_TRACK_GLOW_LAYER_ID,
+    data: segments,
+    getPath: (d) => d.path,
+    getColor: (d) => {
+      const [r, g, b] = brightenColor(d.color, AIRCRAFT_GLOW_BRIGHTEN_AMOUNT);
+      return [r, g, b, AIRCRAFT_TRACK_GLOW_ALPHA];
+    },
+    getWidth: AIRCRAFT_TRACK_GLOW_WIDTH_PIXELS,
     widthUnits: "pixels",
     pickable: false,
   });
@@ -232,8 +270,13 @@ export function buildAircraftLayers(params: {
     pickable: false,
   });
 
-  // Glow beneath the trail/icons (design.md Decision 4), trail beneath
-  // icons, rotor accent and icons on top (rotor drawn just before the icon
+  // Paint order, back to front: the selected-aircraft rarity-colored
+  // selection glow (`glowLayer`) stays visually outermost/largest and is
+  // painted first/lowest so it's never swallowed by the new always-on
+  // glows (design.md Decision 5); then the new always-on icon glow and
+  // track glow (`iconGlowLayer`, `trackGlowLayer`), both smaller/dimmer
+  // than the selection glow; then the crisp track line, rotor accent, and
+  // icons on top, unchanged from before (rotor drawn just before the icon
   // so the fuselage silhouette isn't hidden underneath it).
-  return [glowLayer, trackLayer, rotorLayer, iconLayer];
+  return [glowLayer, iconGlowLayer, trackGlowLayer, trackLayer, rotorLayer, iconLayer];
 }
