@@ -6,6 +6,10 @@
    component's styling. Every drawer-tree CSS module below reads these via
    plain CSS custom-property inheritance (they cascade through the DOM
    regardless of which .module.css file declared them). */
+/* .scope must stay properties-only (no layout/paint declarations) — it's
+   now applied to MapView.tsx's outermost wrapper, so any non-custom-property
+   rule here would also apply to the MapLibre canvas and every fixed-position
+   overlay descendant. */
 .scope {
   --radius-lg: 16px;
   --radius-md: 10px;
