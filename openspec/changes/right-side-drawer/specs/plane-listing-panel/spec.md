@@ -97,3 +97,18 @@ The Airline column SHALL be derived locally from the aircraft's callsign prefix,
 #### Scenario: Unresolvable airline or route renders empty
 - **WHEN** an aircraft's callsign prefix has no known airline match, or the route lookup finds no plausible route
 - **THEN** the Airline and/or Route column renders an empty/placeholder indicator rather than erroring or blocking the rest of the row
+
+### Requirement: Search, filters, and columns persist across reloads, with one reset control
+The search text, every filter's current value, and column visibility SHALL each persist to `localStorage` and be restored the next time the plane listing panel is opened. A single "Clear all" control SHALL reset search text, all filters, and column visibility to their defaults in one action and remove all of this panel's persisted state.
+
+#### Scenario: Search text persists across a reload
+- **WHEN** the user enters search text, then reloads the page and reopens the drawer
+- **THEN** the Search tab's field still contains the previously entered text, and the table is filtered accordingly
+
+#### Scenario: Filter values persist across a reload
+- **WHEN** the user sets one or more filters, then reloads the page and reopens the drawer
+- **THEN** the Filters tab still reflects the previously set values, and the table is filtered accordingly
+
+#### Scenario: Clear all resets and wipes persisted state in one action
+- **WHEN** the user activates "Clear all"
+- **THEN** search text is emptied, every filter is reset to its default, every column returns to the default-visible set, the table reflects all of this immediately, and no persisted state for this panel remains in `localStorage`

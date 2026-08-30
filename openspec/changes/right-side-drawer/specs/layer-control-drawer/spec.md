@@ -86,3 +86,22 @@ The top-right cluster (day/night slider and drawer-toggle button) SHALL also inc
 #### Scenario: Pilot mode control visible alongside slider and drawer button
 - **WHEN** the map has loaded
 - **THEN** a pilot-mode control is visible in the same top-right cluster as the day/night slider and drawer-toggle button, and activating it behaves exactly as it did before this change
+
+### Requirement: Drawer covers the full viewport on narrow/mobile screens
+Below a mobile viewport-width breakpoint, the drawer SHALL expand to cover the entire viewport width while open, and the top-right cluster (day/night slider, pilot-mode control, drawer-toggle button) SHALL be hidden while the drawer is open at that breakpoint.
+
+#### Scenario: Drawer is full-width on a narrow viewport
+- **WHEN** the viewport width is below the mobile breakpoint and the user opens the drawer
+- **THEN** the drawer expands to cover the full viewport width, rather than a fixed-width panel over part of the map
+
+#### Scenario: Top-right cluster hides while the full-screen drawer is open
+- **WHEN** the viewport width is below the mobile breakpoint and the drawer is open
+- **THEN** the top-right cluster is not visible, and the drawer's own close control is the way to close it
+
+#### Scenario: Top-right cluster reappears once the drawer closes
+- **WHEN** the viewport width is below the mobile breakpoint and the user closes the full-screen drawer
+- **THEN** the top-right cluster becomes visible again
+
+#### Scenario: Cluster stays visible above the mobile breakpoint
+- **WHEN** the viewport width is at or above the mobile breakpoint
+- **THEN** the top-right cluster remains visible regardless of whether the drawer is open or closed

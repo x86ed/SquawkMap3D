@@ -15,7 +15,7 @@
 ## 3. Registration-country and airline-designator lookups
 
 - [ ] 3.1 Add `components/map/registrationCountry.ts` exporting `countryCodeForRegistration(registration: string | undefined): string | null`, using a vendored tail-number-prefix → ISO country code table (`components/map/data/registrationPrefixes.json`), returning `null` for no match or no registration.
-- [ ] 3.2 Add `components/map/data/airlineDesignators.json`, a vendored ICAO 3-letter callsign-prefix → airline-name table (source a suitable public dataset; document the source in a comment/README note near the file, same convention as `aircraftRareness.json`'s sourcing comment in `aircraftRarity.ts`).
+- [ ] 3.2 Add `components/map/data/airlineDesignators.json`, a vendored ICAO 3-letter callsign-prefix → airline-name table built from OpenFlights' `airlines.dat` (design.md Decision 11) — filter to rows with a non-`\N`, non-empty ICAO code, keep only `{icao, name}`, drop rows OpenFlights marks defunct/inactive; document the source/filter in a comment/README note near the file, same convention as `aircraftRareness.json`'s sourcing comment in `aircraftRarity.ts`.
 - [ ] 3.3 Add `components/map/airlineLookup.ts` exporting `airlineNameForCallsign(callsign: string | undefined): string | null` — extracts the leading alphabetic prefix and looks it up in 3.2's table, returning `null` for no match.
 - [ ] 3.4 Add unit tests for both lookups: known prefix, unknown prefix, missing/empty input.
 
@@ -27,6 +27,7 @@
 - [ ] 4.4 In `MapView.tsx`'s render: replace the `.controls` button stack with a 3-item top-right cluster — `<ThemeSlider>`, the existing pilot-mode button (re-skinned to match, same `handlePilotModeToggle`), and a drawer-toggle button (`handleDrawerToggle`) — plus mount `<LayerDrawer open={drawerOpen} onClose={...}>` containing everything from tasks 5-9 below.
 - [ ] 4.5 Update `MapView.module.css`: shrink `.controls` to the 3-item cluster's layout; remove now-unused per-button styles that move to the drawer's own CSS modules.
 - [ ] 4.6 Confirm `ColorModeLegendDock`'s `right: 210px` offset (sized to clear the old button column) is revisited — it should clear the new, much narrower 3-item cluster instead; adjust the constant/comment in `ColorModeLegendDock.module.css` accordingly.
+- [ ] 4.7 In `LayerDrawer.module.css`: below the `640px` breakpoint, drawer expands to `width: 100vw`; in `MapView.tsx`/`.module.css`, hide the top-right cluster while `drawerOpen` is true at that breakpoint (design.md Decision 12), matching the reference file's mobile CSS as a starting point.
 
 ## 5. Accordion primitive
 
@@ -67,6 +68,7 @@
 - [ ] 10.3 Search tab: text input filtering the row set by callsign, registration, and hex ID (case-insensitive substring match).
 - [ ] 10.4 Filters tab: at minimum altitude range and distance range numeric filters, plus a military-only filter (using the new `isMilitary` field from task 1).
 - [ ] 10.5 Columns tab: checkboxes for every `COLUMNS` entry, toggling visibility; "reset to defaults" and "show all" actions; persist the current visible-column set to `localStorage` under a new key (mirroring `theme.ts`'s `THEME_STORAGE_KEY` pattern), restored on mount.
+- [ ] 10.5a Persist Search tab's text and Filters tab's current values to their own `localStorage` keys (design.md Decision 13), restored on mount alongside columns. Add a "Clear all" action (Columns tab, alongside 10.5's reset actions) that resets search/filters/columns to defaults and removes all three `localStorage` keys in one action.
 - [ ] 10.6 Route/Airline resolution: for each row needing a route, call `getCachedFlightRoute()` (task 2) — no per-row-per-poll re-fetch of an already-cached key, and no additional throttling beyond that shared cache (design.md Decision 9); derive Airline synchronously via `airlineLookup.ts` (no network call).
 
 ## 11. Plane listing panel: sortable table
