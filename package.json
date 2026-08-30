@@ -1,6 +1,6 @@
 {
   "name": "squawkmap3d",
-  "version": "0.19.20",
+  "version": "0.20.0",
   "description": "an adsb map",
   "keywords": [
     "ADSB",
@@ -56,3 +56,4 @@
     "typescript": "^5.9.0"
   }
 }
+
