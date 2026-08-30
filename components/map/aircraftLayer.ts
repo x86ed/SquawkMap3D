@@ -134,6 +134,10 @@ export function buildAircraftLayers(params: {
   tracks: ReadonlyMap<string, TrackPoint[]>;
   iconAtlas: IconAtlas | null;
   colorMode: ColorMode;
+  // Gates trail line/glow/droplines/curtain only — icon, icon-glow, and
+  // rotor layers are unaffected (aircraft-tracks-layer's "toggleable
+  // independently of aircraft icon visibility" requirement).
+  tracksVisible: boolean;
   onAircraftClick: (hex: string | null) => void;
   onAircraftHover: (
     aircraft: (Aircraft & { lat: number; lon: number }) | null,
@@ -141,7 +145,8 @@ export function buildAircraftLayers(params: {
     y: number,
   ) => void;
 }): Layer[] {
-  const { aircraft, tracks, iconAtlas, colorMode, onAircraftClick, onAircraftHover } = params;
+  const { aircraft, tracks, iconAtlas, colorMode, tracksVisible, onAircraftClick, onAircraftHover } =
+    params;
   if (!iconAtlas) return [];
 
   const positioned = aircraft.filter(
@@ -242,17 +247,23 @@ export function buildAircraftLayers(params: {
   // TrackPoint itself carries no type info, only what was true at that poll.
   const aircraftByHex = new Map(aircraft.map((a) => [a.hex, a]));
 
-  const segments: TrackSegment[] = [];
-  const curtainBands: CurtainBand[] = [];
-  const droplineDots: DroplineDot[] = [];
-  // Captured once per call, not per segment (design.md Decision 1), so every
-  // segment's fade is computed against the same instant.
-  const now = Date.now();
-
   // tracksVisible gates all track-derived work, not just which layers are
-  // returned (tasks.md 6.2) — skipping these loops entirely while hidden
-  // avoids wasted per-poll work building segments/bands/dots nothing renders.
+  // returned (tasks.md 6.2) — skipping the segment/band/dot-building loops
+  // and layer construction entirely while hidden avoids wasted per-poll work
+  // for elements nothing renders.
+  let trackLayer: PathLayer<TrackSegment> | null = null;
+  let trackGlowLayer: PathLayer<TrackSegment> | null = null;
+  let curtainLayer: PathLayer<CurtainBand> | null = null;
+  let droplineLayer: ScatterplotLayer<DroplineDot> | null = null;
+
   if (tracksVisible) {
+    const segments: TrackSegment[] = [];
+    const curtainBands: CurtainBand[] = [];
+    const droplineDots: DroplineDot[] = [];
+    // Captured once per call, not per segment (design.md Decision 1), so
+    // every segment's fade is computed against the same instant.
+    const now = Date.now();
+
     for (const [hex, points] of tracks) {
       const typeDesignator = aircraftByHex.get(hex)?.typeDesignator;
       for (let i = 1; i < points.length; i++) {
@@ -390,12 +401,11 @@ export function buildAircraftLayers(params: {
     pickable: false,
   });
 
-  // Paint order, back to front: the always-on icon glow and track glow
-  // (`iconGlowLayer`, `trackGlowLayer`), both smaller/dimmer than the
-  // selected-aircraft selection-pulse ring (which now lives on its own
-  // overlay, painted separately — see selectionPulse.ts); then the crisp
-  // track line, rotor accent, and icons on top, unchanged from before (rotor
-  // drawn just before the icon so the fuselage silhouette isn't hidden
-  // underneath it).
-  return [iconGlowLayer, trackGlowLayer, trackLayer, rotorLayer, iconLayer];
+  // Paint order, back to front: the always-on icon glow, then the new ground
+  // curtain (furthest-back "ground reference" element), the track glow, the
+  // new ground droplines, then the crisp track line, rotor accent, and icons
+  // on top (rotor drawn just before the icon so the fuselage silhouette
+  // isn't hidden underneath it). Relative order between trackGlowLayer/
+  // curtainLayer/droplineLayer is left to visual tuning (tasks.md 6.3).
+  return [iconGlowLayer, curtainLayer, trackGlowLayer, droplineLayer, trackLayer, rotorLayer, iconLayer];
 }
