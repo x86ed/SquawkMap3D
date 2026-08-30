@@ -30,7 +30,7 @@ import { buildAircraftLayers } from "./aircraftLayer";
 import { AircraftColorDock } from "./controls/AircraftColorDock";
 import { AircraftHoverTooltip } from "./overlay/AircraftHoverTooltip";
 import { ColorModeLegendDock } from "./overlay/ColorModeLegendDock";
-import { getFlightRoute, type FlightRoute } from "./flightRoute";
+import { getCachedFlightRoute, clearFlightRouteCache, type FlightRoute } from "./flightRoute";
 import {
   buildSelectedAircraftInfo,
   type SelectedAircraftInfo,
@@ -174,9 +174,6 @@ export default function MapView() {
   // Aircraft color mode (design.md Decision 1) — default "altitude" is
   // closest to this layer's prior always-on-altitude-tint behavior.
   const colorModeRef = useRef<ColorMode>("altitude");
-  // callsign+hex-keyed, cleared on deselect — avoids re-fetching the same
-  // aircraft's route every ~1s poll while it stays selected (tasks.md 6.2).
-  const routeCacheRef = useRef<Map<string, FlightRoute | null>>(new Map());
 
   // Second, dedicated overlay (design.md Decision 4) — kept separate from
   // `deckOverlayRef` above so this layer's ~60fps rAF loop never couples to
@@ -258,7 +255,7 @@ export default function MapView() {
 
     if (next === null) {
       setSelectedAircraftInfo(null);
-      routeCacheRef.current.clear();
+      clearFlightRouteCache();
     } else if (
       followSelectedAircraftRef.current &&
       picked?.lat !== undefined &&
