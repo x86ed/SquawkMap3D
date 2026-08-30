@@ -77,7 +77,8 @@ import {
 import {
   addUserLocationLayers,
   getUserLocationBounds,
-  setUserLocationVisibility,
+  setUserLocationMarkerVisibility,
+  setRangeRingsVisibility,
   USER_LOCATION_ICON_LAYER_ID,
 } from "./userLocation";
 import {

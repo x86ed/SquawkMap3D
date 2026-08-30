@@ -180,16 +180,27 @@ export function addUserLocationLayers(
 }
 
 /**
- * Shows/hides the user-location icon and range rings (+ labels) together as
- * one combined layer, matching the acceptance criteria's single toggle for
- * "the rings plus the user icon". Independent of pilot mode, same as
- * `setMilitaryBasesVisibility` and friends in `layers.ts`.
+ * Shows/hides the user-location icon marker alone (`user-location-marker`
+ * spec's "Transponder Location" control) — independent of
+ * `setRangeRingsVisibility` below (design.md Decision 5's split of the
+ * former combined `setUserLocationVisibility`). Independent of pilot mode,
+ * same as `setMilitaryBasesVisibility` and friends in `layers.ts`.
  */
-export function setUserLocationVisibility(map: MapLibreMap, visible: boolean): void {
+export function setUserLocationMarkerVisibility(map: MapLibreMap, visible: boolean): void {
   const visibility = visible ? "visible" : "none";
   if (map.getLayer(USER_LOCATION_ICON_LAYER_ID)) {
     map.setLayoutProperty(USER_LOCATION_ICON_LAYER_ID, "visibility", visibility);
   }
+}
+
+/**
+ * Shows/hides the 4 range rings and their labels alone (`user-location-marker`
+ * spec's "Range Rings" control) — independent of
+ * `setUserLocationMarkerVisibility` above (design.md Decision 5's split of
+ * the former combined `setUserLocationVisibility`).
+ */
+export function setRangeRingsVisibility(map: MapLibreMap, visible: boolean): void {
+  const visibility = visible ? "visible" : "none";
   if (map.getLayer(USER_RINGS_LINE_LAYER_ID)) {
     map.setLayoutProperty(USER_RINGS_LINE_LAYER_ID, "visibility", visibility);
   }
