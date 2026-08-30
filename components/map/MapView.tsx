@@ -170,6 +170,12 @@ export default function MapView() {
   // matching the marker's own pre-split default.
   const rangeRingsVisibleRef = useRef(true);
   const drawerOpenRef = useRef(false);
+  // Mirrors `layerDrawerWidth` state (paired with `drawerOpenRef` above) so
+  // the aircraft-focus camera offset below can read the drawer's current
+  // occupied width from `refreshAircraft`'s mount-once-effect `setInterval`
+  // closure without going stale — same reasoning as every other ref in this
+  // file paired with render state.
+  const layerDrawerWidthRef = useRef(DRAWER_DEFAULT_WIDTH);
   const styleReadyRef = useRef(false);
   const deckOverlayRef = useRef<MapboxOverlay | null>(null);
   const aircraftIconAtlasRef = useRef<IconAtlas | null>(null);
@@ -268,6 +274,18 @@ export default function MapView() {
   // aircraftLayer.ts), lets a fresh selection recenter the camera
   // immediately rather than waiting for the next poll (design.md Decision
   // 13's "Camera centers on the aircraft immediately upon selection").
+  // The map's own canvas always spans the full viewport (LayerDrawer is a
+  // layered overlay, not something that shrinks the canvas) — so centering
+  // on a raw [lon, lat] targets the midpoint of the whole screen, including
+  // whatever width the drawer currently occludes. MapLibre's `offset` shifts
+  // the target's screen position, in pixels, from the canvas's true center;
+  // shifting left by half the drawer's occupied width lands the aircraft at
+  // the center of the *visible* remaining area instead.
+  const getAircraftFocusOffset = (): [number, number] => {
+    const occupiedWidth = drawerOpenRef.current ? layerDrawerWidthRef.current : 0;
+    return [-occupiedWidth / 2, 0];
+  };
+
   const handleAircraftClick = (hex: string | null, picked?: Aircraft) => {
     // react-hooks/purity flags this `Date.now()` conservatively: its static
     // reachability analysis can't prove `handleAircraftClick` is only ever
@@ -292,6 +310,7 @@ export default function MapView() {
     ) {
       mapRef.current.easeTo({
         center: [picked.lon, picked.lat],
+        offset: getAircraftFocusOffset(),
         duration: FOLLOW_SELECTED_AIRCRAFT_EASE_MS,
       });
     }
@@ -355,6 +374,7 @@ export default function MapView() {
     ) {
       mapRef.current.easeTo({
         center: [selected.lon, selected.lat],
+        offset: getAircraftFocusOffset(),
         duration: FOLLOW_SELECTED_AIRCRAFT_EASE_MS,
       });
     }
@@ -958,6 +978,11 @@ export default function MapView() {
     setDrawerOpen(next);
   };
 
+  const handleLayerDrawerWidthChange = (width: number) => {
+    layerDrawerWidthRef.current = width;
+    setLayerDrawerWidth(width);
+  };
+
   const handleJumpToLocation = () => {
     resolveUserLocation().then((coords) => {
       handleLocationResolved(coords);
@@ -1057,7 +1082,7 @@ export default function MapView() {
         <LayerDrawer
           open={drawerOpen}
           onClose={handleDrawerToggle}
-          onWidthChange={setLayerDrawerWidth}
+          onWidthChange={handleLayerDrawerWidthChange}
           layersContent={
             <>
               <div className={styles.viewControls}>
