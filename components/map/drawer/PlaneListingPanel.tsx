@@ -96,14 +96,38 @@ function routeCacheKey(hex: string, callsign: string): string {
   return `${hex}:${callsign}`;
 }
 
+function stringArraysEqual(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((v) => b.includes(v));
+}
+
 function filtersEqual(a: Filters, b: Filters): boolean {
   return (
-    a.militaryOnly === b.militaryOnly &&
     a.altMin === b.altMin &&
     a.altMax === b.altMax &&
     a.distMin === b.distMin &&
-    a.distMax === b.distMax
+    a.distMax === b.distMax &&
+    a.callsign === b.callsign &&
+    a.squawk === b.squawk &&
+    a.registration === b.registration &&
+    a.hex === b.hex &&
+    a.typeCode === b.typeCode &&
+    a.typeDescription === b.typeDescription &&
+    a.route === b.route &&
+    a.country === b.country &&
+    a.category === b.category &&
+    stringArraysEqual(a.sourceBuckets, b.sourceBuckets) &&
+    stringArraysEqual(a.dbFlags, b.dbFlags)
   );
+}
+
+function routeText(row: PlaneListingRow): string {
+  const { origin, destination } = row.route ?? {};
+  return `${origin ?? ""} ${destination ?? ""}`.trim();
+}
+
+function countryText(row: PlaneListingRow): string {
+  const name = countryNameForCode(row.countryCode ?? undefined) ?? "";
+  return `${row.countryCode ?? ""} ${name}`.trim();
 }
 
 function columnSetsEqual(a: ColumnKey[], b: ColumnKey[]): boolean {
@@ -214,11 +238,58 @@ export function PlaneListingPanel({ siteLocation }: { siteLocation: GeoCoords | 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();
     return allRows.filter((row) => {
-      if (filters.militaryOnly && !row.isMilitary) return false;
       if (filters.altMin !== null && (row.altitude ?? -Infinity) < filters.altMin) return false;
       if (filters.altMax !== null && (row.altitude ?? Infinity) > filters.altMax) return false;
       if (filters.distMin !== null && (row.distanceNm ?? -Infinity) < filters.distMin) return false;
       if (filters.distMax !== null && (row.distanceNm ?? Infinity) > filters.distMax) return false;
+
+      if (filters.callsign && !(row.callsign ?? "").toLowerCase().includes(filters.callsign.toLowerCase())) {
+        return false;
+      }
+      if (filters.squawk && !(row.squawk ?? "").toLowerCase().includes(filters.squawk.toLowerCase())) {
+        return false;
+      }
+      if (
+        filters.registration &&
+        !(row.registration ?? "").toLowerCase().includes(filters.registration.toLowerCase())
+      ) {
+        return false;
+      }
+      if (filters.hex && !row.hex.toLowerCase().includes(filters.hex.toLowerCase())) return false;
+      if (
+        filters.typeCode &&
+        !(row.typeDesignator ?? "").toLowerCase().includes(filters.typeCode.toLowerCase())
+      ) {
+        return false;
+      }
+      if (filters.typeDescription) {
+        const description = typeDescriptionForCode(row.typeDesignator) ?? "";
+        if (!description.toLowerCase().includes(filters.typeDescription.toLowerCase())) return false;
+      }
+      if (filters.route && !routeText(row).toLowerCase().includes(filters.route.toLowerCase())) {
+        return false;
+      }
+      if (filters.country && !countryText(row).toLowerCase().includes(filters.country.toLowerCase())) {
+        return false;
+      }
+      if (
+        filters.category &&
+        !(row.category ?? "").toLowerCase().includes(filters.category.toLowerCase())
+      ) {
+        return false;
+      }
+      if (filters.sourceBuckets.length > 0) {
+        if (!filters.sourceBuckets.includes(bucketForSourceType(row.sourceType))) return false;
+      }
+      if (filters.dbFlags.length > 0) {
+        const matchesAny = filters.dbFlags.some((flag) => {
+          if (flag === "military") return !!row.isMilitary;
+          if (flag === "pia") return !!row.isPia;
+          return !!row.isLadd;
+        });
+        if (!matchesAny) return false;
+      }
+
       if (query) {
         const haystack = `${row.callsign ?? ""} ${row.registration ?? ""} ${row.hex}`.toLowerCase();
         if (!haystack.includes(query)) return false;
@@ -250,6 +321,27 @@ export function PlaneListingPanel({ siteLocation }: { siteLocation: GeoCoords | 
       prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
     );
   };
+
+  const handleToggleSourceBucket = (bucket: SourceBucket) => {
+    if (bucket === "acars") return; // always disabled/no-op — no ACARS data source
+    setFilters((prev) => ({
+      ...prev,
+      sourceBuckets: prev.sourceBuckets.includes(bucket)
+        ? prev.sourceBuckets.filter((b) => b !== bucket)
+        : [...prev.sourceBuckets, bucket],
+    }));
+  };
+
+  const handleToggleDbFlag = (flag: DbFlag) => {
+    setFilters((prev) => ({
+      ...prev,
+      dbFlags: prev.dbFlags.includes(flag)
+        ? prev.dbFlags.filter((f) => f !== flag)
+        : [...prev.dbFlags, flag],
+    }));
+  };
+
+  const selectedSourceBuckets = useMemo(() => new Set(filters.sourceBuckets), [filters.sourceBuckets]);
 
   const handleResetColumnsToDefault = () => setVisibleColumnKeys(DEFAULT_VISIBLE_COLUMN_KEYS);
   const handleShowAllColumns = () => setVisibleColumnKeys(COLUMNS.map((c) => c.key));
