@@ -84,6 +84,38 @@
   background: var(--row-hover);
 }
 
+/* Source-bucket row tints (design.md Decision 15) — same buckets as the
+ * Source filter's chips. Selectors are qualified with `.table tbody tr` (the
+ * same specificity as the alternating-row-background rule above) so a row's
+ * source tint always wins over plain odd/even striping regardless of source
+ * order; the hover rule stays a plain flat color on top since a hover
+ * highlight doesn't need to preserve the tint underneath. Colors are
+ * blended toward `--panel` so this app's light text stays readable over
+ * every tint. */
+.table tbody tr.rowAdsb {
+  background: color-mix(in srgb, #4a90d9 22%, var(--panel));
+}
+
+.table tbody tr.rowUatAdsr {
+  background: color-mix(in srgb, #4caf50 20%, var(--panel));
+}
+
+.table tbody tr.rowMlat {
+  background: color-mix(in srgb, #b5a642 22%, var(--panel));
+}
+
+.table tbody tr.rowTisb {
+  background: color-mix(in srgb, #a13d3d 22%, var(--panel));
+}
+
+.table tbody tr.rowModeS {
+  background: color-mix(in srgb, #6b5fc9 22%, var(--panel));
+}
+
+.table tbody tr.rowOther {
+  background: var(--panel);
+}
+
 .callsignCell {
   font-weight: 700;
   color: var(--text);
