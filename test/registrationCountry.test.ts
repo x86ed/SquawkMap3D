@@ -1,0 +1,33 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { countryCodeForRegistration } from "../components/map/registrationCountry";
+
+test("known single-letter prefix resolves", () => {
+  assert.equal(countryCodeForRegistration("N12345"), "US");
+});
+
+test("known multi-character prefix resolves", () => {
+  assert.equal(countryCodeForRegistration("VH-ABC"), "AU");
+});
+
+test("longer known prefix wins over a shorter overlapping one", () => {
+  // "VP-B" (Bermuda) shouldn't be shadowed by matching just "V" or "VP" if
+  // those were ever both present in the table.
+  assert.equal(countryCodeForRegistration("VP-BXY"), "BM");
+});
+
+test("unknown prefix resolves to null", () => {
+  assert.equal(countryCodeForRegistration("ZZZZZZ-NOPE"), null);
+});
+
+test("missing registration resolves to null", () => {
+  assert.equal(countryCodeForRegistration(undefined), null);
+});
+
+test("empty registration resolves to null", () => {
+  assert.equal(countryCodeForRegistration("   "), null);
+});
+
+test("lowercase registration still resolves (case-insensitive)", () => {
+  assert.equal(countryCodeForRegistration("n12345"), "US");
+});
