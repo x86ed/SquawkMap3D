@@ -293,7 +293,7 @@ export default function MapView() {
       selectedAircraftHexRef.current = null;
       setSelectedAircraftHex(null);
       setSelectedAircraftInfo(null);
-      routeCacheRef.current.clear();
+      clearFlightRouteCache();
     }
 
     const layers = buildAircraftLayers({
@@ -333,13 +333,12 @@ export default function MapView() {
 
     let route: FlightRoute | null = null;
     if (selected.callsign && selected.lat !== undefined && selected.lon !== undefined) {
-      const cacheKey = `${selected.hex}:${selected.callsign}`;
-      if (routeCacheRef.current.has(cacheKey)) {
-        route = routeCacheRef.current.get(cacheKey) ?? null;
-      } else {
-        route = await getFlightRoute(selected.callsign, selected.lat, selected.lon);
-        routeCacheRef.current.set(cacheKey, route);
-      }
+      route = await getCachedFlightRoute(
+        selected.hex,
+        selected.callsign,
+        selected.lat,
+        selected.lon,
+      );
     }
 
     setSelectedAircraftInfo(
