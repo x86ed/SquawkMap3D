@@ -984,6 +984,8 @@ export default function MapView() {
     setFollowSelectedAircraft(next);
   };
 
+  const collisionOffsetPx = useDockCollisionOffset(leftDockRef, legendDockRef);
+
   if (error) {
     return (
       <div className={styles.error}>
@@ -1015,9 +1017,16 @@ export default function MapView() {
     noaaInfraredVisible,
   ].filter(Boolean).length;
   const environmentalOnCount = weatherOnCount + (terminatorVisible ? 1 : 0);
+  // The occupied width LayerDrawer's fixed-position siblings should treat as
+  // their right edge (design.md Decision 1) — 0 while closed, since the
+  // drawer itself renders offscreen (`transform: translateX(100%)`) then.
+  const rightDrawerOccupiedWidth = drawerOpen ? layerDrawerWidth : 0;
 
   return (
-    <div className={styles.container}>
+    <div
+      className={styles.container}
+      style={{ "--right-drawer-w": `${rightDrawerOccupiedWidth}px` } as CSSProperties}
+    >
       <div ref={containerRef} className={styles.container} />
       <div className={drawerTheme.scope} data-theme={theme}>
         <div className={styles.controls} data-hidden={drawerOpen}>
@@ -1048,6 +1057,7 @@ export default function MapView() {
         <LayerDrawer
           open={drawerOpen}
           onClose={handleDrawerToggle}
+          onWidthChange={setLayerDrawerWidth}
           layersContent={
             <>
               <div className={styles.viewControls}>
@@ -1168,12 +1178,20 @@ export default function MapView() {
       </div>
       <AircraftOverlay info={selectedAircraftInfo} onClose={() => handleAircraftClick(null)} />
       <AircraftColorDock
+        ref={leftDockRef}
         colorMode={colorMode}
         onColorModeChange={handleColorModeChange}
         onRecenter={handleJumpToLocation}
         drawerOpen={selectedAircraftInfo !== null}
+        layerDrawerOpen={drawerOpen}
+        collisionOffsetPx={collisionOffsetPx}
       />
-      <ColorModeLegendDock colorMode={colorMode} drawerOpen={selectedAircraftInfo !== null} />
+      <ColorModeLegendDock
+        ref={legendDockRef}
+        colorMode={colorMode}
+        drawerOpen={selectedAircraftInfo !== null}
+        layerDrawerOpen={drawerOpen}
+      />
       {hoveredAircraft && (
         <AircraftHoverTooltip
           aircraft={hoveredAircraft}

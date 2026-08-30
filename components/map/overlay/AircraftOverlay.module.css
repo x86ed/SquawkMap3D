@@ -3,7 +3,7 @@
 .drawer {
   position: fixed;
   left: 0;
-  right: 0;
+  right: var(--right-drawer-w, 0px);
   bottom: 0;
   z-index: 3;
   height: 45vh;
