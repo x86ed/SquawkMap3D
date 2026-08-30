@@ -41,14 +41,13 @@ export function LayerDrawer({
   subtitle?: string;
   children: ReactNode;
 }) {
-  const [width, setWidth] = useState<number>(DRAWER_DEFAULT_WIDTH);
+  const [width, setWidth] = useState<number>(() => {
+    const stored = readStoredDrawerWidth();
+    if (stored === null) return DRAWER_DEFAULT_WIDTH;
+    return typeof window === "undefined" ? stored : clampDrawerWidth(stored, window.innerWidth);
+  });
   const [isDesktop, setIsDesktop] = useState(false);
   const dragStateRef = useRef<{ startX: number; startWidth: number } | null>(null);
-
-  useEffect(() => {
-    const stored = readStoredDrawerWidth();
-    if (stored !== null) setWidth(clampDrawerWidth(stored, window.innerWidth));
-  }, []);
 
   useEffect(() => {
     const mql = window.matchMedia(DESKTOP_MEDIA_QUERY);
