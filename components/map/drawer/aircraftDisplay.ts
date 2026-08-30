@@ -34,6 +34,16 @@ export interface PlaneListingRow {
   lon?: number;
   sourceType?: string;
   isMilitary?: boolean;
+  /** ADS-B emitter category, e.g. "A3" (readsb's `category`) — used only by
+   * the Filters tab's Category filter, not rendered as a column
+   * (design.md Decision 14). */
+  category?: string;
+  /** Privacy ICAO Address flag (`dbFlags` bit `0x4`) — used only by the
+   * Filters tab's DB-flags chip row (design.md Decision 14). */
+  isPia?: boolean;
+  /** Limiting Aircraft Data Displayed flag (`dbFlags` bit `0x8`) — used only
+   * by the Filters tab's DB-flags chip row (design.md Decision 14). */
+  isLadd?: boolean;
   windDirection?: number;
   windSpeed?: number;
   rarityTier: RarityTier;
@@ -77,6 +87,9 @@ export function buildPlaneListingRow(aircraft: Aircraft, siteLocation: GeoCoords
     lon: aircraft.lon,
     sourceType: aircraft.sourceType,
     isMilitary: aircraft.isMilitary,
+    category: aircraft.category,
+    isPia: aircraft.isPia,
+    isLadd: aircraft.isLadd,
     windDirection: aircraft.windDirection,
     windSpeed: aircraft.windSpeed,
     rarityTier: computeRarityTier(aircraft),
