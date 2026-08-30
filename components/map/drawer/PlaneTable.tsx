@@ -119,12 +119,22 @@ export function PlaneTable({
   visibleColumnKeys,
   sort,
   onSort,
+  selectedHex,
+  onRowClick,
 }: {
   rows: PlaneListingRow[];
   totalCount: number;
   visibleColumnKeys: ColumnKey[];
   sort: SortState;
   onSort: (key: ColumnKey) => void;
+  /** Hex of the aircraft currently selected on the map (or via a prior row
+   * click) — the matching row gets a highlighted style, whichever way the
+   * selection was made. */
+  selectedHex?: string | null;
+  /** Clicking a row selects that aircraft (opens the same info overlay a
+   * map-icon click does) — same toggle semantics as the map click handler,
+   * so clicking the already-selected row deselects it. */
+  onRowClick?: (hex: string) => void;
 }) {
   const visibleColumns = COLUMNS.filter((c) => visibleColumnKeys.includes(c.key));
 
@@ -172,15 +182,30 @@ export function PlaneTable({
                 </td>
               </tr>
             ) : (
-              rows.map((row) => (
-                <tr key={row.hex} className={SOURCE_ROW_CLASS[bucketForSourceType(row.sourceType)]}>
-                  {visibleColumns.map((column) => (
-                    <td key={column.key} className={alignClass(column.align)}>
-                      <CellContent row={row} columnKey={column.key} />
-                    </td>
-                  ))}
-                </tr>
-              ))
+              rows.map((row) => {
+                const isSelected = row.hex === selectedHex;
+                const className = [
+                  SOURCE_ROW_CLASS[bucketForSourceType(row.sourceType)],
+                  onRowClick ? styles.clickableRow : undefined,
+                  isSelected ? styles.rowSelected : undefined,
+                ]
+                  .filter(Boolean)
+                  .join(" ");
+                return (
+                  <tr
+                    key={row.hex}
+                    className={className}
+                    onClick={onRowClick ? () => onRowClick(row.hex) : undefined}
+                    aria-selected={onRowClick ? isSelected : undefined}
+                  >
+                    {visibleColumns.map((column) => (
+                      <td key={column.key} className={alignClass(column.align)}>
+                        <CellContent row={row} columnKey={column.key} />
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

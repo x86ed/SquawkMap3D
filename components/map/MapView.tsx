@@ -1147,7 +1147,13 @@ export default function MapView() {
               </div>
             </>
           }
-          aircraftContent={<PlaneListingPanel siteLocation={siteLocation} />}
+          aircraftContent={
+            <PlaneListingPanel
+              siteLocation={siteLocation}
+              selectedHex={selectedAircraftHex}
+              onAircraftClick={handleAircraftClick}
+            />
+          }
         />
       </div>
       <AircraftOverlay info={selectedAircraftInfo} onClose={() => handleAircraftClick(null)} />

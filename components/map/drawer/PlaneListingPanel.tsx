@@ -144,7 +144,22 @@ function columnSetsEqual(a: ColumnKey[], b: ColumnKey[]): boolean {
  * unmount. `LayerDrawer`'s caller only mounts this while the drawer is open
  * (design.md Decision 8), so this poll only runs then.
  */
-export function PlaneListingPanel({ siteLocation }: { siteLocation: GeoCoords | null }) {
+export function PlaneListingPanel({
+  siteLocation,
+  selectedHex = null,
+  onAircraftClick,
+}: {
+  siteLocation: GeoCoords | null;
+  /** Hex of the aircraft currently selected on the map, so the matching
+   * table row can be highlighted regardless of how it was selected. */
+  selectedHex?: string | null;
+  /** Same handler the map's own aircraft-icon click uses (`MapView.tsx`'s
+   * `handleAircraftClick`) — clicking a row selects that aircraft and opens
+   * the same info overlay a map click would, with the same toggle-to-
+   * deselect behavior. Optional so this panel still renders standalone
+   * (e.g. in tests) without a selection handler wired up. */
+  onAircraftClick?: (hex: string | null, picked?: Aircraft) => void;
+}) {
   const [aircraft, setAircraft] = useState<Aircraft[]>([]);
   const [routesByKey, setRoutesByKey] = useState<Record<string, FlightRoute | null>>({});
   const requestedRouteKeysRef = useRef<Set<string>>(new Set());
@@ -591,6 +606,12 @@ export function PlaneListingPanel({ siteLocation }: { siteLocation: GeoCoords | 
         visibleColumnKeys={visibleColumnKeys}
         sort={sort}
         onSort={handleSort}
+        selectedHex={selectedHex}
+        onRowClick={
+          onAircraftClick
+            ? (hex) => onAircraftClick(hex, aircraft.find((a) => a.hex === hex))
+            : undefined
+        }
       />
       <SourceChipRow selected={selectedSourceBuckets} onToggle={handleToggleSourceBucket} />
     </div>

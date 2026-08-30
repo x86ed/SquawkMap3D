@@ -116,6 +116,20 @@
   background: var(--panel);
 }
 
+.clickableRow {
+  cursor: pointer;
+}
+
+/* Selected-row highlight — defined after the source-tint rules above so it
+ * wins the equal-specificity tie when a row carries both a source class and
+ * this one (clicking a table row selects that aircraft, same as clicking its
+ * icon on the map; the highlight tracks selectedHex regardless of which way
+ * the selection was made). An inset outline is used instead of overriding
+ * `background` so the row's source tint stays visible underneath. */
+.table tbody tr.rowSelected {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
 .callsignCell {
   font-weight: 700;
   color: var(--text);
