@@ -1,0 +1,59 @@
+/* Shared CSS custom-property tokens for the top-right cluster + drawer
+   feature area (design.md Decision 1) — reproduced from the user-provided
+   reference file's `:root`/`html[data-theme]` token tables, but scoped to
+   this feature's own wrapping element (applied in MapView.tsx) rather than
+   the global `:root`, so they can't leak into or collide with any other
+   component's styling. Every drawer-tree CSS module below reads these via
+   plain CSS custom-property inheritance (they cascade through the DOM
+   regardless of which .module.css file declared them). */
+.scope {
+  --radius-lg: 16px;
+  --radius-md: 10px;
+  --radius-sm: 7px;
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+.scope[data-theme="dark"] {
+  --panel: #0d1420;
+  --panel-2: #101928;
+  --border: rgba(140, 190, 220, 0.11);
+  --border-strong: rgba(45, 212, 235, 0.4);
+  --text: #eaf1f7;
+  --text-dim: #8b9bad;
+  --text-faint: #566173;
+  --accent: #26d3ee;
+  --accent-glow: rgba(38, 211, 238, 0.22);
+  --accent-ink: #04262b;
+  --green: #4ade80;
+  --amber: #fbbf24;
+  --red: #fb6161;
+  --purple: #b295f5;
+  --track-off: #232e3d;
+  --row-hover: rgba(38, 211, 238, 0.06);
+  --row-alt: rgba(255, 255, 255, 0.014);
+  --scrollbar: #2a374a;
+  --shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+}
+
+.scope[data-theme="light"] {
+  --panel: #ffffff;
+  --panel-2: #f8f8fc;
+  --border: rgba(109, 40, 217, 0.12);
+  --border-strong: rgba(124, 58, 237, 0.45);
+  --text: #1c1a2b;
+  --text-dim: #5c5a6e;
+  --text-faint: #8b899b;
+  --accent: #7c3aed;
+  --accent-glow: rgba(124, 58, 237, 0.16);
+  --accent-ink: #ffffff;
+  --green: #16a34a;
+  --amber: #b45309;
+  --red: #dc2626;
+  --purple: #7c3aed;
+  --track-off: #d9dbe6;
+  --row-hover: rgba(124, 58, 237, 0.06);
+  --row-alt: rgba(17, 17, 40, 0.014);
+  --scrollbar: #c9cbdb;
+  --shadow: 0 20px 50px rgba(30, 20, 60, 0.14);
+}
