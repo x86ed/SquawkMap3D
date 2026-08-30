@@ -400,21 +400,6 @@ export function PlaneListingPanel({ siteLocation }: { siteLocation: GeoCoords | 
       </div>
 
       <div className={styles.tabpanel} hidden={activeTab !== "filters"}>
-        <div className={styles.filterToggleRow}>
-          <span>Military only</span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={filters.militaryOnly}
-            data-on={filters.militaryOnly}
-            className={styles.filterSwitch}
-            onClick={() =>
-              setFilters((prev) => ({ ...prev, militaryOnly: !prev.militaryOnly }))
-            }
-          >
-            <span className={styles.filterSwitchThumb} />
-          </button>
-        </div>
         <div className={styles.fieldLabel}>Altitude (ft)</div>
         <div className={styles.rangeRow}>
           <input
@@ -466,6 +451,105 @@ export function PlaneListingPanel({ siteLocation }: { siteLocation: GeoCoords | 
               }))
             }
           />
+        </div>
+
+        <div className={styles.fieldLabel}>Fields</div>
+        <div className={styles.textFieldGrid}>
+          <label className={styles.textField}>
+            <span>Callsign</span>
+            <input
+              type="text"
+              value={filters.callsign}
+              onChange={(event) => setFilters((prev) => ({ ...prev, callsign: event.target.value }))}
+            />
+          </label>
+          <label className={styles.textField}>
+            <span>Squawk</span>
+            <input
+              type="text"
+              value={filters.squawk}
+              onChange={(event) => setFilters((prev) => ({ ...prev, squawk: event.target.value }))}
+            />
+          </label>
+          <label className={styles.textField}>
+            <span>Registration</span>
+            <input
+              type="text"
+              value={filters.registration}
+              onChange={(event) =>
+                setFilters((prev) => ({ ...prev, registration: event.target.value }))
+              }
+            />
+          </label>
+          <label className={styles.textField}>
+            <span>ICAO hex ID</span>
+            <input
+              type="text"
+              value={filters.hex}
+              onChange={(event) => setFilters((prev) => ({ ...prev, hex: event.target.value }))}
+            />
+          </label>
+          <label className={styles.textField}>
+            <span>Type code</span>
+            <input
+              type="text"
+              value={filters.typeCode}
+              onChange={(event) => setFilters((prev) => ({ ...prev, typeCode: event.target.value }))}
+            />
+          </label>
+          <label className={styles.textField}>
+            <span>Type description</span>
+            <input
+              type="text"
+              value={filters.typeDescription}
+              onChange={(event) =>
+                setFilters((prev) => ({ ...prev, typeDescription: event.target.value }))
+              }
+            />
+          </label>
+          <label className={styles.textField}>
+            <span>Route</span>
+            <input
+              type="text"
+              value={filters.route}
+              onChange={(event) => setFilters((prev) => ({ ...prev, route: event.target.value }))}
+            />
+          </label>
+          <label className={styles.textField}>
+            <span>Country of registration</span>
+            <input
+              type="text"
+              value={filters.country}
+              onChange={(event) => setFilters((prev) => ({ ...prev, country: event.target.value }))}
+            />
+          </label>
+          <label className={styles.textField}>
+            <span>Category</span>
+            <input
+              type="text"
+              value={filters.category}
+              onChange={(event) => setFilters((prev) => ({ ...prev, category: event.target.value }))}
+            />
+          </label>
+        </div>
+
+        <div className={styles.fieldLabel}>Source</div>
+        <SourceChipRow selected={selectedSourceBuckets} onToggle={handleToggleSourceBucket} />
+
+        <div className={styles.fieldLabel}>DB flags</div>
+        <div className={styles.chipFieldRow}>
+          {DB_FLAGS.map((flag) => (
+            <button
+              key={flag.key}
+              type="button"
+              className={styles.dbFlagChip}
+              data-selected={filters.dbFlags.includes(flag.key)}
+              aria-pressed={filters.dbFlags.includes(flag.key)}
+              onClick={() => handleToggleDbFlag(flag.key)}
+            >
+              {flag.label}
+            </button>
+          ))}
         </div>
       </div>
 

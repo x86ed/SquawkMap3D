@@ -147,6 +147,63 @@
   transform: translateX(15px);
 }
 
+.textFieldGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 10px;
+  margin-top: 4px;
+}
+
+.textField {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.textField span {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.textField input {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 6px 8px;
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  outline: none;
+}
+
+.chipFieldRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dbFlagChip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--row-alt);
+  color: var(--text-faint);
+  font-family: var(--font-ui);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.dbFlagChip[data-selected="true"] {
+  background: var(--accent-glow);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .colActions {
   display: flex;
   gap: 8px;
