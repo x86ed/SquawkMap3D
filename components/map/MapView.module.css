@@ -82,11 +82,10 @@
 }
 
 .layersScroll {
-  flex-shrink: 0;
-  max-height: 47vh;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 0 10px 8px;
-  border-bottom: 1px solid var(--border);
 }
 
 /* Drawer covers the full viewport on narrow/mobile screens (design.md
