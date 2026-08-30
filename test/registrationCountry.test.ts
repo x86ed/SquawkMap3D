@@ -17,7 +17,7 @@ test("longer known prefix wins over a shorter overlapping one", () => {
 });
 
 test("unknown prefix resolves to null", () => {
-  assert.equal(countryCodeForRegistration("ZZZZZZ-NOPE"), null);
+  assert.equal(countryCodeForRegistration("QQQ-XX"), null);
 });
 
 test("missing registration resolves to null", () => {
