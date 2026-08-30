@@ -19,6 +19,10 @@ Every rendered aircraft icon SHALL be rendered with an outer glow, independent o
 - **WHEN** an aircraft is selected
 - **THEN** that aircraft's always-on outer glow continues to render as described above, and the existing rarity-colored selection highlight (per this capability's selected-aircraft glow-highlight requirement) also renders, distinguishable from and in addition to the always-on glow
 
+#### Scenario: Glow follows the icon's own silhouette, not a plain circle
+- **WHEN** an aircraft icon renders (any type shape, category fallback, or generic marker)
+- **THEN** the outer glow behind it is shaped like that icon's own outline, rotated to match the icon's own heading, rather than a plain circle unrelated to the icon's shape
+
 ### Requirement: Track trails rendered with an always-on outer glow
 Every rendered segment of a recent flight-track trail SHALL be rendered with an outer glow, colored as a brightened variant of that same segment's own current draw color (per this capability's track-coloring requirement), so the glow's hue varies along the trail exactly as the trail's own color does.
 
