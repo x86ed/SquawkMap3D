@@ -76,16 +76,34 @@ function buildNameToCodeMap() {
 // (colloquial/alternate names Wikipedia's table uses). `null` marks a name
 // deliberately dropped (not a single ISO country).
 const COUNTRY_NAME_OVERRIDES = {
-  "United Kingdom": "GB", // Intl.DisplayNames' brute-force pass otherwise keeps "UK", not a real ISO code
-  Russia: "RU",
+  // Several ISO 3166-1 alpha-2 codes are "exceptionally reserved" aliases
+  // that share `Intl.DisplayNames`' rendered name with the current, correct
+  // code (e.g. "UK" alongside "GB", both "United Kingdom") — the brute-force
+  // enumeration in `buildNameToCodeMap` would otherwise let whichever code
+  // sorts later alphabetically silently win. Every one of these names is
+  // pinned explicitly to the current code rather than relying on iteration
+  // order.
+  "United Kingdom": "GB", // vs. non-standard alias "UK"
+  France: "FR", // vs. exceptionally-reserved "FX" (Metropolitan France)
+  Germany: "DE", // vs. former "DD" (East Germany)
+  Russia: "RU", // vs. former "SU" (Soviet Union)
+  Serbia: "RS", // vs. former "CS"/"YU" (Serbia and Montenegro/Yugoslavia)
+  Myanmar: "MM", // vs. former "BU" (Burma)
+  Vietnam: "VN", // vs. former "VD" (North Vietnam)
+  Yemen: "YE", // vs. former "YD" (South Yemen)
+  Vanuatu: "VU", // vs. former "NH" (New Hebrides)
+  Zimbabwe: "ZW", // vs. former "RH" (Southern Rhodesia)
+  "East Timor": "TL", // vs. former "TP" (Portuguese Timor)
+  "Congo, Democratic Republic of": "CD", // vs. former "ZR" (Zaire)
+  "Burkina Faso": "BF", // vs. former "HV" (Upper Volta)
+  Benin: "BJ", // vs. former "DY" (Dahomey)
+
   "South Korea": "KR",
   "North Korea": "KP",
-  "Republic of the Congo": "CG",
-  "Democratic Republic of the Congo": "CD",
+  "Congo, Republic of": "CG",
   "Ivory Coast": "CI",
   Laos: "LA",
   Syria: "SY",
-  Vietnam: "VN",
   Iran: "IR",
   Moldova: "MD",
   Tanzania: "TZ",
@@ -99,7 +117,6 @@ const COUNTRY_NAME_OVERRIDES = {
   Eswatini: "SZ",
   "Vatican City": "VA",
   Palestine: "PS",
-  Myanmar: "MM",
   "The Bahamas": "BS",
   Bahamas: "BS",
   "The Gambia": "GM",
@@ -110,7 +127,6 @@ const COUNTRY_NAME_OVERRIDES = {
   Kosovo: "XK",
   Turkey: "TR",
   "Türkiye": "TR",
-  "East Timor": "TL",
   "Falkland Islands": "FK",
   "French West Indies": null,
   "Saint Helena/Ascension": "SH",
