@@ -125,11 +125,44 @@ export function nearestPointByTimestamp(series: SparklinePoint[], timestamp: num
  * scale only stretches when the aircraft actually demands it. Each axis's
  * tick labels are color-coded to match its line. */
 function OverlaySparkline({ altitudeSeries, groundSpeedSeries }: { altitudeSeries: SparklinePoint[]; groundSpeedSeries: SparklinePoint[] }) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [hoverFraction, setHoverFraction] = useState<number | null>(null);
+
   const seriesByKey = { altitude: altitudeSeries, groundSpeed: groundSpeedSeries };
   const hasAnyData = SPARKLINE_SERIES.some(({ key }) => seriesByKey[key].length >= 2);
   const domains = SPARKLINE_SERIES.map(({ key, defaultMax, growthPadding }) =>
     computeDomain(seriesByKey[key], defaultMax, growthPadding),
   );
+  const domainByKey = { altitude: domains[0], groundSpeed: domains[1] };
+  const colorByKey = { altitude: SPARKLINE_SERIES[0].color, groundSpeed: SPARKLINE_SERIES[1].color };
+
+  // Reference series (Decision 3): whichever has more points gets an exact,
+  // index-based crosshair/marker position; the other is matched by nearest
+  // timestamp since the two aren't spaced on a shared x-axis.
+  const referenceKey: "altitude" | "groundSpeed" = altitudeSeries.length >= groundSpeedSeries.length ? "altitude" : "groundSpeed";
+  const otherKey: "altitude" | "groundSpeed" = referenceKey === "altitude" ? "groundSpeed" : "altitude";
+  const referenceSeries = seriesByKey[referenceKey];
+  const otherSeries = seriesByKey[otherKey];
+
+  const cursorIndex = hoverFraction !== null ? cursorIndexFromFraction(referenceSeries.length, hoverFraction) : null;
+  const referencePoint = cursorIndex !== null ? referenceSeries[cursorIndex] : null;
+  const otherPoint = referencePoint ? (nearestPointByTimestamp(otherSeries, referencePoint.timestamp) ?? null) : null;
+  const crosshairX = cursorIndex !== null ? (cursorIndex / (referenceSeries.length - 1)) * SPARKLINE_WIDTH : null;
+
+  const altitudePoint = referenceKey === "altitude" ? referencePoint : otherPoint;
+  const groundSpeedPoint = referenceKey === "groundSpeed" ? referencePoint : otherPoint;
+
+  function handleMouseMove(event: MouseEvent<SVGRectElement>) {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const fraction = (event.clientX - rect.left) / rect.width;
+    setHoverFraction(Math.min(1, Math.max(0, fraction)));
+  }
+
+  function handleMouseLeave() {
+    setHoverFraction(null);
+  }
 
   return (
     <div className={styles.sparklineBlock}>
@@ -149,17 +182,83 @@ function OverlaySparkline({ altitudeSeries, groundSpeedSeries }: { altitudeSerie
               return <span key={tick}>{rounded >= 1000 ? `${(rounded / 1000).toFixed(1)}k` : rounded}</span>;
             })}
           </div>
-          <svg
-            viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
-            className={styles.sparklineSvg}
-            preserveAspectRatio="none"
-          >
-            {SPARKLINE_SERIES.map(({ key, color }, i) => {
-              const series = seriesByKey[key];
-              if (series.length < 2) return null;
-              return <polyline key={key} points={sparklinePoints(series, domains[i])} fill="none" stroke={color} strokeWidth={2} />;
-            })}
-          </svg>
+          <div className={styles.sparklineSvgWrap}>
+            <svg
+              ref={svgRef}
+              viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
+              className={styles.sparklineSvg}
+              preserveAspectRatio="none"
+            >
+              {SPARKLINE_SERIES.map((seriesDef, i) => {
+                const series = seriesByKey[seriesDef.key];
+                if (series.length < 2) return null;
+                const rows = buildGridRows(domains[i], seriesDef.tickCount);
+                if (seriesDef.gridStyle === "line") {
+                  return rows.map((y, rowIndex) => (
+                    <line
+                      key={`${seriesDef.key}-grid-${rowIndex}`}
+                      x1={0}
+                      x2={SPARKLINE_WIDTH}
+                      y1={y}
+                      y2={y}
+                      stroke={seriesDef.gridColor}
+                      strokeWidth={1}
+                    />
+                  ));
+                }
+                const dotXs = [];
+                for (let x = 0; x <= SPARKLINE_WIDTH; x += SPARKLINE_GRID_DOT_SPACING) dotXs.push(x);
+                return rows.map((y, rowIndex) =>
+                  dotXs.map((x, colIndex) => (
+                    <circle key={`${seriesDef.key}-grid-${rowIndex}-${colIndex}`} cx={x} cy={y} r={1} fill={seriesDef.gridColor} />
+                  )),
+                );
+              })}
+              {SPARKLINE_SERIES.map(({ key, color }, i) => {
+                const series = seriesByKey[key];
+                if (series.length < 2) return null;
+                return <polyline key={key} points={sparklinePoints(series, domains[i])} fill="none" stroke={color} strokeWidth={2} />;
+              })}
+              {hoverFraction !== null && referencePoint && crosshairX !== null && (
+                <>
+                  <line x1={crosshairX} x2={crosshairX} y1={0} y2={SPARKLINE_HEIGHT} stroke="rgba(226, 232, 240, 0.35)" strokeWidth={1} />
+                  <circle
+                    cx={crosshairX}
+                    cy={valueToY(referencePoint.value, domainByKey[referenceKey])}
+                    r={3}
+                    fill={colorByKey[referenceKey]}
+                    stroke="#0f1014"
+                    strokeWidth={1}
+                  />
+                  {otherPoint && (
+                    <circle
+                      cx={crosshairX}
+                      cy={valueToY(otherPoint.value, domainByKey[otherKey])}
+                      r={3}
+                      fill={colorByKey[otherKey]}
+                      stroke="#0f1014"
+                      strokeWidth={1}
+                    />
+                  )}
+                </>
+              )}
+              <rect
+                x={0}
+                y={0}
+                width={SPARKLINE_WIDTH}
+                height={SPARKLINE_HEIGHT}
+                fill="transparent"
+                onMouseMove={handleMouseMove}
+                onMouseLeave={handleMouseLeave}
+              />
+            </svg>
+            {hoverFraction !== null && referencePoint && (
+              <div className={styles.hoverTooltip} style={{ left: `${hoverFraction * 100}%` }}>
+                <div className={styles.hoverTooltipLine1}>{altitudePoint ? `${Math.round(altitudePoint.value).toLocaleString()} ft` : "—"}</div>
+                <div className={styles.hoverTooltipLine2}>{groundSpeedPoint ? `${Math.round(groundSpeedPoint.value)} kt` : "—"}</div>
+              </div>
+            )}
+          </div>
           <div className={styles.axisColumn} style={{ color: SPARKLINE_SERIES[1].color }}>
             {axisTicks(domains[1], SPARKLINE_SERIES[1].tickCount).map((tick) => (
               <span key={tick}>
