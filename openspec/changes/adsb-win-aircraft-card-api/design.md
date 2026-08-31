@@ -1,0 +1,111 @@
+## Context
+
+`PlaneCard` (`components/map/overlay/PlaneCard.tsx`) is one of four independent components composed by `AircraftOverlay.tsx` (`aircraft-info-overlay` capability, design.md Decision 9). Its identity/rarity header (registration, type badge, model name, the 9-tier `rarityTier` frame/badge) is fully real today, sourced from the feeder's own ADS-B data plus a vendored per-type "rareness" dataset (`aircraft-rarity` capability, Decision 5) — **that machinery is unrelated to this change and stays untouched**. Its stat region (unique registrations/flights captured/observed time/highest altitude/XP/progress-to-next-tier), however, was forward-plumbed in `aircraft-info-overlay`'s original design (Decision 14) as six always-`undefined` optional props, explicitly because "no data source for these exists in this codebase or the feeder stack." adsb.win's real Aircraft Card API is that data source.
+
+Three existing pieces of this codebase anchor this change's shape:
+- `components/map/flightRoute.ts` — the existing precedent for "fetch a small piece of per-selected-aircraft enrichment data from a public third-party API, directly from the browser, cache it, never throw." `getCachedFlightRoute()`/`clearFlightRouteCache()` is copied near-verbatim in structure for `aircraftModelCard.ts`.
+- `components/map/MapView.tsx`'s `refreshAircraft()` — the existing precedent for *where* that fetch happens: awaited inline, once per ~1s aircraft poll, right before `buildSelectedAircraftInfo()` is called (see the existing `route` resolution at line ~437). Not a new `useEffect`/hook in `AircraftOverlay.tsx` — this app already has a working, established pattern for exactly this shape of problem.
+- `components/map/theme.ts` — the existing precedent for user-entered, browser-persisted config (`localStorage`, `typeof window === "undefined"` SSR guard, try/catch around storage access for private-browsing/unavailable-storage). The feeder UUID setting follows this exactly, rather than a `NEXT_PUBLIC_*` build-time env var (see Decision 2).
+
+This app builds as a static export (`next.config.js`: `output: "export"`, "no Node/Next server process required to serve it") and deploys as a plain nginx-served bundle on the feeder box (`deploy-to-feeder`). `app/api/health/route.ts`, the only existing API route, is `dynamic = "force-static"` — frozen at build time, not a live per-request handler. There is no runtime server component anywhere in this app's deployed topology that could proxy a per-user credential.
+
+## Goals / Non-Goals
+
+**Goals:**
+- Hydrate `PlaneCard`'s stat region with the selected aircraft type's real adsb.win card data (unique registrations, flights captured, observed time, highest altitude, XP, tier name) when a feeder UUID is configured and the account has captured that type.
+- Handle every documented outcome (success, `401`, `404`, network/other failure) with distinct, generic (non-account-leaking) UI, plus the two states that exist before any request is even made: no `typeDesignator` known, and no feeder UUID configured.
+- Keep the feeder UUID out of logs, analytics, and the compiled JS bundle; store it only in the user's own browser.
+- Avoid re-fetching on every ~1s aircraft poll tick for an aircraft that's still selected.
+
+**Non-Goals:**
+- A dedicated global "Settings" UI surface. The feeder UUID is entered inline in `PlaneCard` itself, contextually, the first time there's something to configure — see Decision 3.
+- Wiring `unique_aircraft`, `name`, `manufacturer`, `first_seen_at`, `last_seen_at`, or `historical_through` into any UI. `PlaneCard` has no existing slot for these (only `unique_registrations` has a matching prop today); the fetch/parse layer captures the full response shape anyway (Decision 6) so a later change can surface them without touching the API layer again, but this change renders only the fields `PlaneCard` already had a slot for, per the acceptance criteria's "fill in the currently-missing values."
+- A real "N% to next tier" progress bar. See Decision 4 — no data exists to compute one honestly.
+- A retry button for the generic-error state. The aircraft poll loop already re-attempts the fetch on the very next ~1s tick (uncached, since error results aren't cached — Decision 5) for as long as the aircraft stays selected, which is an adequate implicit retry for a transient failure.
+- A server-side proxy for this request. See Decision 1's tradeoff.
+
+## Decisions
+
+### 1. Direct browser → `app-api.adsb.win` fetch, no proxy — accepted tradeoff on where the credential lives
+adsb.win's own API docs state it is "CORS-enabled for browser fetch from local-network apps" specifically so a local app like this one can call it straight from client JS with only a `Bearer` header — this is the intended integration path, not a workaround. Given this app's static-export deploy topology has no live server process to proxy through (Context), a server-side fetch that hides the UUID from the browser entirely is not feasible here without adding a new always-on server process to this app's deploy story — a materially bigger, differently-scoped change than this one.
+
+**Accepted tradeoff**: the feeder UUID lives in the browser's `localStorage` (Decision 2) rather than a server-side secret store, and every request carries it in a header sent to a third-party origin. This is explicitly the acceptance criteria's own fallback guidance ("otherwise note the tradeoff in design.md if a server-side fetch path isn't feasible here") and mirrors how this app already handles its one other credential-shaped value, `NEXT_PUBLIC_MAPTILER_KEY`/`NEXT_PUBLIC_OPENAIP_API_KEY` — except those are baked into the public build at compile time (fine for low-sensitivity, rate-limited API keys), whereas the feeder UUID is read-only-but-still-a-bearer-credential for a real account, so it deliberately does *not* follow that env-var pattern (Decision 2) despite the superficial similarity.
+
+**Alternative considered (rejected)**: add a Next.js server route (`app/api/adsb-win/aircraft-models/[type]/route.ts`) that reads the UUID from a server-side env var and proxies the request, keeping it fully off the client. Rejected: this app has no runtime server in its deployed form (`force-static` is the *only* mode a route can build in under `output: "export"` — a per-request dynamic proxy is architecturally impossible here, not just undesirable), and even in `next dev` alone (no deploy topology) it would require introducing a second, deploy-incompatible code path just for local development, which is worse than one consistent client-side path.
+
+### 2. Feeder UUID storage: a new `localStorage` key via `feederUuid.ts`, not `NEXT_PUBLIC_FEEDER_UUID`
+`components/map/overlay/feederUuid.ts` (new) mirrors `theme.ts` exactly: `FEEDER_UUID_STORAGE_KEY = "squawkmap3d:adsbWinFeederUuid"`, `getStoredFeederUuid(): string | null`, `storeFeederUuid(uuid: string): void` (trims whitespace; an empty string after trim clears the key instead of storing `""`), `clearStoredFeederUuid(): void`. Same `typeof window === "undefined"` SSR guard and try/catch-around-storage-access (private browsing) as `theme.ts`.
+
+Rejected: a `NEXT_PUBLIC_ADSB_WIN_FEEDER_UUID` env var, matching `NEXT_PUBLIC_MAPTILER_KEY`'s existing pattern. Rejected per the acceptance criteria's explicit guidance ("prefer storing it in local app config rather than hardcoding into distributed JS") — a `NEXT_PUBLIC_*` value is compiled directly into the static bundle shipped to (and world-readable from) the feeder box's `out/` directory (`deploy-to-feeder`'s own docs: "`NEXT_PUBLIC_*` values are baked in at build time"). A `localStorage`-only value never appears in that bundle, in `.env.local`, or in anything committed to git — strictly better for a real bearer credential than for the two existing low-sensitivity map-tile API keys that do use this env-var pattern today.
+
+### 3. Configuration UI: inline in `PlaneCard`'s own not-configured state, not a new Settings tab
+`PlaneCard` already owns its own empty-state rendering (`.statsEmpty`, "Not tracked yet"). When `cardStats.status === "not_configured"` (Decision 6), the same region instead renders a short prompt plus a masked (`type="password"`) text input and a Save button. Submitting calls `storeFeederUuid()` directly (no callback prop threaded through `AircraftOverlay`) — the next ~1s aircraft poll (`MapView.tsx`'s `refreshAircraft()`) reads the freshly-stored UUID and resolves real `cardStats` automatically; no manual "refetch" trigger is needed. `invalid_token` reuses the same input (pre-labeled "Update" instead of "Save") so a mistyped or revoked UUID can be corrected from the same spot it was entered.
+
+**Alternative considered (rejected)**: a new top-level "Settings" tab in `DrawerTabs.tsx` (currently `layers` | `aircraft`), or a new `layer-control-drawer` section. Rejected for this change: it's a materially bigger UI footprint (new tab, new persistent panel, new empty states of its own) for a single setting that's only ever relevant while `PlaneCard` is on screen, and this app has no other precedent for a dedicated settings surface (every other optional integration — `NEXT_PUBLIC_FEEDER_URL`, `NEXT_PUBLIC_OPENAIP_API_KEY` — degrades silently with no in-app configuration UI at all, so an inline prompt is already a step up in discoverability, not a step down from an existing pattern). **Accepted residual UX gap**: a user can only discover/edit this setting while an aircraft is selected and the overlay is open; there's no way to pre-configure it or view/clear it without selecting something first. Flagged as a reasonable follow-up if it proves too undiscoverable in practice, not a blocker here.
+
+### 4. No `xpProgressToNextTier`/progress bar — `xp` and the real `tier` name render instead, `rarityTier` is untouched
+The pre-existing `xpProgressToNextTier` prop and its "N% to {next tier}" label were always computed off *this app's own* `rarityTier` ladder (`unidentified`→...→`apex`, `aircraft-rarity` capability Decision 5 — sourced from a vendored `taildragger` rareness snapshot, entirely unrelated to adsb.win's real account data) via `nextRarityTier()`. The real API's `tier` field (e.g. `"Alloy"`) is adsb.win's own *different*, real, per-account *material*-tier ladder — `PlaneCard.tsx`'s own existing doc comment already anticipated this exact distinction ("mirroring adsb.win's own '0% to Carbon' label — that's their *material* tier ladder; this is the equivalent for the *rarity* ladder"). The response includes the account's current `xp` and current `tier` name, but **no per-tier XP threshold or next-tier name** — there is no documented way to compute a genuine progress fraction from this response, for either ladder.
+
+Per this codebase's own established discipline of not inventing/approximating unverified data (see `aircraft-rarity`'s design.md Decision 5, which explicitly corrected an earlier "invented 5-tier taxonomy with hand-approximated colors" in favor of only real, verified values), this change does not fabricate a threshold table to feed a percentage bar. Instead: the stat region's XP row shows the real `xp` count and the real `tier` name as a plain badge/label (no percentage, no bar). `rarityTier`'s own frame/border styling and bottom-edge tier badge (driven by `computeRarityTier()`) are completely unaffected — the two tier concepts are rendered in visually distinct places on the card and are never conflated.
+
+**Alternative considered (rejected)**: replace `rarityTier`'s frame styling with the API's `tier` value, since it's "more real" than the vendored rareness dataset. Rejected — out of scope (the acceptance criteria asks to fill in the *currently-missing* values; `rarityTier` is not currently missing, it already renders real per-type data today) and would require an entirely new 2-value-known (`"Alloy"` is the only confirmed tier name) CSS taxonomy this change has no basis to build.
+
+### 5. `cardStats` replaces the six stat props + `viewRegistrationsHref` with one discriminated union
+```ts
+// components/map/overlay/aircraftModelCard.ts
+export interface AircraftModelCardAttributes {
+  name: string;
+  manufacturer: string;
+  tier: string;
+  xp: number;
+  uniqueAircraft: number;
+  uniqueRegistrations: number;
+  flightsCaptured: number;
+  observedSeconds: number;
+  maximumAltitudeFt: number | null; // API: "may be null"
+  firstSeenAt: string;
+  lastSeenAt: string;
+  historicalThrough: string;
+}
+
+export type AircraftModelCardResult =
+  | { status: "ok"; attributes: AircraftModelCardAttributes }
+  | { status: "not_configured" }   // caller-synthesized: no feeder UUID stored, request never sent
+  | { status: "invalid_token" }    // API 401
+  | { status: "not_found" }        // API 404
+  | { status: "error" };           // network failure, non-2xx/non-404/401, unparseable body
+```
+`fetchAircraftModelCard(typeDesignator, feederUuid)` only ever returns `"ok" | "invalid_token" | "not_found" | "error"` (it requires a non-empty `feederUuid`); `"not_configured"` is added by the caller *before* calling fetch at all, when `getStoredFeederUuid()` returns `null` — this avoids ever sending a request with an empty/missing `Authorization` header. `SelectedAircraftInfo.cardStats?: AircraftModelCardResult` is `undefined` only when `typeDesignator` itself is unknown (feeder has no tar1090-db loaded) — mirrored 1:1 on the existing `route`/`callsign` guard shape in `MapView.tsx`'s `refreshAircraft()`. `PlaneCard` treats `cardStats === undefined` and `cardStats.status === "not_found"` as the same rendered "Not tracked yet" empty state (Decision 6) — both mean "nothing to show, not an error."
+
+This replaces `PlaneCardProps`' seven separate optional fields (`uniqueRegistrationsCount`, `flightsCapturedCount`, `observedFlightTimeSeconds`, `highestAltitudeObserved`, `xp`, `xpProgressToNextTier`, `viewRegistrationsHref`) and their fragile "all six must be defined" `statsPresent` gate with one prop and a `switch` over five known states. `viewRegistrationsHref` is dropped outright rather than kept forward-plumbed: the API response has no matching link field, and an unpopulatable prop kept "for forward compatibility" in the very change that was supposed to populate its neighbors is dead weight — trivial to re-add from git history if a real per-type registrations view ever exists.
+
+### 6. Fetch/cache location and shape: extend `MapView.tsx`'s existing `refreshAircraft()`, mirror `flightRoute.ts` exactly
+`aircraftModelCard.ts` copies `flightRoute.ts`'s structure field-for-field:
+- `fetchAircraftModelCard()` never throws (try/catch internally), same as `getFlightRoute()`.
+- `getCachedAircraftModelCard(typeDesignator, feederUuid)` — module-level `Map<string, AircraftModelCardResult>` keyed `${feederUuid}::${typeDesignator.toUpperCase()}` (uppercased for a stable key regardless of any casing quirk in `Aircraft.typeDesignator`; also uppercased in the request path segment). Keying on `feederUuid` too means changing the configured UUID naturally busts the effective cache (new key) with no explicit invalidation needed — the API's own privacy design (404 doesn't reveal another account's card) means stale cross-account data must never leak, and this key shape makes that impossible by construction rather than by remembering to call a clear function.
+- **Deliberate divergence from `flightRoute.ts`**: `"error"` results are *not* cached (every other status is). `getFlightRoute()`'s `null` "no match" result is a legitimate, stable business outcome worth caching; a `"error"` here is a transient network/parse failure that deserves a retry on the next poll tick rather than sticking for the rest of the session. `clearAircraftModelCardCache()` is exported for parity/tests and called defensively whenever `feederUuid.ts`'s `storeFeederUuid()`/`clearStoredFeederUuid()` run (belt-and-suspenders on top of the key already changing).
+- **Deliberate divergence #2**: unlike `clearFlightRouteCache()` (called on every deselect/drop-out in `MapView.tsx`), this cache is *not* cleared on deselect. It's keyed by aircraft type, not by hex+callsign — bounded by the number of distinct types seen in a session (tens, not thousands), so there's no memory-growth pressure to justify eagerly discarding a still-useful cached card the next time that same type is reselected.
+- `MapView.tsx`'s `refreshAircraft()` resolves `cardStats` the same place and the same way it already resolves `route` (right before `buildSelectedAircraftInfo(...)` is called):
+  ```ts
+  let cardStats: AircraftModelCardResult | undefined;
+  if (selected.typeDesignator) {
+    const feederUuid = getStoredFeederUuid();
+    cardStats = feederUuid
+      ? await getCachedAircraftModelCard(selected.typeDesignator, feederUuid)
+      : { status: "not_configured" };
+  }
+  ```
+  Because this reuses the poll loop's existing single await-chain-then-`setSelectedAircraftInfo()` shape, there's no new "loading" UI state to design (Non-Goals) — the overlay simply doesn't update until the whole poll (route + card, both cache-cheap after the first) resolves, exactly the existing (and spec'd, `aircraft-info-overlay`'s "no visible close/reopen flash" scenario) behavior for route lookups today.
+
+**Alternative considered (rejected)**: a new `useAircraftModelCard()` React hook + `useEffect` inside `AircraftOverlay.tsx`, keyed on `info?.typeDesignator`. This was the first approach drafted here, but `MapView.tsx` already has a working, spec'd, tested-pattern solution for "resolve one piece of async per-selection enrichment data, cached, without re-fetching every ~1s poll tick" (`route`) — introducing a second, differently-shaped mechanism for a near-identical problem in the same overlay would be inconsistent with no offsetting benefit.
+
+## Risks / Trade-offs
+
+- **[Risk]** The feeder UUID is a real bearer credential living in browser `localStorage`, readable by any script running on this app's origin (XSS) or by anyone with physical/device access to the browser. → **Mitigation**: same trust boundary as `theme.ts`'s stored theme preference and `PlaneListingPanel.tsx`'s stored filters — this app has no other script-injection surface today (no user-generated HTML rendered, no third-party embedded scripts). Scoped read-only per the API's own design (feeder UUID grants read access to this account's own stats only). Never sent anywhere but `app-api.adsb.win`'s `Authorization` header.
+- **[Risk]** Only one confirmed real `tier` name (`"Alloy"`) is known; `PlaneCard.module.css`'s tier-badge styling for this field is unstyled/generic (plain text badge) rather than tier-colored, since the full material-tier→color mapping is undocumented. → **Mitigation**: render it as a plain, neutrally-styled label (not attempting a tier-specific accent color) — matches this repo's discipline of not fabricating unverified visual data (Decision 4's broader rationale). A future change can add real per-tier colors once more tier names/values are observed on a live authenticated account, the same way `aircraft-rarity`'s Decision 5 originally sourced its real tier CSS.
+- **[Risk]** `app-api.adsb.win` being unreachable/rate-limiting/slow adds latency to the aircraft-poll loop's existing await chain (already true of `adsb.im`'s routeset call) → **Mitigation**: per-type caching (Decision 6) means this only actually blocks the poll on the first selection of a given type per session; `"error"` results aren't cached so a persistent outage degrades to "Unable to load stats right now" on every poll for that type rather than blocking indefinitely, and the rest of the overlay (`RecordPanelHero`/`TelemetryMarquee`/`FlightInfoPane`) is unaffected either way since they don't depend on `cardStats`.
+- **[Risk]** No integration test can exercise the real adsb.win API (would require a real feeder UUID and a real captured aircraft type — a live account dependency this repo's test suite can't carry). → **Mitigation**: `aircraftModelCard.test.ts` unit-tests `fetchAircraftModelCard`/`getCachedAircraftModelCard`/`clearAircraftModelCardCache` against a stubbed `global.fetch`, mirroring `flightRoute.test.ts`'s existing approach exactly (per-status-code response fixtures for `200`/`401`/`404`/network-throw); manual verification against a real account is a task in `tasks.md`.
+
+## Migration Plan
+
+Additive + one internal (non-public) breaking prop-shape change confined to `PlaneCard`/`SelectedAircraftInfo`/`AircraftOverlay` — all three are edited together in this same change, so there's no intermediate broken state. No persisted-state migration: a first-ever load has no stored feeder UUID (`not_configured`, same visual weight as today's permanent empty state until the user opts in). Rollback is a straight revert; the only new persisted browser state is the `localStorage` key from Decision 2, which a revert simply stops reading (harmless orphaned key, same as any other removed `localStorage` setting in this codebase's existing pattern).
