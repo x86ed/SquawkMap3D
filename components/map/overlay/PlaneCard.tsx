@@ -91,6 +91,92 @@ function FeederUuidForm({ message, buttonLabel }: { message: string; buttonLabel
 }
 
 /**
+ * Renders `PlaneCard`'s stat region for every real `cardStats` outcome
+ * (`adsb-win-aircraft-stats` capability, design.md Decision 5). `undefined`
+ * and `"not_found"` are treated identically — both mean "nothing to show,
+ * not an error" (design.md Decision 5).
+ */
+function renderStatRegion(cardStats: AircraftModelCardResult | undefined) {
+  if (cardStats === undefined || cardStats.status === "not_found") {
+    return <p className={styles.statsEmpty}>Not tracked yet</p>;
+  }
+
+  if (cardStats.status === "not_configured") {
+    return (
+      <FeederUuidForm
+        message="Connect your adsb.win feeder ID to see stats for this aircraft"
+        buttonLabel="Save"
+      />
+    );
+  }
+
+  if (cardStats.status === "invalid_token") {
+    return (
+      <FeederUuidForm
+        message="Feeder UUID not recognized. Enter a valid one to see stats."
+        buttonLabel="Update"
+      />
+    );
+  }
+
+  if (cardStats.status === "error") {
+    return <p className={styles.statsEmpty}>Unable to load stats right now</p>;
+  }
+
+  const { attributes } = cardStats;
+  const progress = computeTierProgress(attributes.tier, attributes.xp);
+
+  return (
+    <>
+      <dl className={styles.statGrid}>
+        <div className={styles.statCell}>
+          <dt className={styles.statLabel}>Unique registrations</dt>
+          <dd className={styles.statValueLarge}>{attributes.uniqueRegistrations}</dd>
+        </div>
+        <div className={styles.statCell}>
+          <dt className={styles.statLabel}>Flights captured</dt>
+          <dd className={styles.statValueLarge}>{attributes.flightsCaptured}</dd>
+        </div>
+        <div className={styles.statCell}>
+          <dt className={styles.statLabel}>Observed flight time</dt>
+          <dd className={styles.statValue}>{formatDuration(attributes.observedSeconds)}</dd>
+        </div>
+        <div className={styles.statCell}>
+          <dt className={styles.statLabel}>Highest observed</dt>
+          <dd className={styles.statValue}>
+            {attributes.maximumAltitudeFt === null
+              ? "—"
+              : `${attributes.maximumAltitudeFt.toLocaleString()} ft`}
+          </dd>
+        </div>
+      </dl>
+      <div className={styles.xpBlock}>
+        <div className={styles.xpLabelRow}>
+          <span className={styles.xpValue}>{attributes.xp} XP</span>
+          <span className={styles.progressLabel}>
+            {attributes.tier}
+            {progress && progress.nextTierName && ` — ${progress.percentToNext}% to ${progress.nextTierName}`}
+            {progress && !progress.nextTierName && " — Maximum tier"}
+          </span>
+        </div>
+        {progress && (
+          <div className={styles.progressTrack}>
+            <div
+              className={
+                progress.nextTierName === null
+                  ? `${styles.progressFill} ${styles.progressFillMax}`
+                  : styles.progressFill
+              }
+              style={{ width: `${progress.percentToNext}%` }}
+            />
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+/**
  * Identity card using adsb.win's own real, verified-exact two-layer
  * gradient-border-frame technique (design.md Decision 5): the outer frame's
  * own `background` *is* the tier-colored border (a `--rarity-color`/
@@ -143,51 +229,7 @@ export function PlaneCard({
             dangerouslySetInnerHTML={{ __html: shape.markup }}
           />
         </div>
-        {statsPresent ? (
-          <>
-            <dl className={styles.statGrid}>
-              <div className={styles.statCell}>
-                <dt className={styles.statLabel}>Unique registrations</dt>
-                <dd className={styles.statValueLarge}>{uniqueRegistrationsCount}</dd>
-              </div>
-              <div className={styles.statCell}>
-                <dt className={styles.statLabel}>Flights captured</dt>
-                <dd className={styles.statValueLarge}>{flightsCapturedCount}</dd>
-              </div>
-              <div className={styles.statCell}>
-                <dt className={styles.statLabel}>Observed flight time</dt>
-                <dd className={styles.statValue}>{formatDuration(observedFlightTimeSeconds)}</dd>
-              </div>
-              <div className={styles.statCell}>
-                <dt className={styles.statLabel}>Highest observed</dt>
-                <dd className={styles.statValue}>{highestAltitudeObserved.toLocaleString()} ft</dd>
-              </div>
-            </dl>
-            <div className={styles.xpBlock}>
-              <div className={styles.xpLabelRow}>
-                <span className={styles.xpValue}>{xp} XP</span>
-                <span className={styles.progressLabel}>
-                  {nextTier
-                    ? `${Math.round(xpProgressToNextTier * 100)}% to ${capitalize(nextTier)}`
-                    : "Maximum tier"}
-                </span>
-              </div>
-              <div className={styles.progressTrack}>
-                <div
-                  className={styles.progressFill}
-                  style={{ width: `${Math.round(xpProgressToNextTier * 100)}%` }}
-                />
-              </div>
-            </div>
-            {viewRegistrationsHref && (
-              <a className={styles.viewRegistrationsLink} href={viewRegistrationsHref}>
-                View registrations <span aria-hidden="true">→</span>
-              </a>
-            )}
-          </>
-        ) : (
-          <p className={styles.statsEmpty}>Not tracked yet</p>
-        )}
+        {renderStatRegion(cardStats)}
       </div>
       <div className={styles.badgeRow}>
         <span className={styles.rarityBadge}>{rarityTier}</span>
