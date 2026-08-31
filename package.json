@@ -25,7 +25,7 @@
     "build": "next build",
     "start": "npx serve@latest out",
     "lint": "eslint .",
-    "test": "node --import tsx --test",
+    "test": "node --import tsx --import ./test/registerCssStub.mjs --test",
     "coverage": "nyc --reporter=text --reporter=lcov --reporter=html npm test",
     "test:coverage": "npm run coverage",
     "docs": "jsdoc -c jsdoc.json",
