@@ -15,9 +15,11 @@
 ## Capabilities
 
 ### New Capabilities
+
 - `adsb-win-aircraft-stats`: configuring an adsb.win feeder UUID locally in the browser, fetching a per-aircraft-type stats card from adsb.win's Aircraft Card API authenticated with that UUID, and handling its success/error outcomes (including the security constraints on the UUID itself).
 
 ### Modified Capabilities
+
 - `aircraft-info-overlay`: the "PlaneCard shows optional fleet-wide stats when available, never fabricated" requirement changes from "always renders the empty state, since no data source exists" to describing `PlaneCard`'s real set of stat-region states (not configured, loading not applicable — resolved before `SelectedAircraftInfo` updates, same as route lookup — real data, feeder-UUID-invalid, not-yet-captured, and generic error), sourced from the new `adsb-win-aircraft-stats` capability, and drops the fabricated XP-progress-bar language in favor of showing the real `xp` count and `tier` name.
 
 ## Impact
