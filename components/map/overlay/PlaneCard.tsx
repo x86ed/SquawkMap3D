@@ -1,8 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import styles from "./PlaneCard.module.css";
-import { nextRarityTier, type RarityTier } from "../aircraftRarity";
+import type { RarityTier } from "../aircraftRarity";
 import { getAircraftShape, type AircraftShape } from "../aircraftShapes";
 import { computeTightViewBox } from "../svgBBox";
+import type { AircraftModelCardResult } from "./aircraftModelCard";
+import { storeFeederUuid } from "./feederUuid";
+import { computeTierProgress } from "./tierProgress";
 
 const UNKNOWN = "Unknown";
 
@@ -18,34 +21,18 @@ export interface PlaneCardProps {
   manufacturerModel?: string;
   rarityTier: RarityTier;
   /**
-   * Fleet-wide per-aircraft-type stats (design.md Decision 14) — always
-   * `undefined` as of this change (no data source exists yet). Props exist
-   * for forward compatibility only; when all six are defined, the real
-   * stat-grid + XP-progress-bar layout renders instead of the empty state.
+   * adsb.win's real per-account, per-aircraft-type fleet-wide stats
+   * (`adsb-win-aircraft-stats` capability) — `undefined` only when
+   * `typeDesignator` itself is unknown. See design.md Decision 5.
    */
-  uniqueRegistrationsCount?: number;
-  flightsCapturedCount?: number;
-  observedFlightTimeSeconds?: number;
-  highestAltitudeObserved?: number;
-  xp?: number;
-  xpProgressToNextTier?: number;
-  /** Link to this aircraft type's registrations list — mirrors adsb.win's
-   * "View registrations →" card CTA. Forward-plumbed like the other stat
-   * props (design.md Decision 14): `undefined` until an API providing a
-   * real per-type registrations view exists, in which case this renders;
-   * otherwise omitted rather than linking nowhere. */
-  viewRegistrationsHref?: string;
+  cardStats?: AircraftModelCardResult;
 }
 
-/** `HH:MM` from a seconds count, for the (currently unreachable) "present" stat grid. */
+/** `HH:MM` from a seconds count, for the stat grid's "observed flight time" cell. */
 function formatDuration(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   return `${hours}h ${minutes.toString().padStart(2, "0")}m`;
-}
-
-function capitalize(tier: RarityTier): string {
-  return tier.charAt(0).toUpperCase() + tier.slice(1);
 }
 
 /**
@@ -65,6 +52,45 @@ function useTightAircraftShapeViewBox(shape: AircraftShape): string {
 }
 
 /**
+ * Inline feeder-UUID entry form (design.md Decision 3) — shown in the stat
+ * region's `"not_configured"`/`"invalid_token"` states. Submitting calls
+ * `storeFeederUuid()` directly (no callback prop threaded through
+ * `AircraftOverlay`, matching `theme.ts`'s direct-import convention used
+ * elsewhere in this app); the next ~1s aircraft poll picks up the freshly
+ * stored value on its own.
+ */
+function FeederUuidForm({ message, buttonLabel }: { message: string; buttonLabel: string }) {
+  const [value, setValue] = useState("");
+  const [saved, setSaved] = useState(false);
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    storeFeederUuid(value);
+    setSaved(true);
+  };
+
+  return (
+    <form className={styles.feederUuidForm} onSubmit={handleSubmit}>
+      <p className={styles.feederUuidMessage}>{message}</p>
+      <input
+        type="password"
+        className={styles.feederUuidInput}
+        value={value}
+        onChange={(event) => {
+          setValue(event.target.value);
+          setSaved(false);
+        }}
+        placeholder="Feeder UUID"
+        aria-label="adsb.win feeder UUID"
+      />
+      <button type="submit" className={styles.feederUuidButton}>
+        {saved ? "Saved" : buttonLabel}
+      </button>
+    </form>
+  );
+}
+
+/**
  * Identity card using adsb.win's own real, verified-exact two-layer
  * gradient-border-frame technique (design.md Decision 5): the outer frame's
  * own `background` *is* the tier-colored border (a `--rarity-color`/
@@ -76,18 +102,15 @@ function useTightAircraftShapeViewBox(shape: AircraftShape): string {
  * defaults, exactly like adsb.win's CSS) render via this one component; no
  * per-tier branching needed here.
  *
- * Fleet-wide stat fields (unique registrations/flights captured/observed
- * flight time/highest observed altitude/XP/progress-to-next-tier) are
- * forward-plumbed optional props (design.md Decision 14) — always
- * `undefined` today, since no data source for them exists in this codebase
- * or the feeder stack. The "present" branch's field labels, 2-col grid, and
- * XP/progress-bar row match adsb.win's real authenticated dashboard card
- * markup field-for-field (`dt`/`dd` labels, the "N% to {next tier}"
- * progress label — computed here from `rarityTier` via `nextRarityTier`,
- * which works today even though the stats themselves don't). The card also
- * ends with a "View registrations →" CTA, matching adsb.win's own — like
- * the stat fields, it's forward-plumbed via `viewRegistrationsHref` and
- * only renders once a real per-type registrations API exists to link to.
+ * The stat region renders one of five states, driven by `cardStats?.status`
+ * (`adsb-win-aircraft-stats` capability, design.md Decision 5): `undefined`
+ * or `"not_found"` render the same "Not tracked yet" empty state as before
+ * this data source existed; `"not_configured"`/`"invalid_token"` render an
+ * inline feeder-UUID entry form; `"error"` renders a generic
+ * "unable to load" message; `"ok"` renders the real stat grid plus an
+ * XP/tier row and a `computeTierProgress`-driven progress bar (a *different*
+ * tier ladder than this card's own `rarityTier` frame/badge — see
+ * `tierProgress.ts`'s doc comment and design.md Decision 4).
  */
 export function PlaneCard({
   registration,
@@ -95,24 +118,9 @@ export function PlaneCard({
   category,
   manufacturerModel,
   rarityTier,
-  uniqueRegistrationsCount,
-  flightsCapturedCount,
-  observedFlightTimeSeconds,
-  highestAltitudeObserved,
-  xp,
-  xpProgressToNextTier,
-  viewRegistrationsHref,
+  cardStats,
 }: PlaneCardProps) {
-  const statsPresent =
-    uniqueRegistrationsCount !== undefined &&
-    flightsCapturedCount !== undefined &&
-    observedFlightTimeSeconds !== undefined &&
-    highestAltitudeObserved !== undefined &&
-    xp !== undefined &&
-    xpProgressToNextTier !== undefined;
-
   const shape = getAircraftShape(typeDesignator, category);
-  const nextTier = nextRarityTier(rarityTier);
   const viewBox = useTightAircraftShapeViewBox(shape);
 
   return (
