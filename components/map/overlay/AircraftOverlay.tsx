@@ -93,18 +93,11 @@ export function AircraftOverlay({
                 </div>
                 <div className={styles.card}>
                   <PlaneCard
-                    registration={info.registration}
                     typeDesignator={info.typeDesignator}
                     category={info.category}
                     manufacturerModel={info.manufacturerModel}
                     rarityTier={info.rarityTier}
-                    uniqueRegistrationsCount={info.uniqueRegistrationsCount}
-                    flightsCapturedCount={info.flightsCapturedCount}
-                    observedFlightTimeSeconds={info.observedFlightTimeSeconds}
-                    highestAltitudeObserved={info.highestAltitudeObserved}
-                    xp={info.xp}
-                    xpProgressToNextTier={info.xpProgressToNextTier}
-                    viewRegistrationsHref={info.viewRegistrationsHref}
+                    cardStats={info.cardStats}
                   />
                 </div>
                 <div className={styles.flightInfo}>

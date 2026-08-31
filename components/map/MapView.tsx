@@ -33,6 +33,8 @@ import { AircraftColorDock } from "./controls/AircraftColorDock";
 import { AircraftHoverTooltip } from "./overlay/AircraftHoverTooltip";
 import { ColorModeLegendDock } from "./overlay/ColorModeLegendDock";
 import { getCachedFlightRoute, clearFlightRouteCache, type FlightRoute } from "./flightRoute";
+import { getCachedAircraftModelCard, type AircraftModelCardResult } from "./overlay/aircraftModelCard";
+import { getStoredFeederUuid } from "./overlay/feederUuid";
 import {
   buildSelectedAircraftInfo,
   type SelectedAircraftInfo,
@@ -444,8 +446,22 @@ export default function MapView() {
       );
     }
 
+    let cardStats: AircraftModelCardResult | undefined;
+    if (selected.typeDesignator) {
+      const feederUuid = getStoredFeederUuid();
+      cardStats = feederUuid
+        ? await getCachedAircraftModelCard(selected.typeDesignator, feederUuid)
+        : { status: "not_configured" };
+    }
+
     setSelectedAircraftInfo(
-      buildSelectedAircraftInfo(selected, getTrack(selected.hex), userLocationRef.current, route),
+      buildSelectedAircraftInfo(
+        selected,
+        getTrack(selected.hex),
+        userLocationRef.current,
+        route,
+        cardStats,
+      ),
     );
   };
 

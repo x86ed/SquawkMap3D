@@ -47,6 +47,28 @@
   background: linear-gradient(145deg, rgb(16, 23, 32), rgb(8, 11, 16) 62%, rgb(17, 24, 39));
 }
 
+/* Measured, vertical-only shrink-to-fit for everything below `.glowOrb`
+   (PlaneCard.tsx's `contentRef`) — a ResizeObserver compares this
+   wrapper's natural, unscaled `scrollHeight` against `.aircraftTierCard`'s
+   actual `clientHeight` and sets a `transform: scaleY()` correction,
+   capped at 1, loosely mirroring AircraftOverlay.tsx's own grid-level
+   scale mechanism (which can't reach in here itself — this card's
+   overflow must stay clipped at its own boundary for the two-layer
+   rarity-frame border technique, so the outer ResizeObserver never sees
+   this content overflow). `scaleY` only, not a uniform `scale()`: shrinking
+   the horizontal dimension too would leave empty space somewhere no matter
+   how it's anchored (left, right, or split evenly via centering) — the
+   stat grid stays full-bleed edge to edge and only the vertical extent
+   compresses when content doesn't fit. `transform-origin: top` keeps the
+   header's vertical start position fixed as the shrink is applied. */
+.scaledContent {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  transform-origin: top center;
+}
+
 /* Per-tier custom-property overrides — literal values matching
    RARITY_TIER_STYLES in aircraftRarity.ts exactly. */
 .aircraftRarityFrame[data-tier="standard"] {
@@ -150,7 +172,7 @@
   text-transform: uppercase;
 }
 
-.registrationLabel {
+.manufacturerLabel {
   margin-top: 16px;
   font-size: 12px;
   font-weight: 700;
@@ -228,14 +250,20 @@
   color: rgb(241, 245, 249);
 }
 
-/* Fleet-wide stat grid + XP/progress row (design.md Decision 14) —
-   field-for-field match against adsb.win's real authenticated dashboard
-   card markup (labels, 2-col grid_x-gap-20/y-gap-16, mt-8/pt-5 divider,
-   text-2xl for the two count stats vs. default-size for the duration/
-   altitude stats, the "N% to {next tier}" progress label). Every field is
-   `undefined` today (no data source exists — design.md Decision 14), so
-   only .statsEmpty currently renders; this is the exact layout for when a
-   real source is wired up. */
+/* Fleet-wide stat grid + XP/progress row (adsb-win-aircraft-stats
+   capability) — field-for-field match against adsb.win's real authenticated
+   dashboard card markup (labels, 2-col grid_x-gap-20/y-gap-16, mt-8/pt-5
+   divider, text-2xl for the two count stats vs. default-size for the
+   duration/altitude stats, the "N% to {next tier}" progress label). Renders
+   only for the `"ok"` cardStats status; see PlaneCard.tsx's renderStatRegion.
+   Kept at the reference's literal px values on purpose — PlaneCard.tsx
+   wraps this whole region (plus the header) in a measured, uniform
+   `transform: scale()` (`.scaledContent`, mirroring AircraftOverlay.tsx's
+   own grid-level ResizeObserver-driven scale) when it doesn't fit the
+   card's actual box, so these values never need their own independent
+   shrink logic — that was tried here first and rejected: per-property
+   clamp()s with unrelated min/max curves drift out of ratio with each
+   other at in-between sizes, in a way a single shared scale factor can't. */
 .statGrid {
   margin-top: 32px;
   padding-top: 20px;
@@ -295,18 +323,11 @@
   border-radius: 9999px;
 }
 
-.viewRegistrationsLink {
-  position: relative;
-  display: block;
-  margin-top: 20px;
-  font-size: 14px;
-  font-weight: 900;
-  color: rgb(103, 232, 249);
-  text-decoration: none;
-}
-
-.viewRegistrationsLink:hover {
-  text-decoration: underline;
+/* Max-tier variant (adsb-win-aircraft-stats capability, design.md Decision
+   4a) — full-width bar with no percentage label, matching the reference
+   screenshot's "MAXIMUM TIER" card. */
+.progressFillMax {
+  background: var(--rarity-highlight);
 }
 
 .statsEmpty {
@@ -320,6 +341,58 @@
   text-align: center;
 }
 
+/* Inline feeder-UUID entry form (design.md Decision 3) — shown for the
+   `"not_configured"`/`"invalid_token"` cardStats states, in place of the
+   stat grid or the empty-state message. */
+.feederUuidForm {
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid oklab(0.999994 0.0000455678 0.0000200868 / 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feederUuidMessage {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: oklch(0.554 0.046 257.417);
+  text-align: center;
+}
+
+.feederUuidInput {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgb(241, 245, 249);
+  font-size: 13px;
+}
+
+.feederUuidInput:focus {
+  outline: 2px solid var(--rarity-color);
+  outline-offset: 1px;
+}
+
+.feederUuidButton {
+  padding: 8px 12px;
+  border-radius: 9999px;
+  border: none;
+  background: var(--rarity-color);
+  color: rgb(7, 16, 29);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.feederUuidButton:hover {
+  filter: brightness(1.1);
+}
+
 .badgeRow {
   position: absolute;
   left: 0;
@@ -328,6 +401,25 @@
   z-index: 2;
   display: flex;
   justify-content: center;
+  gap: 8px;
+}
+
+/* adsb.win's own material-tier badge (e.g. "Titanium") — a *different* axis
+   than `.rarityBadge`'s `rarityTier` (design.md Decision 4/4a), rendered
+   next to it only when a successful `cardStats` result carries a real tier
+   name. Plain/neutral styling rather than a per-tier accent color: only
+   one real tier name ("Alloy") has ever been observed against this app's
+   own live account, not enough to build a verified color mapping for the
+   rest (same discipline as `tierProgress.ts`'s provisional-data caveat). */
+.tierBadge {
+  padding: 7px 12px;
+  border-radius: 9999px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1.08px;
+  text-transform: uppercase;
+  color: rgb(203, 213, 225);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .rarityBadge {

@@ -7,6 +7,12 @@ Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_MAPTILER_KEY` to a MapT
 
 Optionally set `NEXT_PUBLIC_FEEDER_URL` to your ADS-B feeder's `aircraft.json` endpoint (readsb/dump1090-fa/tar1090-compatible) to enable the aircraft tracks layer. Left unset, that layer stays off.
 
+### adsb.win feeder UUID (aircraft stats)
+
+To see your own adsb.win fleet-wide stats (unique registrations, flights captured, observed flight time, highest altitude, XP, and tier) for the selected aircraft's type in `PlaneCard`, enter your adsb.win feeder UUID directly in the app — the first time you select an aircraft, `PlaneCard`'s stat region shows a prompt with a field to paste it in. This is **not** an environment variable: the UUID is a real bearer credential for your adsb.win account, so it's stored only in your browser's `localStorage` (never baked into the compiled JS bundle, never committed to git, never sent anywhere but `app-api.adsb.win`'s `Authorization` header). See your feeder UUID on your adsb.win account/feeder page.
+
+The XP progress-to-next-tier bar shown for a successful card is driven by a small, explicitly **provisional** default per-tier XP threshold table (`components/map/overlay/tierProgress.ts`) — adsb.win's API doesn't document real per-tier thresholds, so these are best-effort estimates pending a follow-up change with confirmed numbers.
+
 ## Attribution
 
 Aircraft icons under `public/aircraft-shapes/` are vendored from [AircraftShapesSVG](https://github.com/RexKramer1/AircraftShapesSVG) (GPL-3.0), keyed by ICAO type designator.
