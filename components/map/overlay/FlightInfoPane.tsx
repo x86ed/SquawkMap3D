@@ -206,7 +206,7 @@ function OverlaySparkline({ altitudeSeries, groundSpeedSeries }: { altitudeSerie
                     />
                   ));
                 }
-                const dotXs = [];
+                const dotXs: number[] = [];
                 for (let x = 0; x <= SPARKLINE_WIDTH; x += SPARKLINE_GRID_DOT_SPACING) dotXs.push(x);
                 return rows.map((y, rowIndex) =>
                   dotXs.map((x, colIndex) => (
