@@ -47,19 +47,20 @@
   background: linear-gradient(145deg, rgb(16, 23, 32), rgb(8, 11, 16) 62%, rgb(17, 24, 39));
 }
 
-/* Measured, uniform shrink-to-fit for everything below `.glowOrb`
+/* Measured, vertical-only shrink-to-fit for everything below `.glowOrb`
    (PlaneCard.tsx's `contentRef`) — a ResizeObserver compares this
-   wrapper's natural, unscaled `scrollHeight`/`scrollWidth` against
-   `.aircraftTierCard`'s actual `clientHeight`/`clientWidth` and sets a
-   `transform: scale()` correction, capped at 1, exactly mirroring
-   AircraftOverlay.tsx's own grid-level scale mechanism (which can't reach
-   in here itself — this card's overflow must stay clipped at its own
-   boundary for the two-layer rarity-frame border technique, so the outer
-   ResizeObserver never sees this content overflow). `transform-origin: top
-   center` (not `top left`, which pinned scaled-down content to the card's
-   left edge, reading as squished rather than centered) keeps the header's
-   vertical start position fixed while distributing the shrink evenly left
-   and right. */
+   wrapper's natural, unscaled `scrollHeight` against `.aircraftTierCard`'s
+   actual `clientHeight` and sets a `transform: scaleY()` correction,
+   capped at 1, loosely mirroring AircraftOverlay.tsx's own grid-level
+   scale mechanism (which can't reach in here itself — this card's
+   overflow must stay clipped at its own boundary for the two-layer
+   rarity-frame border technique, so the outer ResizeObserver never sees
+   this content overflow). `scaleY` only, not a uniform `scale()`: shrinking
+   the horizontal dimension too would leave empty space somewhere no matter
+   how it's anchored (left, right, or split evenly via centering) — the
+   stat grid stays full-bleed edge to edge and only the vertical extent
+   compresses when content doesn't fit. `transform-origin: top` keeps the
+   header's vertical start position fixed as the shrink is applied. */
 .scaledContent {
   display: flex;
   flex-direction: column;
