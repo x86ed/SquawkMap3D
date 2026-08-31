@@ -235,12 +235,12 @@
    duration/altitude stats, the "N% to {next tier}" progress label). Renders
    only for the `"ok"` cardStats status; see PlaneCard.tsx's renderStatRegion. */
 .statGrid {
-  margin-top: 32px;
-  padding-top: 20px;
+  margin-top: clamp(10px, 5cqh, 32px);
+  padding-top: clamp(8px, 3cqh, 20px);
   border-top: 1px solid oklab(0.999994 0.0000455678 0.0000200868 / 0.1);
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px 20px;
+  gap: clamp(6px, 3cqh, 16px) 20px;
 }
 
 .statCell {
@@ -249,7 +249,7 @@
 
 .statValueLarge {
   margin-top: 4px;
-  font-size: 24px;
+  font-size: clamp(14px, 6cqh, 24px);
   font-weight: 900;
   color: rgb(241, 245, 249);
 }
@@ -257,7 +257,7 @@
 .xpBlock {
   position: relative;
   margin-top: auto;
-  padding-top: 24px;
+  padding-top: clamp(8px, 4cqh, 24px);
 }
 
 .xpLabelRow {
