@@ -165,7 +165,7 @@ export default function MapView() {
   const noaaRadarVisibleRef = useRef(false);
   const dwdRadolanVisibleRef = useRef(false);
   const aircraftVisibleRef = useRef(true);
-  // Track trail visibility (line, its glow, droplines, curtain) — separate
+  // Track trail visibility (line, its glow, droplines) — separate
   // from aircraftVisibleRef above, which gates icon rendering/polling itself
   // (enhance-aircraft-tracks' design.md Decision 5).
   const tracksVisibleRef = useRef(true);

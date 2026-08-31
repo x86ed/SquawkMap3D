@@ -15,11 +15,7 @@ import {
   AIRCRAFT_GLOW_BRIGHTEN_AMOUNT,
   AIRCRAFT_ICON_GLOW_ALPHA,
   AIRCRAFT_ICON_GLOW_SIZE_PIXELS,
-  AIRCRAFT_TRACK_CURTAIN_BAND_COUNT,
-  AIRCRAFT_TRACK_CURTAIN_TOP_ALPHA,
-  AIRCRAFT_TRACK_CURTAIN_WIDTH_PIXELS,
   AIRCRAFT_TRACK_DROPLINE_ALPHA,
-  AIRCRAFT_TRACK_DROPLINE_COLOR,
   AIRCRAFT_TRACK_DROPLINE_DOT_COUNT,
   AIRCRAFT_TRACK_DROPLINE_DOT_RADIUS_PIXELS,
   AIRCRAFT_TRACK_FADE_MIN_ALPHA,
@@ -36,7 +32,6 @@ export const AIRCRAFT_SELECTION_GLOW_LAYER_ID = "aircraft-selection-glow";
 export const AIRCRAFT_ROTOR_ACCENT_LAYER_ID = "aircraft-rotor-accent";
 export const AIRCRAFT_ICON_GLOW_LAYER_ID = "aircraft-icon-glow";
 export const AIRCRAFT_TRACK_GLOW_LAYER_ID = "aircraft-track-glow";
-export const AIRCRAFT_TRACK_CURTAIN_LAYER_ID = "aircraft-track-curtain";
 export const AIRCRAFT_TRACK_DROPLINE_LAYER_ID = "aircraft-track-dropline";
 
 const ROTORCRAFT_CATEGORY = "A7";
@@ -69,13 +64,9 @@ interface TrackSegment {
   alpha: number;
 }
 
-interface CurtainBand {
-  path: [[number, number, number], [number, number, number]];
-  color: [number, number, number, number];
-}
-
 interface DroplineDot {
   position: [number, number, number];
+  color: [number, number, number];
 }
 
 function clamp01(value: number): number {
@@ -88,11 +79,11 @@ function lerp(from: number, to: number, fraction: number): number {
 
 /**
  * Decimates a track's recorded points down to a coarser subset used by the
- * ground droplines/curtain (design.md Decision 2), keeping one point at
+ * ground droplines (design.md Decision 2), keeping one point at
  * least `AIRCRAFT_TRACK_MARKER_INTERVAL_MS` after the previously-kept
  * marker's timestamp. Always appends the final (most recent) point, even if
  * it falls short of a full interval since the last kept marker, so the
- * current position always gets a dropline/curtain edge.
+ * current position always gets a dropline.
  */
 export function selectTrackMarkers(points: TrackPoint[]): TrackPoint[] {
   if (points.length === 0) return [];
@@ -134,7 +125,7 @@ export function buildAircraftLayers(params: {
   tracks: ReadonlyMap<string, TrackPoint[]>;
   iconAtlas: IconAtlas | null;
   colorMode: ColorMode;
-  // Gates trail line/glow/droplines/curtain only — icon, icon-glow, and
+  // Gates trail line/glow/droplines only — icon, icon-glow, and
   // rotor layers are unaffected (aircraft-tracks-layer's "toggleable
   // independently of aircraft icon visibility" requirement).
   tracksVisible: boolean;
@@ -253,12 +244,10 @@ export function buildAircraftLayers(params: {
   // for elements nothing renders.
   let trackLayer: Layer | null = null;
   let trackGlowLayer: Layer | null = null;
-  let curtainLayer: Layer | null = null;
   let droplineLayer: Layer | null = null;
 
   if (tracksVisible) {
     const segments: TrackSegment[] = [];
-    const curtainBands: CurtainBand[] = [];
     const droplineDots: DroplineDot[] = [];
     // Captured once per call, not per segment (design.md Decision 1), so
     // every segment's fade is computed against the same instant.
@@ -285,31 +274,14 @@ export function buildAircraftLayers(params: {
       }
 
       const markers = selectTrackMarkers(points);
-      for (let i = 1; i < markers.length; i++) {
-        const a = markers[i - 1];
-        const b = markers[i];
-        for (let band = 0; band < AIRCRAFT_TRACK_CURTAIN_BAND_COUNT; band++) {
-          const f = band / (AIRCRAFT_TRACK_CURTAIN_BAND_COUNT - 1);
-          curtainBands.push({
-            path: [
-              [a.lon, a.lat, altitudeToRenderMeters(a.altitude) * f],
-              [b.lon, b.lat, altitudeToRenderMeters(b.altitude) * f],
-            ],
-            // Neutral, matching the droplines (not resolveTrackPointColor) —
-            // the horizontal trail is the only element that should carry the
-            // track's color-mode color; these ground-reference elements read
-            // as competing/duplicate color-coding otherwise.
-            color: [...AIRCRAFT_TRACK_DROPLINE_COLOR, lerp(AIRCRAFT_TRACK_CURTAIN_TOP_ALPHA, 0, f)],
-          });
-        }
-      }
-
       for (const marker of markers) {
         const markerHeight = altitudeToRenderMeters(marker.altitude);
+        const markerColor = resolveTrackPointColor(marker, colorMode, typeDesignator);
         for (let dot = 0; dot < AIRCRAFT_TRACK_DROPLINE_DOT_COUNT; dot++) {
           const f = dot / (AIRCRAFT_TRACK_DROPLINE_DOT_COUNT - 1);
           droplineDots.push({
             position: [marker.lon, marker.lat, lerp(markerHeight, 0, f)],
+            color: markerColor,
           });
         }
       }
@@ -345,30 +317,15 @@ export function buildAircraftLayers(params: {
       pickable: false,
     });
 
-    // Ground "curtain" beneath the trail (design.md Decision 3) — a small
-    // number of stacked, decreasing-alpha PathLayer bands approximating a
-    // continuous vertical gradient from the trail's own color down to fully
-    // transparent at the ground, built from the decimated marker subset
-    // above.
-    curtainLayer = new PathLayer<CurtainBand>({
-      id: AIRCRAFT_TRACK_CURTAIN_LAYER_ID,
-      data: curtainBands,
-      getPath: (d) => d.path,
-      getColor: (d) => d.color,
-      getWidth: AIRCRAFT_TRACK_CURTAIN_WIDTH_PIXELS,
-      widthUnits: "pixels",
-      pickable: false,
-    });
-
-    // Dotted ground-reference droplines (design.md Decision 4) — fixed
-    // neutral color regardless of the active color mode, since this is a
-    // technical "how far above the ground was this point" cue, not
-    // data-carrying.
+    // Dotted ground-reference droplines (design.md Decision 4, revised) —
+    // colored the same as the track point they drop from, so they read as
+    // part of the same trail rather than a separate, competing color-coded
+    // element.
     droplineLayer = new ScatterplotLayer<DroplineDot>({
       id: AIRCRAFT_TRACK_DROPLINE_LAYER_ID,
       data: droplineDots,
       getPosition: (d) => d.position,
-      getFillColor: [...AIRCRAFT_TRACK_DROPLINE_COLOR, AIRCRAFT_TRACK_DROPLINE_ALPHA],
+      getFillColor: (d) => [...d.color, AIRCRAFT_TRACK_DROPLINE_ALPHA],
       getRadius: AIRCRAFT_TRACK_DROPLINE_DOT_RADIUS_PIXELS,
       radiusUnits: "pixels",
       pickable: false,
@@ -406,17 +363,13 @@ export function buildAircraftLayers(params: {
     pickable: false,
   });
 
-  // Paint order, back to front: the always-on icon glow, then the new ground
-  // curtain (furthest-back "ground reference" element), the track glow, the
-  // new ground droplines, then the crisp track line, rotor accent, and icons
-  // on top (rotor drawn just before the icon so the fuselage silhouette
-  // isn't hidden underneath it). Relative order between trackGlowLayer/
-  // curtainLayer/droplineLayer is left to visual tuning (tasks.md 6.3). The
-  // four track-related layers are `null` (and simply omitted) when
-  // `tracksVisible` is false.
+  // Paint order, back to front: the always-on icon glow, the track glow, the
+  // ground droplines, then the crisp track line, rotor accent, and icons on
+  // top (rotor drawn just before the icon so the fuselage silhouette isn't
+  // hidden underneath it). The three track-related layers are `null` (and
+  // simply omitted) when `tracksVisible` is false.
   return [
     iconGlowLayer,
-    curtainLayer,
     trackGlowLayer,
     droplineLayer,
     trackLayer,

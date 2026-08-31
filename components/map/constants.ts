@@ -187,17 +187,17 @@ export const AIRCRAFT_ICON_GLOW_ALPHA = 90;
 export const AIRCRAFT_TRACK_GLOW_WIDTH_PIXELS = 6;
 export const AIRCRAFT_TRACK_GLOW_ALPHA = 90;
 
-// Track age-fade, ground droplines, and ground curtain (enhance-aircraft-
-// tracks' design.md Decisions 1-4) — the most-recent track segment always
-// renders at full alpha (255) regardless of AIRCRAFT_TRACK_FADE_MIN_ALPHA;
-// older segments fade linearly by wall-clock age toward this floor rather
-// than reaching 0, so the oldest still-retained segment never fully
-// disappears before it's pruned.
+// Track age-fade and ground droplines (enhance-aircraft-tracks' design.md
+// Decisions 1-4) — the most-recent track segment always renders at full
+// alpha (255) regardless of AIRCRAFT_TRACK_FADE_MIN_ALPHA; older segments
+// fade linearly by wall-clock age toward this floor rather than reaching 0,
+// so the oldest still-retained segment never fully disappears before it's
+// pruned.
 export const AIRCRAFT_TRACK_FADE_MIN_ALPHA = 60;
 // Minimum wall-clock spacing between the decimated "track marker" points
-// (selectTrackMarkers()) that the droplines/curtain are built from — kept
-// coarser than the trail line's own per-poll resolution to bound their draw
-// cost against the uncapped, per-poll-resolution point buffer.
+// (selectTrackMarkers()) that the droplines are built from — kept coarser
+// than the trail line's own per-poll resolution to bound their draw cost
+// against the uncapped, per-poll-resolution point buffer.
 export const AIRCRAFT_TRACK_MARKER_INTERVAL_MS = 15_000;
 // Bumped from the original 5/2px/90-alpha defaults (enhance-aircraft-tracks
 // design.md's Open Questions left these to visual tuning) — verified against
@@ -209,18 +209,6 @@ export const AIRCRAFT_TRACK_MARKER_INTERVAL_MS = 15_000;
 export const AIRCRAFT_TRACK_DROPLINE_DOT_COUNT = 8;
 export const AIRCRAFT_TRACK_DROPLINE_DOT_RADIUS_PIXELS = 4;
 export const AIRCRAFT_TRACK_DROPLINE_ALPHA = 230;
-// Fixed neutral grey, not color-mode-driven (design.md Decision 4) — a
-// ground-reference cue, not a data-carrying element. Darkened from an
-// earlier [200,200,200]/light-grey pass: at 190 alpha that color read as a
-// near-white wash against the (light-theme) terrain basemap once zoomed out
-// past close range — no perceptible "core" dot, just a faint haze. A darker
-// mid-grey at near-opaque alpha holds a visible solid center at distance
-// against both the light and dark map themes.
-export const AIRCRAFT_TRACK_DROPLINE_COLOR: [number, number, number] = [90, 90, 90];
-export const AIRCRAFT_TRACK_CURTAIN_BAND_COUNT = 6;
-// Bumped alongside the dropline constants above, same reasoning.
-export const AIRCRAFT_TRACK_CURTAIN_TOP_ALPHA = 170;
-export const AIRCRAFT_TRACK_CURTAIN_WIDTH_PIXELS = 3;
 
 // "Follow selected aircraft" per-poll recenter duration (design.md Decision
 // 13) — short enough to track a ~1s-polled aircraft without visibly lagging
