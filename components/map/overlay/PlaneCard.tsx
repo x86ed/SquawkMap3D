@@ -230,41 +230,49 @@ export function PlaneCard({
   const [scale, setScale] = useState(1);
 
   /**
-   * Measured, uniform shrink-to-fit for the card's own content (header +
-   * stat region), mirroring `AircraftOverlay.tsx`'s grid-level
+   * Measured, vertical-only shrink-to-fit for the card's own content
+   * (header + stat region), mirroring `AircraftOverlay.tsx`'s grid-level
    * ResizeObserver/`transform: scale()` mechanism — but comparing
-   * `.scaledContent`'s `scrollWidth`/`scrollHeight` (its true, unscaled
-   * content extent) against its own `clientWidth`/`clientHeight` (its
-   * actual laid-out box, pinned to the remaining space by `flex: 1;
-   * min-height: 0`), not `.aircraftTierCard`'s — comparing against the
-   * outer box directly first shipped here as a straight copy of the
-   * `AircraftOverlay.tsx` pattern, but `.aircraftTierCard` has its own
-   * 20px padding on every side that `.scaledContent` sits inside; using
-   * its `clientHeight` as "available" overstated the real budget by that
-   * padding and under-scaled content by exactly as much. Neither
-   * `clientWidth`/`clientHeight` nor `scrollWidth`/`scrollHeight` are
-   * affected by an already-applied `transform`, so this self-referential
-   * comparison is stable and can't feed back on itself. Capped at 1 (never
-   * scales up), so a card whose content already fits renders
-   * pixel-identical to today. `.aircraftTierCard`'s `overflow: hidden`
-   * (required for the two-layer rarity-frame border technique, see the
-   * file-top doc comment) is why this card needs its own copy of the
-   * outer mechanism at all — it clips this content before it could ever
-   * contribute to the drawer grid's own `scrollHeight`.
+   * `.scaledContent`'s `scrollHeight` (its true, unscaled content extent)
+   * against its own `clientHeight` (its actual laid-out box, pinned to the
+   * remaining space by `flex: 1; min-height: 0`), not `.aircraftTierCard`'s
+   * — comparing against the outer box directly first shipped here as a
+   * straight copy of the `AircraftOverlay.tsx` pattern, but
+   * `.aircraftTierCard` has its own 20px padding on every side that
+   * `.scaledContent` sits inside; using its `clientHeight` as "available"
+   * overstated the real budget by that padding and under-scaled content by
+   * exactly as much. Neither `clientHeight` nor `scrollHeight` are affected
+   * by an already-applied `transform`, so this self-referential comparison
+   * is stable and can't feed back on itself. Capped at 1 (never scales up),
+   * so a card whose content already fits renders pixel-identical to today.
+   * `.aircraftTierCard`'s `overflow: hidden` (required for the two-layer
+   * rarity-frame border technique, see the file-top doc comment) is why
+   * this card needs its own copy of the outer mechanism at all — it clips
+   * this content before it could ever contribute to the drawer grid's own
+   * `scrollHeight`.
+   *
+   * Height only, not width: an earlier version scaled both axes uniformly
+   * (matching `AircraftOverlay.tsx` exactly), but any scale below 1 then
+   * shrinks the content's rendered width below the card's full width by
+   * construction — there's no anchor point that avoids leaving empty space
+   * somewhere (top-left anchoring left it on the right; centering left it
+   * evenly split on both sides). The stat grid's columns are already
+   * `1fr 1fr` and don't need to shrink horizontally to avoid overflow in
+   * practice — the real failure mode this fixes is vertical (the card
+   * being shorter than its content wants), so `scaleY` alone removes the
+   * gutters entirely by never touching the horizontal dimension.
    */
   useEffect(() => {
     const content = contentRef.current;
     if (!content) return;
 
     const recompute = () => {
-      const availableWidth = content.clientWidth;
       const availableHeight = content.clientHeight;
-      const contentWidth = content.scrollWidth;
       const contentHeight = content.scrollHeight;
-      if (availableWidth <= 0 || availableHeight <= 0 || contentWidth <= 0 || contentHeight <= 0) {
+      if (availableHeight <= 0 || contentHeight <= 0) {
         return;
       }
-      setScale(Math.min(1, availableWidth / contentWidth, availableHeight / contentHeight));
+      setScale(Math.min(1, availableHeight / contentHeight));
     };
 
     const observer = new ResizeObserver(recompute);
@@ -280,7 +288,7 @@ export function PlaneCard({
         <div
           className={styles.scaledContent}
           ref={contentRef}
-          style={scale !== 1 ? { transform: `scale(${scale})` } : undefined}
+          style={scale !== 1 ? { transform: `scaleY(${scale})` } : undefined}
         >
           <div className={styles.headerRow}>
             <div className={styles.identity}>
