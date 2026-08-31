@@ -214,7 +214,7 @@
 }
 
 .statLabel {
-  font-size: 10px;
+  font-size: clamp(8px, 3.125cqh, 10px);
   font-weight: 900;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -222,8 +222,8 @@
 }
 
 .statValue {
-  margin-top: 4px;
-  font-size: 16px;
+  margin-top: clamp(2px, 1.25cqh, 4px);
+  font-size: clamp(10px, 5cqh, 16px);
   font-weight: 900;
   color: rgb(241, 245, 249);
 }
@@ -234,13 +234,21 @@
    divider, text-2xl for the two count stats vs. default-size for the
    duration/altitude stats, the "N% to {next tier}" progress label). Renders
    only for the `"ok"` cardStats status; see PlaneCard.tsx's renderStatRegion. */
+/* Every clamp() below shares one proportionality constant (referencePx *
+   0.3125 per cqh) so the whole stat block shrinks as a single uniform
+   ratio, not independently per property — the constant is calibrated so
+   every value lands exactly on its reference px at a 320px-tall container
+   (adsb.win's own `min-h-80` card height). A per-property clamp with its
+   own unrelated min/max drifts out of ratio with its neighbors at
+   in-between sizes; this keeps the block visually proportioned like the
+   reference at any card height, not just at the two clamp endpoints. */
 .statGrid {
-  margin-top: clamp(10px, 5cqh, 32px);
-  padding-top: clamp(8px, 3cqh, 20px);
+  margin-top: clamp(18px, 10cqh, 32px);
+  padding-top: clamp(11px, 6.25cqh, 20px);
   border-top: 1px solid oklab(0.999994 0.0000455678 0.0000200868 / 0.1);
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: clamp(6px, 3cqh, 16px) 20px;
+  gap: clamp(9px, 5cqh, 16px) 20px;
 }
 
 .statCell {
@@ -248,8 +256,8 @@
 }
 
 .statValueLarge {
-  margin-top: 4px;
-  font-size: clamp(14px, 6cqh, 24px);
+  margin-top: clamp(2px, 1.25cqh, 4px);
+  font-size: clamp(14px, 7.5cqh, 24px);
   font-weight: 900;
   color: rgb(241, 245, 249);
 }
@@ -257,7 +265,7 @@
 .xpBlock {
   position: relative;
   margin-top: auto;
-  padding-top: clamp(8px, 4cqh, 24px);
+  padding-top: clamp(13px, 7.5cqh, 24px);
 }
 
 .xpLabelRow {
@@ -265,7 +273,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  font-size: 10px;
+  font-size: clamp(8px, 3.125cqh, 10px);
   font-weight: 900;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -280,8 +288,8 @@
 }
 
 .progressTrack {
-  margin-top: 8px;
-  height: 6px;
+  margin-top: clamp(4px, 2.5cqh, 8px);
+  height: clamp(4px, 1.875cqh, 6px);
   border-radius: 9999px;
   background: rgba(255, 255, 255, 0.1);
   overflow: hidden;
