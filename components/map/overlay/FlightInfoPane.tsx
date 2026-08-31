@@ -1,22 +1,30 @@
+import { useRef, useState, type MouseEvent } from "react";
 import styles from "./FlightInfoPane.module.css";
 import type { FlightRoute } from "../flightRoute";
 import type { SparklinePoint } from "./selectedAircraftInfo";
 
 const SPARKLINE_WIDTH = 240;
 const SPARKLINE_HEIGHT = 60;
+const SPARKLINE_GRID_DOT_SPACING = 12;
+
+/** Maps a data value to its plot-space `y` pixel for a given `[min, max]`
+ * domain — the single source of truth shared by the polyline itself, its
+ * gridline rows, and hover markers, so none of the three can visually
+ * drift apart from one another. */
+function valueToY(value: number, [domainMin, domainMax]: [number, number]): number {
+  const clamped = Math.min(domainMax, Math.max(domainMin, value));
+  return SPARKLINE_HEIGHT - ((clamped - domainMin) / (domainMax - domainMin)) * SPARKLINE_HEIGHT;
+}
 
 /** Builds an SVG polyline `points` string from `series`, scaled against a
  * fixed `[min, max]` domain (not the series' own observed range) so the
  * altitude and ground-speed lines are readable against their labeled axes
  * below rather than each auto-stretching to fill the plot. */
-function sparklinePoints(series: SparklinePoint[], [domainMin, domainMax]: [number, number]): string {
-  const range = domainMax - domainMin;
-
+function sparklinePoints(series: SparklinePoint[], domain: [number, number]): string {
   return series
     .map((point, index) => {
       const x = (index / (series.length - 1)) * SPARKLINE_WIDTH;
-      const clamped = Math.min(domainMax, Math.max(domainMin, point.value));
-      const y = SPARKLINE_HEIGHT - ((clamped - domainMin) / range) * SPARKLINE_HEIGHT;
+      const y = valueToY(point.value, domain);
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
@@ -34,9 +42,36 @@ const SPARKLINE_SERIES: {
   growthPadding: number;
   unit: string;
   tickCount: number;
+  /** Low-alpha derivative of `color`, used for this axis's gridline rows
+   * (design.md Decision 2) — reuses the axis's own legend swatch rather
+   * than an unrelated new color. */
+  gridColor: string;
+  /** "line" for a continuous faint stroke per tick, "dots" for discrete
+   * circle markers per tick — kept visually distinguishable per axis. */
+  gridStyle: "line" | "dots";
 }[] = [
-  { key: "altitude", label: "Altitude", color: "#06b6d4", defaultMax: 40000, growthPadding: 1000, unit: "ft", tickCount: 5 },
-  { key: "groundSpeed", label: "Ground speed", color: "#22c55e", defaultMax: 600, growthPadding: 100, unit: "kt", tickCount: 5 },
+  {
+    key: "altitude",
+    label: "Altitude",
+    color: "#06b6d4",
+    defaultMax: 40000,
+    growthPadding: 1000,
+    unit: "ft",
+    tickCount: 5,
+    gridColor: "rgba(6, 182, 212, 0.22)",
+    gridStyle: "line",
+  },
+  {
+    key: "groundSpeed",
+    label: "Ground speed",
+    color: "#22c55e",
+    defaultMax: 600,
+    growthPadding: 100,
+    unit: "kt",
+    tickCount: 5,
+    gridColor: "rgba(34, 197, 94, 0.55)",
+    gridStyle: "dots",
+  },
 ];
 
 /** `[0, defaultMax]` unless the series' own peak value has grown past
@@ -52,6 +87,33 @@ function computeDomain(series: SparklinePoint[], defaultMax: number, growthPaddi
 function axisTicks([domainMin, domainMax]: [number, number], tickCount: number): number[] {
   const step = (domainMax - domainMin) / (tickCount - 1);
   return Array.from({ length: tickCount }, (_, i) => domainMax - i * step);
+}
+
+/** Plot-space `y` positions for a gridline row at each of the axis's own
+ * tick values — the exact same `domain`/`tickCount` inputs (and `valueToY`
+ * mapping) already used for that axis's label column, so the grid can
+ * never desync from the labels it lines up with. */
+function buildGridRows(domain: [number, number], tickCount: number): number[] {
+  return axisTicks(domain, tickCount).map((tick) => valueToY(tick, domain));
+}
+
+/** Cursor fraction (`0..1` across the plot's rendered width) to an index
+ * into a series of `length` evenly index-spaced points — `null` for an
+ * empty series, since there's no index to resolve to. */
+export function cursorIndexFromFraction(length: number, fraction: number): number | null {
+  if (length === 0) return null;
+  const clamped = Math.min(1, Math.max(0, fraction));
+  return Math.round(clamped * (length - 1));
+}
+
+/** The point in `series` whose `timestamp` is closest to `timestamp` — used
+ * to look up the non-reference series' value at a hovered x position, since
+ * the two series don't share an index space (design.md Decision 3). */
+export function nearestPointByTimestamp(series: SparklinePoint[], timestamp: number): SparklinePoint | undefined {
+  if (series.length === 0) return undefined;
+  return series.reduce((closest, point) =>
+    Math.abs(point.timestamp - timestamp) < Math.abs(closest.timestamp - timestamp) ? point : closest,
+  );
 }
 
 /** Both series drawn into one shared SVG canvas, overlapping rather than
