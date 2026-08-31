@@ -1,22 +1,30 @@
+import { useRef, useState, type MouseEvent } from "react";
 import styles from "./FlightInfoPane.module.css";
 import type { FlightRoute } from "../flightRoute";
 import type { SparklinePoint } from "./selectedAircraftInfo";
 
 const SPARKLINE_WIDTH = 240;
 const SPARKLINE_HEIGHT = 60;
+const SPARKLINE_GRID_DOT_SPACING = 12;
+
+/** Maps a data value to its plot-space `y` pixel for a given `[min, max]`
+ * domain — the single source of truth shared by the polyline itself, its
+ * gridline rows, and hover markers, so none of the three can visually
+ * drift apart from one another. */
+function valueToY(value: number, [domainMin, domainMax]: [number, number]): number {
+  const clamped = Math.min(domainMax, Math.max(domainMin, value));
+  return SPARKLINE_HEIGHT - ((clamped - domainMin) / (domainMax - domainMin)) * SPARKLINE_HEIGHT;
+}
 
 /** Builds an SVG polyline `points` string from `series`, scaled against a
  * fixed `[min, max]` domain (not the series' own observed range) so the
  * altitude and ground-speed lines are readable against their labeled axes
  * below rather than each auto-stretching to fill the plot. */
-function sparklinePoints(series: SparklinePoint[], [domainMin, domainMax]: [number, number]): string {
-  const range = domainMax - domainMin;
-
+function sparklinePoints(series: SparklinePoint[], domain: [number, number]): string {
   return series
     .map((point, index) => {
       const x = (index / (series.length - 1)) * SPARKLINE_WIDTH;
-      const clamped = Math.min(domainMax, Math.max(domainMin, point.value));
-      const y = SPARKLINE_HEIGHT - ((clamped - domainMin) / range) * SPARKLINE_HEIGHT;
+      const y = valueToY(point.value, domain);
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
@@ -34,9 +42,36 @@ const SPARKLINE_SERIES: {
   growthPadding: number;
   unit: string;
   tickCount: number;
+  /** Low-alpha derivative of `color`, used for this axis's gridline rows
+   * (design.md Decision 2) — reuses the axis's own legend swatch rather
+   * than an unrelated new color. */
+  gridColor: string;
+  /** "line" for a continuous faint stroke per tick, "dots" for discrete
+   * circle markers per tick — kept visually distinguishable per axis. */
+  gridStyle: "line" | "dots";
 }[] = [
-  { key: "altitude", label: "Altitude", color: "#06b6d4", defaultMax: 40000, growthPadding: 1000, unit: "ft", tickCount: 5 },
-  { key: "groundSpeed", label: "Ground speed", color: "#22c55e", defaultMax: 600, growthPadding: 100, unit: "kt", tickCount: 5 },
+  {
+    key: "altitude",
+    label: "Altitude",
+    color: "#06b6d4",
+    defaultMax: 40000,
+    growthPadding: 1000,
+    unit: "ft",
+    tickCount: 5,
+    gridColor: "rgba(6, 182, 212, 0.22)",
+    gridStyle: "line",
+  },
+  {
+    key: "groundSpeed",
+    label: "Ground speed",
+    color: "#22c55e",
+    defaultMax: 600,
+    growthPadding: 100,
+    unit: "kt",
+    tickCount: 5,
+    gridColor: "rgba(34, 197, 94, 0.55)",
+    gridStyle: "dots",
+  },
 ];
 
 /** `[0, defaultMax]` unless the series' own peak value has grown past
@@ -54,6 +89,33 @@ function axisTicks([domainMin, domainMax]: [number, number], tickCount: number):
   return Array.from({ length: tickCount }, (_, i) => domainMax - i * step);
 }
 
+/** Plot-space `y` positions for a gridline row at each of the axis's own
+ * tick values — the exact same `domain`/`tickCount` inputs (and `valueToY`
+ * mapping) already used for that axis's label column, so the grid can
+ * never desync from the labels it lines up with. */
+function buildGridRows(domain: [number, number], tickCount: number): number[] {
+  return axisTicks(domain, tickCount).map((tick) => valueToY(tick, domain));
+}
+
+/** Cursor fraction (`0..1` across the plot's rendered width) to an index
+ * into a series of `length` evenly index-spaced points — `null` for an
+ * empty series, since there's no index to resolve to. */
+export function cursorIndexFromFraction(length: number, fraction: number): number | null {
+  if (length === 0) return null;
+  const clamped = Math.min(1, Math.max(0, fraction));
+  return Math.round(clamped * (length - 1));
+}
+
+/** The point in `series` whose `timestamp` is closest to `timestamp` — used
+ * to look up the non-reference series' value at a hovered x position, since
+ * the two series don't share an index space (design.md Decision 3). */
+export function nearestPointByTimestamp(series: SparklinePoint[], timestamp: number): SparklinePoint | undefined {
+  if (series.length === 0) return undefined;
+  return series.reduce((closest, point) =>
+    Math.abs(point.timestamp - timestamp) < Math.abs(closest.timestamp - timestamp) ? point : closest,
+  );
+}
+
 /** Both series drawn into one shared SVG canvas, overlapping rather than
  * stacking as separate charts, each plotted against its own labeled y-axis
  * — a shared canvas but never a shared scale, since the two are on
@@ -63,11 +125,44 @@ function axisTicks([domainMin, domainMax]: [number, number], tickCount: number):
  * scale only stretches when the aircraft actually demands it. Each axis's
  * tick labels are color-coded to match its line. */
 function OverlaySparkline({ altitudeSeries, groundSpeedSeries }: { altitudeSeries: SparklinePoint[]; groundSpeedSeries: SparklinePoint[] }) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [hoverFraction, setHoverFraction] = useState<number | null>(null);
+
   const seriesByKey = { altitude: altitudeSeries, groundSpeed: groundSpeedSeries };
   const hasAnyData = SPARKLINE_SERIES.some(({ key }) => seriesByKey[key].length >= 2);
   const domains = SPARKLINE_SERIES.map(({ key, defaultMax, growthPadding }) =>
     computeDomain(seriesByKey[key], defaultMax, growthPadding),
   );
+  const domainByKey = { altitude: domains[0], groundSpeed: domains[1] };
+  const colorByKey = { altitude: SPARKLINE_SERIES[0].color, groundSpeed: SPARKLINE_SERIES[1].color };
+
+  // Reference series (Decision 3): whichever has more points gets an exact,
+  // index-based crosshair/marker position; the other is matched by nearest
+  // timestamp since the two aren't spaced on a shared x-axis.
+  const referenceKey: "altitude" | "groundSpeed" = altitudeSeries.length >= groundSpeedSeries.length ? "altitude" : "groundSpeed";
+  const otherKey: "altitude" | "groundSpeed" = referenceKey === "altitude" ? "groundSpeed" : "altitude";
+  const referenceSeries = seriesByKey[referenceKey];
+  const otherSeries = seriesByKey[otherKey];
+
+  const cursorIndex = hoverFraction !== null ? cursorIndexFromFraction(referenceSeries.length, hoverFraction) : null;
+  const referencePoint = cursorIndex !== null ? referenceSeries[cursorIndex] : null;
+  const otherPoint = referencePoint ? (nearestPointByTimestamp(otherSeries, referencePoint.timestamp) ?? null) : null;
+  const crosshairX = cursorIndex !== null ? (cursorIndex / (referenceSeries.length - 1)) * SPARKLINE_WIDTH : null;
+
+  const altitudePoint = referenceKey === "altitude" ? referencePoint : otherPoint;
+  const groundSpeedPoint = referenceKey === "groundSpeed" ? referencePoint : otherPoint;
+
+  function handleMouseMove(event: MouseEvent<SVGRectElement>) {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const fraction = (event.clientX - rect.left) / rect.width;
+    setHoverFraction(Math.min(1, Math.max(0, fraction)));
+  }
+
+  function handleMouseLeave() {
+    setHoverFraction(null);
+  }
 
   return (
     <div className={styles.sparklineBlock}>
@@ -87,17 +182,83 @@ function OverlaySparkline({ altitudeSeries, groundSpeedSeries }: { altitudeSerie
               return <span key={tick}>{rounded >= 1000 ? `${(rounded / 1000).toFixed(1)}k` : rounded}</span>;
             })}
           </div>
-          <svg
-            viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
-            className={styles.sparklineSvg}
-            preserveAspectRatio="none"
-          >
-            {SPARKLINE_SERIES.map(({ key, color }, i) => {
-              const series = seriesByKey[key];
-              if (series.length < 2) return null;
-              return <polyline key={key} points={sparklinePoints(series, domains[i])} fill="none" stroke={color} strokeWidth={2} />;
-            })}
-          </svg>
+          <div className={styles.sparklineSvgWrap}>
+            <svg
+              ref={svgRef}
+              viewBox={`0 0 ${SPARKLINE_WIDTH} ${SPARKLINE_HEIGHT}`}
+              className={styles.sparklineSvg}
+              preserveAspectRatio="none"
+            >
+              {SPARKLINE_SERIES.map((seriesDef, i) => {
+                const series = seriesByKey[seriesDef.key];
+                if (series.length < 2) return null;
+                const rows = buildGridRows(domains[i], seriesDef.tickCount);
+                if (seriesDef.gridStyle === "line") {
+                  return rows.map((y, rowIndex) => (
+                    <line
+                      key={`${seriesDef.key}-grid-${rowIndex}`}
+                      x1={0}
+                      x2={SPARKLINE_WIDTH}
+                      y1={y}
+                      y2={y}
+                      stroke={seriesDef.gridColor}
+                      strokeWidth={1}
+                    />
+                  ));
+                }
+                const dotXs: number[] = [];
+                for (let x = 0; x <= SPARKLINE_WIDTH; x += SPARKLINE_GRID_DOT_SPACING) dotXs.push(x);
+                return rows.map((y, rowIndex) =>
+                  dotXs.map((x, colIndex) => (
+                    <circle key={`${seriesDef.key}-grid-${rowIndex}-${colIndex}`} cx={x} cy={y} r={1} fill={seriesDef.gridColor} />
+                  )),
+                );
+              })}
+              {SPARKLINE_SERIES.map(({ key, color }, i) => {
+                const series = seriesByKey[key];
+                if (series.length < 2) return null;
+                return <polyline key={key} points={sparklinePoints(series, domains[i])} fill="none" stroke={color} strokeWidth={2} />;
+              })}
+              {hoverFraction !== null && referencePoint && crosshairX !== null && (
+                <>
+                  <line x1={crosshairX} x2={crosshairX} y1={0} y2={SPARKLINE_HEIGHT} stroke="rgba(226, 232, 240, 0.35)" strokeWidth={1} />
+                  <circle
+                    cx={crosshairX}
+                    cy={valueToY(referencePoint.value, domainByKey[referenceKey])}
+                    r={3}
+                    fill={colorByKey[referenceKey]}
+                    stroke="#0f1014"
+                    strokeWidth={1}
+                  />
+                  {otherPoint && (
+                    <circle
+                      cx={crosshairX}
+                      cy={valueToY(otherPoint.value, domainByKey[otherKey])}
+                      r={3}
+                      fill={colorByKey[otherKey]}
+                      stroke="#0f1014"
+                      strokeWidth={1}
+                    />
+                  )}
+                </>
+              )}
+              <rect
+                x={0}
+                y={0}
+                width={SPARKLINE_WIDTH}
+                height={SPARKLINE_HEIGHT}
+                fill="transparent"
+                onMouseMove={handleMouseMove}
+                onMouseLeave={handleMouseLeave}
+              />
+            </svg>
+            {hoverFraction !== null && referencePoint && (
+              <div className={styles.hoverTooltip} style={{ left: `${hoverFraction * 100}%` }}>
+                <div className={styles.hoverTooltipLine1}>{altitudePoint ? `${Math.round(altitudePoint.value).toLocaleString()} ft` : "—"}</div>
+                <div className={styles.hoverTooltipLine2}>{groundSpeedPoint ? `${Math.round(groundSpeedPoint.value)} kt` : "—"}</div>
+              </div>
+            )}
+          </div>
           <div className={styles.axisColumn} style={{ color: SPARKLINE_SERIES[1].color }}>
             {axisTicks(domains[1], SPARKLINE_SERIES[1].tickCount).map((tick) => (
               <span key={tick}>
