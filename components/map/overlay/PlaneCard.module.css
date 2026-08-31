@@ -47,6 +47,24 @@
   background: linear-gradient(145deg, rgb(16, 23, 32), rgb(8, 11, 16) 62%, rgb(17, 24, 39));
 }
 
+/* Measured, uniform shrink-to-fit for everything below `.glowOrb`
+   (PlaneCard.tsx's `contentRef`) — a ResizeObserver compares this
+   wrapper's natural, unscaled `scrollHeight`/`scrollWidth` against
+   `.aircraftTierCard`'s actual `clientHeight`/`clientWidth` and sets a
+   `transform: scale()` correction, capped at 1, exactly mirroring
+   AircraftOverlay.tsx's own grid-level scale mechanism (which can't reach
+   in here itself — this card's overflow must stay clipped at its own
+   boundary for the two-layer rarity-frame border technique, so the outer
+   ResizeObserver never sees this content overflow). `transform-origin: top
+   left` so scaling down doesn't shift the header's start position. */
+.scaledContent {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  transform-origin: top left;
+}
+
 /* Per-tier custom-property overrides — literal values matching
    RARITY_TIER_STYLES in aircraftRarity.ts exactly. */
 .aircraftRarityFrame[data-tier="standard"] {
@@ -150,7 +168,7 @@
   text-transform: uppercase;
 }
 
-.registrationLabel {
+.manufacturerLabel {
   margin-top: 16px;
   font-size: 12px;
   font-weight: 700;
@@ -214,7 +232,7 @@
 }
 
 .statLabel {
-  font-size: clamp(8px, 3.125cqh, 10px);
+  font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -222,8 +240,8 @@
 }
 
 .statValue {
-  margin-top: clamp(2px, 1.25cqh, 4px);
-  font-size: clamp(10px, 5cqh, 16px);
+  margin-top: 4px;
+  font-size: 16px;
   font-weight: 900;
   color: rgb(241, 245, 249);
 }
@@ -233,22 +251,22 @@
    dashboard card markup (labels, 2-col grid_x-gap-20/y-gap-16, mt-8/pt-5
    divider, text-2xl for the two count stats vs. default-size for the
    duration/altitude stats, the "N% to {next tier}" progress label). Renders
-   only for the `"ok"` cardStats status; see PlaneCard.tsx's renderStatRegion. */
-/* Every clamp() below shares one proportionality constant (referencePx *
-   0.3125 per cqh) so the whole stat block shrinks as a single uniform
-   ratio, not independently per property — the constant is calibrated so
-   every value lands exactly on its reference px at a 320px-tall container
-   (adsb.win's own `min-h-80` card height). A per-property clamp with its
-   own unrelated min/max drifts out of ratio with its neighbors at
-   in-between sizes; this keeps the block visually proportioned like the
-   reference at any card height, not just at the two clamp endpoints. */
+   only for the `"ok"` cardStats status; see PlaneCard.tsx's renderStatRegion.
+   Kept at the reference's literal px values on purpose — PlaneCard.tsx
+   wraps this whole region (plus the header) in a measured, uniform
+   `transform: scale()` (`.scaledContent`, mirroring AircraftOverlay.tsx's
+   own grid-level ResizeObserver-driven scale) when it doesn't fit the
+   card's actual box, so these values never need their own independent
+   shrink logic — that was tried here first and rejected: per-property
+   clamp()s with unrelated min/max curves drift out of ratio with each
+   other at in-between sizes, in a way a single shared scale factor can't. */
 .statGrid {
-  margin-top: clamp(18px, 10cqh, 32px);
-  padding-top: clamp(11px, 6.25cqh, 20px);
+  margin-top: 32px;
+  padding-top: 20px;
   border-top: 1px solid oklab(0.999994 0.0000455678 0.0000200868 / 0.1);
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: clamp(9px, 5cqh, 16px) 20px;
+  gap: 16px 20px;
 }
 
 .statCell {
@@ -256,8 +274,8 @@
 }
 
 .statValueLarge {
-  margin-top: clamp(2px, 1.25cqh, 4px);
-  font-size: clamp(14px, 7.5cqh, 24px);
+  margin-top: 4px;
+  font-size: 24px;
   font-weight: 900;
   color: rgb(241, 245, 249);
 }
@@ -265,7 +283,7 @@
 .xpBlock {
   position: relative;
   margin-top: auto;
-  padding-top: clamp(13px, 7.5cqh, 24px);
+  padding-top: 24px;
 }
 
 .xpLabelRow {
@@ -273,7 +291,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  font-size: clamp(8px, 3.125cqh, 10px);
+  font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -288,8 +306,8 @@
 }
 
 .progressTrack {
-  margin-top: clamp(4px, 2.5cqh, 8px);
-  height: clamp(4px, 1.875cqh, 6px);
+  margin-top: 8px;
+  height: 6px;
   border-radius: 9999px;
   background: rgba(255, 255, 255, 0.1);
   overflow: hidden;
@@ -379,6 +397,25 @@
   z-index: 2;
   display: flex;
   justify-content: center;
+  gap: 8px;
+}
+
+/* adsb.win's own material-tier badge (e.g. "Titanium") — a *different* axis
+   than `.rarityBadge`'s `rarityTier` (design.md Decision 4/4a), rendered
+   next to it only when a successful `cardStats` result carries a real tier
+   name. Plain/neutral styling rather than a per-tier accent color: only
+   one real tier name ("Alloy") has ever been observed against this app's
+   own live account, not enough to build a verified color mapping for the
+   rest (same discipline as `tierProgress.ts`'s provisional-data caveat). */
+.tierBadge {
+  padding: 7px 12px;
+  border-radius: 9999px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1.08px;
+  text-transform: uppercase;
+  color: rgb(203, 213, 225);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .rarityBadge {

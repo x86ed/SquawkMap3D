@@ -93,7 +93,6 @@ export function AircraftOverlay({
                 </div>
                 <div className={styles.card}>
                   <PlaneCard
-                    registration={info.registration}
                     typeDesignator={info.typeDesignator}
                     category={info.category}
                     manufacturerModel={info.manufacturerModel}

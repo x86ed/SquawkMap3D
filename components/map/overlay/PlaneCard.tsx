@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./PlaneCard.module.css";
 import type { RarityTier } from "../aircraftRarity";
 import { getAircraftShape, type AircraftShape } from "../aircraftShapes";
@@ -10,7 +10,6 @@ import { computeTierProgress } from "./tierProgress";
 const UNKNOWN = "Unknown";
 
 export interface PlaneCardProps {
-  registration?: string;
   /** ICAO type designator — selects the vendored top-view silhouette (see
    * `aircraftShapes.ts`); falls back to that set's own "Unidentified"
    * shape when unset or unrecognized. */
@@ -33,6 +32,24 @@ function formatDuration(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   return `${hours}h ${minutes.toString().padStart(2, "0")}m`;
+}
+
+/**
+ * readsb's `desc` field (this app's `manufacturerModel`) is one combined
+ * free-text string — e.g. "AIRBUS A-321neo", "BOEING 737-800" — with no
+ * separate manufacturer field anywhere upstream (confirmed against this
+ * app's live feed and `aircraft.ts`'s own doc comment). Splits on the
+ * first space as a best effort: correct for every single-word manufacturer
+ * observed in practice (Airbus, Boeing, Cessna, ...), but known to
+ * mis-split multi-word manufacturers (e.g. "MCDONNELL DOUGLAS MD-11" would
+ * read as manufacturer "MCDONNELL", model "DOUGLAS MD-11") — there's no
+ * structured data available to do better than this.
+ */
+function splitManufacturerModel(desc: string | undefined): { manufacturer?: string; model?: string } {
+  if (!desc) return {};
+  const spaceIndex = desc.indexOf(" ");
+  if (spaceIndex === -1) return { manufacturer: desc };
+  return { manufacturer: desc.slice(0, spaceIndex), model: desc.slice(spaceIndex + 1) };
 }
 
 /**
@@ -152,7 +169,7 @@ function renderStatRegion(cardStats: AircraftModelCardResult | undefined) {
       </dl>
       <div className={styles.xpBlock}>
         <div className={styles.xpLabelRow}>
-          <span className={styles.xpValue}>{attributes.xp} XP</span>
+          <span className={styles.xpValue}>{attributes.xp.toLocaleString()} XP</span>
           <span className={styles.progressLabel}>
             {attributes.tier}
             {progress && progress.nextTierName && ` — ${progress.percentToNext}% to ${progress.nextTierName}`}
@@ -199,7 +216,6 @@ function renderStatRegion(cardStats: AircraftModelCardResult | undefined) {
  * `tierProgress.ts`'s doc comment and design.md Decision 4).
  */
 export function PlaneCard({
-  registration,
   typeDesignator,
   category,
   manufacturerModel,
@@ -208,30 +224,85 @@ export function PlaneCard({
 }: PlaneCardProps) {
   const shape = getAircraftShape(typeDesignator, category);
   const viewBox = useTightAircraftShapeViewBox(shape);
+  const { manufacturer, model } = splitManufacturerModel(manufacturerModel);
+
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(1);
+
+  /**
+   * Measured, uniform shrink-to-fit for the card's own content (header +
+   * stat region), mirroring `AircraftOverlay.tsx`'s grid-level
+   * ResizeObserver/`transform: scale()` mechanism — but comparing
+   * `.scaledContent`'s `scrollWidth`/`scrollHeight` (its true, unscaled
+   * content extent) against its own `clientWidth`/`clientHeight` (its
+   * actual laid-out box, pinned to the remaining space by `flex: 1;
+   * min-height: 0`), not `.aircraftTierCard`'s — comparing against the
+   * outer box directly first shipped here as a straight copy of the
+   * `AircraftOverlay.tsx` pattern, but `.aircraftTierCard` has its own
+   * 20px padding on every side that `.scaledContent` sits inside; using
+   * its `clientHeight` as "available" overstated the real budget by that
+   * padding and under-scaled content by exactly as much. Neither
+   * `clientWidth`/`clientHeight` nor `scrollWidth`/`scrollHeight` are
+   * affected by an already-applied `transform`, so this self-referential
+   * comparison is stable and can't feed back on itself. Capped at 1 (never
+   * scales up), so a card whose content already fits renders
+   * pixel-identical to today. `.aircraftTierCard`'s `overflow: hidden`
+   * (required for the two-layer rarity-frame border technique, see the
+   * file-top doc comment) is why this card needs its own copy of the
+   * outer mechanism at all — it clips this content before it could ever
+   * contribute to the drawer grid's own `scrollHeight`.
+   */
+  useEffect(() => {
+    const content = contentRef.current;
+    if (!content) return;
+
+    const recompute = () => {
+      const availableWidth = content.clientWidth;
+      const availableHeight = content.clientHeight;
+      const contentWidth = content.scrollWidth;
+      const contentHeight = content.scrollHeight;
+      if (availableWidth <= 0 || availableHeight <= 0 || contentWidth <= 0 || contentHeight <= 0) {
+        return;
+      }
+      setScale(Math.min(1, availableWidth / contentWidth, availableHeight / contentHeight));
+    };
+
+    const observer = new ResizeObserver(recompute);
+    observer.observe(content);
+    recompute();
+    return () => observer.disconnect();
+  }, [cardStats, rarityTier, typeDesignator, manufacturerModel]);
 
   return (
     <div className={styles.aircraftRarityFrame} data-tier={rarityTier}>
       <div className={styles.aircraftTierCard}>
         <div className={styles.glowOrb} aria-hidden="true" />
-        <div className={styles.headerRow}>
-          <div className={styles.identity}>
-            {/* ICAO type designator, not the rarity tier — that's shown on
-             * `.rarityBadge` at the card's bottom edge already. */}
-            <span className={styles.typeBadge}>{typeDesignator?.toUpperCase() ?? UNKNOWN}</span>
-            <p className={styles.registrationLabel}>{registration ?? UNKNOWN}</p>
-            <h3 className={styles.modelName}>{manufacturerModel ?? UNKNOWN}</h3>
+        <div
+          className={styles.scaledContent}
+          ref={contentRef}
+          style={scale !== 1 ? { transform: `scale(${scale})` } : undefined}
+        >
+          <div className={styles.headerRow}>
+            <div className={styles.identity}>
+              {/* ICAO type designator, not the rarity tier — that's shown on
+               * `.rarityBadge` at the card's bottom edge already. */}
+              <span className={styles.typeBadge}>{typeDesignator?.toUpperCase() ?? UNKNOWN}</span>
+              <p className={styles.manufacturerLabel}>{manufacturer ?? UNKNOWN}</p>
+              <h3 className={styles.modelName}>{model ?? manufacturerModel ?? UNKNOWN}</h3>
+            </div>
+            <svg
+              className={styles.shapeIcon}
+              viewBox={viewBox}
+              aria-hidden="true"
+              // shape.markup is sourced only from the vendored, license-attributed SVG files at build time (scripts/generate-aircraft-shapes-manifest.mjs), never from user/network input
+              dangerouslySetInnerHTML={{ __html: shape.markup }}
+            />
           </div>
-          <svg
-            className={styles.shapeIcon}
-            viewBox={viewBox}
-            aria-hidden="true"
-            // shape.markup is sourced only from the vendored, license-attributed SVG files at build time (scripts/generate-aircraft-shapes-manifest.mjs), never from user/network input
-            dangerouslySetInnerHTML={{ __html: shape.markup }}
-          />
+          {renderStatRegion(cardStats)}
         </div>
-        {renderStatRegion(cardStats)}
       </div>
       <div className={styles.badgeRow}>
+        {cardStats?.status === "ok" && <span className={styles.tierBadge}>{cardStats.attributes.tier}</span>}
         <span className={styles.rarityBadge}>{rarityTier}</span>
       </div>
     </div>
