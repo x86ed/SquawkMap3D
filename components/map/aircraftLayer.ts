@@ -328,6 +328,12 @@ export function buildAircraftLayers(params: {
       getFillColor: (d) => [...d.color, AIRCRAFT_TRACK_DROPLINE_ALPHA],
       getRadius: AIRCRAFT_TRACK_DROPLINE_DOT_RADIUS_PIXELS,
       radiusUnits: "pixels",
+      // ScatterplotLayer's default (billboard: false) lies each dot flat on
+      // the ground plane, so its apparent shape foreshortens into an
+      // ellipse as the camera pitches — reading as if the dot itself were
+      // tilting to match the camera angle. billboard: true keeps every dot
+      // a flat circle always facing the camera, independent of pitch.
+      billboard: true,
       pickable: false,
     });
   }
