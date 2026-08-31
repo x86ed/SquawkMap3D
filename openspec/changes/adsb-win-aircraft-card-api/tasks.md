@@ -33,6 +33,13 @@
 - [x] 6.3 Update `PlaneCard.module.css`: add styles for the config-prompt/input/Save-button, invalid-token, and error states, consistent with the card's existing dark/rarity-accented visual language; reuse (not remove) `.xpLabelRow`/`.progressLabel`/`.progressTrack`/`.progressFill` for the `computeTierProgress`-driven bar, adding a max-tier-label variant for the no-percentage full-bar case
 - [x] 6.4 In `components/map/overlay/AircraftOverlay.tsx`: replace the seven removed `<PlaneCard ... />` props with `cardStats={info.cardStats}`
 
+## 6a. Live-QA follow-up fixes (post-validation)
+
+- [x] 6a.1 Fix stat-region content clipping inside `.aircraftTierCard` (`overflow: hidden`) by adding a `.scaledContent` wrapper + `ResizeObserver`-driven `transform: scale()` local to `PlaneCard.tsx`, self-referentially comparing the wrapper's own `scrollHeight`/`scrollWidth` against its own `clientHeight`/`clientWidth` (not the outer card's, which overstates available space by its 20px padding); `transform-origin: top center` (not `top left`). See design.md Decision 7.
+- [x] 6a.2 Add `splitManufacturerModel()` in `PlaneCard.tsx` to correctly split readsb's combined `desc` string (`manufacturerModel`) into manufacturer/model for the identity header; drop the now-unused `registration` prop from `PlaneCardProps` and its `AircraftOverlay.tsx` call site. See design.md Decision 7.
+- [x] 6a.3 Add a second bottom-edge `.tierBadge` (material tier, e.g. "Alloy"), shown only when `cardStats.status === "ok"`, next to the existing `.rarityBadge` — plain/neutral styling, no per-tier color mapping. See design.md Decision 7.
+- [x] 6a.4 Format the XP value with `.toLocaleString()` for comma-separated output, matching the card's other large numeric stats.
+
 ## 7. Docs
 
 - [x] 7.1 Add a short section to `README.md`'s `## Setup` (or a new subsection) documenting the feeder UUID setting: entered in-app via `PlaneCard`'s prompt (not an env var), stored only in browser `localStorage`, where to find a feeder UUID on adsb.win
