@@ -206,8 +206,8 @@ export const AIRCRAFT_TRACK_MARKER_INTERVAL_MS = 15_000;
 // anti-aliased, especially for the low-altitude GA/rotorcraft traffic that
 // dominates a typical view, where the dropline's real-world extent is only a
 // few hundred meters to begin with.
-export const AIRCRAFT_TRACK_DROPLINE_DOT_COUNT = 8;
-export const AIRCRAFT_TRACK_DROPLINE_DOT_RADIUS_PIXELS = 2;
+export const AIRCRAFT_TRACK_DROPLINE_DOT_COUNT = 16;
+export const AIRCRAFT_TRACK_DROPLINE_DOT_RADIUS_PIXELS = 1;
 export const AIRCRAFT_TRACK_DROPLINE_ALPHA = 230;
 
 // "Follow selected aircraft" per-poll recenter duration (design.md Decision
