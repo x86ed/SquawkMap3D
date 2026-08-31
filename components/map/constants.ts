@@ -207,14 +207,19 @@ export const AIRCRAFT_TRACK_MARKER_INTERVAL_MS = 15_000;
 // dominates a typical view, where the dropline's real-world extent is only a
 // few hundred meters to begin with.
 export const AIRCRAFT_TRACK_DROPLINE_DOT_COUNT = 8;
-export const AIRCRAFT_TRACK_DROPLINE_DOT_RADIUS_PIXELS = 3;
-export const AIRCRAFT_TRACK_DROPLINE_ALPHA = 190;
+export const AIRCRAFT_TRACK_DROPLINE_DOT_RADIUS_PIXELS = 4;
+export const AIRCRAFT_TRACK_DROPLINE_ALPHA = 230;
 // Fixed neutral grey, not color-mode-driven (design.md Decision 4) — a
-// ground-reference cue, not a data-carrying element.
-export const AIRCRAFT_TRACK_DROPLINE_COLOR: [number, number, number] = [200, 200, 200];
+// ground-reference cue, not a data-carrying element. Darkened from an
+// earlier [200,200,200]/light-grey pass: at 190 alpha that color read as a
+// near-white wash against the (light-theme) terrain basemap once zoomed out
+// past close range — no perceptible "core" dot, just a faint haze. A darker
+// mid-grey at near-opaque alpha holds a visible solid center at distance
+// against both the light and dark map themes.
+export const AIRCRAFT_TRACK_DROPLINE_COLOR: [number, number, number] = [90, 90, 90];
 export const AIRCRAFT_TRACK_CURTAIN_BAND_COUNT = 6;
 // Bumped alongside the dropline constants above, same reasoning.
-export const AIRCRAFT_TRACK_CURTAIN_TOP_ALPHA = 140;
+export const AIRCRAFT_TRACK_CURTAIN_TOP_ALPHA = 170;
 export const AIRCRAFT_TRACK_CURTAIN_WIDTH_PIXELS = 3;
 
 // "Follow selected aircraft" per-poll recenter duration (design.md Decision
