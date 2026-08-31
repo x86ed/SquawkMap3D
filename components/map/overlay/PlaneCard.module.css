@@ -56,13 +56,16 @@
    in here itself — this card's overflow must stay clipped at its own
    boundary for the two-layer rarity-frame border technique, so the outer
    ResizeObserver never sees this content overflow). `transform-origin: top
-   left` so scaling down doesn't shift the header's start position. */
+   center` (not `top left`, which pinned scaled-down content to the card's
+   left edge, reading as squished rather than centered) keeps the header's
+   vertical start position fixed while distributing the shrink evenly left
+   and right. */
 .scaledContent {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  transform-origin: top left;
+  transform-origin: top center;
 }
 
 /* Per-tier custom-property overrides — literal values matching
