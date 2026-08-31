@@ -67,6 +67,7 @@ interface TrackSegment {
 interface DroplineDot {
   position: [number, number, number];
   color: [number, number, number];
+  alpha: number;
 }
 
 function clamp01(value: number): number {
@@ -282,6 +283,9 @@ export function buildAircraftLayers(params: {
           droplineDots.push({
             position: [marker.lon, marker.lat, lerp(markerHeight, 0, f)],
             color: markerColor,
+            // Each dot 5% dimmer than the one above it, dot 0 (at the
+            // aircraft's own height) staying at full AIRCRAFT_TRACK_DROPLINE_ALPHA.
+            alpha: AIRCRAFT_TRACK_DROPLINE_ALPHA * Math.pow(0.95, dot),
           });
         }
       }
@@ -325,7 +329,7 @@ export function buildAircraftLayers(params: {
       id: AIRCRAFT_TRACK_DROPLINE_LAYER_ID,
       data: droplineDots,
       getPosition: (d) => d.position,
-      getFillColor: (d) => [...d.color, AIRCRAFT_TRACK_DROPLINE_ALPHA],
+      getFillColor: (d) => [...d.color, d.alpha],
       getRadius: AIRCRAFT_TRACK_DROPLINE_DOT_RADIUS_PIXELS,
       radiusUnits: "pixels",
       // ScatterplotLayer's default (billboard: false) lies each dot flat on
