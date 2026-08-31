@@ -187,6 +187,29 @@ export const AIRCRAFT_ICON_GLOW_ALPHA = 90;
 export const AIRCRAFT_TRACK_GLOW_WIDTH_PIXELS = 6;
 export const AIRCRAFT_TRACK_GLOW_ALPHA = 90;
 
+// Track age-fade and ground droplines (enhance-aircraft-tracks' design.md
+// Decisions 1-4) — the most-recent track segment always renders at full
+// alpha (255) regardless of AIRCRAFT_TRACK_FADE_MIN_ALPHA; older segments
+// fade linearly by wall-clock age toward this floor rather than reaching 0,
+// so the oldest still-retained segment never fully disappears before it's
+// pruned.
+export const AIRCRAFT_TRACK_FADE_MIN_ALPHA = 60;
+// Minimum wall-clock spacing between the decimated "track marker" points
+// (selectTrackMarkers()) that the droplines are built from — kept coarser
+// than the trail line's own per-poll resolution to bound their draw cost
+// against the uncapped, per-poll-resolution point buffer.
+export const AIRCRAFT_TRACK_MARKER_INTERVAL_MS = 15_000;
+// Bumped from the original 5/2px/90-alpha defaults (enhance-aircraft-tracks
+// design.md's Open Questions left these to visual tuning) — verified against
+// a live feeder that at those values the dropline was imperceptible: a 2px,
+// ~35%-alpha dot is well under a pixel of effective coverage once
+// anti-aliased, especially for the low-altitude GA/rotorcraft traffic that
+// dominates a typical view, where the dropline's real-world extent is only a
+// few hundred meters to begin with.
+export const AIRCRAFT_TRACK_DROPLINE_DOT_COUNT = 16;
+export const AIRCRAFT_TRACK_DROPLINE_DOT_RADIUS_PIXELS = 1;
+export const AIRCRAFT_TRACK_DROPLINE_ALPHA = 230;
+
 // "Follow selected aircraft" per-poll recenter duration (design.md Decision
 // 13) — short enough to track a ~1s-polled aircraft without visibly lagging
 // behind it, long enough to still read as an eased pan rather than a jump.

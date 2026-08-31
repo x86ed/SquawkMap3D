@@ -165,6 +165,10 @@ export default function MapView() {
   const noaaRadarVisibleRef = useRef(false);
   const dwdRadolanVisibleRef = useRef(false);
   const aircraftVisibleRef = useRef(true);
+  // Track trail visibility (line, its glow, droplines) — separate
+  // from aircraftVisibleRef above, which gates icon rendering/polling itself
+  // (enhance-aircraft-tracks' design.md Decision 5).
+  const tracksVisibleRef = useRef(true);
   const userLocationRef = useRef<GeoCoords | null>(null);
   const userLocationVisibleRef = useRef(true);
   // Split out of the former combined user-location toggle (design.md
@@ -253,6 +257,7 @@ export default function MapView() {
   const [noaaRadarVisible, setNoaaRadarVisible] = useState(false);
   const [dwdRadolanVisible, setDwdRadolanVisible] = useState(false);
   const [aircraftVisible, setAircraftVisible] = useState(true);
+  const [tracksVisible, setTracksVisible] = useState(true);
   const [userLocationVisible, setUserLocationVisible] = useState(true);
   const [rangeRingsVisible, setRangeRingsVisible] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -385,6 +390,7 @@ export default function MapView() {
       tracks: getAllTracks(),
       iconAtlas: aircraftIconAtlasRef.current,
       colorMode: colorModeRef.current,
+      tracksVisible: tracksVisibleRef.current,
       onAircraftClick: (hex) =>
         handleAircraftClick(hex, hex ? aircraft.find((a) => a.hex === hex) : undefined),
       onAircraftHover: (hovered, x, y) => {
@@ -1047,6 +1053,17 @@ export default function MapView() {
     void refreshAircraft();
   };
 
+  // Rendering-only filter (design.md Decision 5) — unlike
+  // handleAircraftToggle above, does not stop polling or call clearTracks();
+  // track history keeps accumulating while hidden so re-enabling shows the
+  // full, uninterrupted trail.
+  const handleTracksToggle = () => {
+    const next = !tracksVisible;
+    tracksVisibleRef.current = next;
+    setTracksVisible(next);
+    void refreshAircraft();
+  };
+
   const handleUserLocationToggle = () => {
     const next = !userLocationVisible;
     userLocationVisibleRef.current = next;
@@ -1120,6 +1137,7 @@ export default function MapView() {
     airspaceBoundariesVisible,
     militaryVisible,
     aircraftVisible,
+    tracksVisible,
   ].filter(Boolean).length;
   const locationOnCount = [
     userLocationVisible,
@@ -1197,7 +1215,7 @@ export default function MapView() {
                 <AccordionGroup
                   title="Aviation"
                   description="Airports, airspace & restrictions"
-                  count={`${aviationOnCount}/7 on`}
+                  count={`${aviationOnCount}/8 on`}
                   defaultOpen
                 >
                   <LayerToggleRow name="Airports" checked={airportsVisible} onToggle={handleAirportsToggle} />
@@ -1219,6 +1237,11 @@ export default function MapView() {
                     onToggle={handleMilitaryToggle}
                   />
                   <LayerToggleRow name="Aircraft" checked={aircraftVisible} onToggle={handleAircraftToggle} />
+                  <LayerToggleRow
+                    name="Aircraft tracks"
+                    checked={tracksVisible}
+                    onToggle={handleTracksToggle}
+                  />
                 </AccordionGroup>
 
                 <AccordionGroup
