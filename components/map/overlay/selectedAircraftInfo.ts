@@ -3,6 +3,7 @@ import type { Aircraft, TrackPoint } from "../aircraft";
 import { computeRarityTier, type RarityTier } from "../aircraftRarity";
 import type { FlightRoute } from "../flightRoute";
 import type { GeoCoords } from "../geolocation";
+import type { AircraftModelCardResult } from "./aircraftModelCard";
 
 /** One point of a sparkline series, in chronological order (oldest first). */
 export interface SparklinePoint {
@@ -58,24 +59,14 @@ export interface SelectedAircraftInfo {
    * (design.md Decision 12). `undefined` with no retained track points. */
   firstSeenThisSessionAt?: number;
   /**
-   * Fleet-wide per-aircraft-type stats shown on adsb.win's real cards
-   * (unique registrations spotted, flights captured, observed flight time,
-   * highest altitude observed, XP, percent-progress to the next tier).
-   * Always `undefined` as of this change — no data source for these exists
-   * in this codebase or the feeder stack (design.md Decision 14). This is
-   * forward-plumbing only, not a new data pipeline; do not estimate or
-   * derive these from track-buffer or any other in-scope data.
+   * adsb.win's per-account, per-aircraft-type fleet-wide stats (unique
+   * registrations spotted, flights captured, observed flight time, highest
+   * altitude observed, XP, tier) for the selected aircraft's type, resolved
+   * by the caller (mirrors the `route` parameter's pattern). `undefined`
+   * only when `typeDesignator` itself is unknown (see
+   * `adsb-win-aircraft-stats` capability and design.md Decision 5).
    */
-  uniqueRegistrationsCount?: number;
-  flightsCapturedCount?: number;
-  observedFlightTimeSeconds?: number;
-  highestAltitudeObserved?: number;
-  xp?: number;
-  xpProgressToNextTier?: number;
-  /** Link to this aircraft type's registrations list, mirroring adsb.win's
-   * card CTA — forward-plumbed alongside the stats above; `undefined` until
-   * a real per-type registrations API exists (design.md Decision 14). */
-  viewRegistrationsHref?: string;
+  cardStats?: AircraftModelCardResult;
 }
 
 export function buildSelectedAircraftInfo(
@@ -83,6 +74,7 @@ export function buildSelectedAircraftInfo(
   track: TrackPoint[],
   site: GeoCoords | null,
   route: FlightRoute | null,
+  cardStats: AircraftModelCardResult | undefined,
 ): SelectedAircraftInfo {
   const rarityTier = computeRarityTier(aircraft);
 
@@ -118,14 +110,6 @@ export function buildSelectedAircraftInfo(
       .map((p) => ({ timestamp: p.timestamp, value: p.groundSpeed as number })),
     route,
     firstSeenThisSessionAt: track[0]?.timestamp,
-    // design.md Decision 14: no fleet-wide stat data source exists yet —
-    // these are always undefined, never estimated/derived.
-    uniqueRegistrationsCount: undefined,
-    flightsCapturedCount: undefined,
-    observedFlightTimeSeconds: undefined,
-    highestAltitudeObserved: undefined,
-    xp: undefined,
-    xpProgressToNextTier: undefined,
-    viewRegistrationsHref: undefined,
+    cardStats,
   };
 }
