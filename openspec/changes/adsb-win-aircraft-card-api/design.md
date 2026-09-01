@@ -43,36 +43,45 @@ Rejected: a `NEXT_PUBLIC_ADSB_WIN_FEEDER_UUID` env var, matching `NEXT_PUBLIC_MA
 
 **Alternative considered (rejected)**: a new top-level "Settings" tab in `DrawerTabs.tsx` (currently `layers` | `aircraft`), or a new `layer-control-drawer` section. Rejected for this change: it's a materially bigger UI footprint (new tab, new persistent panel, new empty states of its own) for a single setting that's only ever relevant while `PlaneCard` is on screen, and this app has no other precedent for a dedicated settings surface (every other optional integration — `NEXT_PUBLIC_FEEDER_URL`, `NEXT_PUBLIC_OPENAIP_API_KEY` — degrades silently with no in-app configuration UI at all, so an inline prompt is already a step up in discoverability, not a step down from an existing pattern). **Accepted residual UX gap**: a user can only discover/edit this setting while an aircraft is selected and the overlay is open; there's no way to pre-configure it or view/clear it without selecting something first. Flagged as a reasonable follow-up if it proves too undiscoverable in practice, not a blocker here.
 
-### 4. `xpProgressToNextTier` returns, driven by a provisional, clearly-marked-approximate default threshold table — `rarityTier` stays untouched
+### 4. `xpProgressToNextTier` returns, driven by a confirmed, tester-sourced default threshold table — `rarityTier` stays untouched
 The pre-existing `xpProgressToNextTier` prop and its "N% to {next tier}" label were originally computed off *this app's own* `rarityTier` ladder (`unidentified`→...→`apex`, `aircraft-rarity` capability Decision 5 — sourced from a vendored `taildragger` rareness snapshot, entirely unrelated to adsb.win's real account data) via `nextRarityTier()`. The real API's `tier` field (e.g. `"Alloy"`) is adsb.win's own *different*, real, per-account *material*-tier ladder — `PlaneCard.tsx`'s own existing doc comment already anticipated this exact distinction ("mirroring adsb.win's own '0% to Carbon' label — that's their *material* tier ladder; this is the equivalent for the *rarity* ladder"). The API response itself carries only the account's current `xp` and current `tier` name — **no per-tier XP threshold or next-tier name is documented anywhere in adsb.win's API**.
 
-To fill that gap, the tester (product owner) supplied several real adsb.win card screenshots as reference. Reconstructing thresholds from them:
+To fill that gap, the tester (product owner) initially supplied several real adsb.win card screenshots as reference. Reconstructing thresholds from them:
 - **Alloy → Carbon, Standard rarity**: two consistent data points (8,400 XP / 34%, and 23,833 XP / 95%) both independently back out a Carbon-start threshold of ≈25,000 XP — a genuinely solid figure.
 - **Carbon → Titanium, Standard rarity**: only one data point (88,507 XP / 85%), extrapolated from the 25,000 Carbon-start figure to a Titanium-start of ≈99,700 XP (rounded to 100,000) — a single-point estimate, materially weaker than the Alloy figure.
-- **Titanium and beyond**: irrecoverable. Two Titanium+Remarkable-rarity cards (76,000 XP / 52% vs. 106,743 XP / 3%) show *higher* XP paired with *lower* progress-to-next-tier — impossible under any monotonic formula, even holding tier and rarity badge constant. The screenshots are illustrative marketing/mockup material, not live-system output, and don't encode one real formula past the first boundary.
+- **Titanium and beyond**: irrecoverable from the screenshots alone. Two Titanium+Remarkable-rarity cards (76,000 XP / 52% vs. 106,743 XP / 3%) show *higher* XP paired with *lower* progress-to-next-tier — impossible under any monotonic formula, even holding tier and rarity badge constant. The screenshots are illustrative marketing/mockup material, not live-system output, and didn't encode one real formula past the first boundary.
 
-**Decision**: rather than leave the progress bar permanently blank (the original conclusion, before these screenshots existed) or ship on unverifiable extrapolation as if it were confirmed, this change restores the progress bar driven by a small, explicitly-provisional default threshold table (`components/map/overlay/tierProgress.ts`, Decision 4a below) — seeded with the one solid figure (Carbon starts at 25,000) and straightforward round-number guesses for the rest, following the loosely-observed "each tier is a few times wider than the last" shape from the reference screenshots. This is a deliberate, temporary exception to this codebase's usual discipline against fabricating unverified data (`aircraft-rarity`'s design.md Decision 5): it's accepted here only because (a) the tester explicitly asked for sensible defaults now and will supply real numbers in a follow-up change, (b) the table is isolated in its own module with every value commented as provisional/unsourced, and (c) an unrecognized `tier` name degrades to "no bar" (Decision 4a) rather than a wrong guess, so a future real tier being added upstream can't silently render a bogus percentage.
+**The tester has since confirmed the real per-tier thresholds directly**, superseding that screenshot-based reconstruction:
+
+| Tier | XP threshold |
+| --- | --- |
+| Alloy | 0 |
+| Carbon | 25,000 |
+| Titanium | 100,000 |
+| Iridium | 300,000 |
+| Plasma | 1,000,000 |
+| Quantum | 3,000,000 |
+
+Alloy/Carbon/Titanium/Iridium exactly match the earlier screenshot-based reconstruction; only Plasma and Quantum differ from the prior round-number placeholders (750,000 and 1,500,000 respectively) now that a real source exists past the Titanium boundary.
+
+**Decision**: `xpProgressToNextTier` is driven by the confirmed threshold table above (`components/map/overlay/tierProgress.ts`, Decision 4a below) — every value is now a real, tester-confirmed adsb.win threshold, not an estimate or round-number placeholder, so the earlier "deliberate, temporary exception to this codebase's usual discipline against fabricating unverified data" (`aircraft-rarity`'s design.md Decision 5) no longer applies here. The unrecognized-`tier`-name-degrades-to-"no bar" fallback (Decision 4a) is retained as a safety valve for any future tier adsb.win adds above `quantum` that isn't yet reflected in this table, not as a disclaimer on the six tiers' now-confirmed numbers.
 
 `rarityTier`'s own frame/border styling and bottom-edge tier badge (driven by `computeRarityTier()`) remain completely unaffected — the two tier concepts render in visually distinct places on the card and are never conflated.
 
 **Alternative considered (rejected)**: replace `rarityTier`'s frame styling with the API's `tier` value, since it's "more real" than the vendored rareness dataset. Rejected — out of scope (the acceptance criteria asks to fill in the *currently-missing* values; `rarityTier` is not currently missing, it already renders real per-type data today) and would require an entirely new CSS taxonomy this change has no basis to build.
 
-### 4a. Provisional tier-threshold table: shape, source, and update path
+### 4a. Confirmed tier-threshold table: shape, source, and update path
 `components/map/overlay/tierProgress.ts` (new):
 ```ts
-// PROVISIONAL — not sourced from adsb.win. Derived from a handful of
-// screenshots the tester supplied; only the Alloy->Carbon boundary
-// (~25,000 XP) is well-supported by two independent, consistent data
-// points. Everything else here is a round-number placeholder pending a
-// follow-up change with real, confirmed thresholds. Do not treat these
-// as authoritative.
-const PROVISIONAL_TIER_START_XP: Record<string, number> = {
+// adsb.win's real, confirmed material-tier XP thresholds. See
+// openspec/changes/adsb-win-aircraft-card-api/design.md Decision 4/4a.
+const TIER_START_XP: Record<string, number> = {
   alloy: 0,
   carbon: 25_000,
   titanium: 100_000,
   iridium: 300_000,
-  plasma: 750_000,
-  quantum: 1_500_000, // max tier observed in reference screenshots
+  plasma: 1_000_000,
+  quantum: 3_000_000, // max tier
 };
 
 const TIER_ORDER = ["alloy", "carbon", "titanium", "iridium", "plasma", "quantum"] as const;
@@ -86,18 +95,18 @@ export function computeTierProgress(tierName: string, xp: number): TierProgress 
   const key = tierName.trim().toLowerCase();
   const idx = TIER_ORDER.indexOf(key as (typeof TIER_ORDER)[number]);
   if (idx === -1) return null; // unrecognized tier name — render no bar, not a guess
-  const start = PROVISIONAL_TIER_START_XP[key];
+  const start = TIER_START_XP[key];
   const nextKey = TIER_ORDER[idx + 1];
   if (!nextKey) return { percentToNext: 100, nextTierName: null }; // max tier reached
-  const end = PROVISIONAL_TIER_START_XP[nextKey];
+  const end = TIER_START_XP[nextKey];
   const raw = ((xp - start) / (end - start)) * 100;
   return { percentToNext: Math.min(99, Math.max(0, Math.round(raw))), nextTierName: capitalizeTierName(nextKey) };
 }
 ```
-- **Clamped to 99%, never 100%, for a non-max tier**: the API's own `tier` field, not this table, is the source of truth for when a tier-up actually happened. If the provisional table's guess runs ahead of reality, showing "99% to Titanium" is a harmless minor understatement; showing "100% to Titanium" while the API still reports `"Carbon"` would read as a bug. Only the true max tier (`quantum`, no `nextKey`) renders the full/complete bar, matching the reference screenshot's "MAXIMUM TIER" card, which showed a full-width bar with no percentage label.
-- **Unrecognized tier name → `null` → no bar rendered**, same fallback `PlaneCard` already has for the "no threshold data" case this table replaces (Decision 5's `"ok"` branch: XP count and tier name still render as plain values). This is the safety valve for adsb.win adding a new tier above `quantum`, or the tester's real numbers later revealing this list is incomplete — the UI degrades to "no bar," never a wrong percentage.
-- **Isolated on purpose**: this table lives in its own module, separate from `aircraftModelCard.ts` (Decision 5's pure API-response mirror), so replacing it with real numbers in a follow-up change is a one-file diff that touches no fetch/cache/type logic.
-- **Follow-up change** (tracked, not part of this change's `tasks.md`): once the tester has real per-tier thresholds (and ideally confirms whether the curve varies by the rarity badge visible in the reference screenshots, which the JSON API doesn't currently expose), replace `PROVISIONAL_TIER_START_XP`'s values and delete this note.
+- **Clamped to 99%, never 100%, for a non-max tier**: the API's own `tier` field, not this table, is the source of truth for when a tier-up actually happened. Even with confirmed thresholds, showing "99% to Titanium" a moment before the API's own `tier` field flips is a harmless minor understatement; showing "100% to Titanium" while the API still reports `"Carbon"` would read as a bug. Only the true max tier (`quantum`, no `nextKey`) renders the full/complete bar, matching the reference screenshot's "MAXIMUM TIER" card, which showed a full-width bar with no percentage label.
+- **Unrecognized tier name → `null` → no bar rendered**, same fallback `PlaneCard` already has for the "no threshold data" case this table replaces (Decision 5's `"ok"` branch: XP count and tier name still render as plain values). This remains the safety valve for adsb.win adding a new tier above `quantum` in the future — the UI degrades to "no bar," never a wrong percentage, rather than assuming this six-tier list is forever exhaustive.
+- **Isolated on purpose**: this table lives in its own module, separate from `aircraftModelCard.ts` (Decision 5's pure API-response mirror), so a future correction (e.g. a new tier added above `quantum`) is a one-file diff that touches no fetch/cache/type logic.
+- **History**: this table originally shipped with round-number placeholders for Titanium/Iridium/Plasma/Quantum (only Alloy→Carbon was screenshot-confirmed — Decision 4). The tester has since confirmed all six values directly; Alloy/Carbon/Titanium/Iridium were already correct, and Plasma/Quantum were corrected from 750,000/1,500,000 to their real values of 1,000,000/3,000,000. `PROVISIONAL_TIER_START_XP` was renamed to `TIER_START_XP` to match.
 
 ### 5. `cardStats` replaces the six stat props + `viewRegistrationsHref` with one discriminated union
 ```ts
