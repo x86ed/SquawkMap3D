@@ -271,12 +271,15 @@
 }
 .aircraftTierCard[data-material-tier="iridium"] {
   background: linear-gradient(145deg, #35233b, #15101d 56%, #33270f) !important;
+  box-shadow: 0 12px 34px #db27772e, inset 0 0 34px #facc151a;
 }
 .aircraftTierCard[data-material-tier="plasma"] {
   background: linear-gradient(145deg, #35131a, #140b13 55%, #2d102c) !important;
+  box-shadow: 0 0 22px #f9731633, 0 16px 42px #be185d33, inset 0 0 34px #f43f5e1a;
 }
 .aircraftTierCard[data-material-tier="quantum"] {
   background: linear-gradient(145deg, #06192b, #030711 58%, #150b32) !important;
+  box-shadow: 0 0 26px #22d3ee40, 0 18px 50px #6d28d940, inset 0 0 44px #2563eb1f;
 }
 
 /* Shared `:before`/`:after` base — matches the reference's own shared
@@ -619,7 +622,8 @@
    previously cross-wired to the rarity variables (design.md Decision 1). */
 .progressFill {
   height: 100%;
-  background: var(--tier-color);
+  background: linear-gradient(90deg, var(--tier-color), var(--tier-highlight));
+  box-shadow: 0 0 10px var(--tier-glow);
   border-radius: 9999px;
 }
 
