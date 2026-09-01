@@ -72,12 +72,17 @@
   display: grid;
   /* `PlaneCard` renders at a fixed intrinsic 320px width (portrait trading-
      card proportions, see PlaneCard.module.css), not a fluid one — giving
-     its column a matching `minmax(0, 360px)` track (a little slack past the
-     card's own 320px for `.cardScaleWrap`'s centering room) instead of a
-     `1fr` share means it never claims more width than it can actually use;
-     hero/flightInfo split what card no longer needs, at their prior 1.4:1
-     ratio to each other. */
-  grid-template-columns: minmax(0, 360px) 1.4fr 1fr;
+     its column a matching `minmax(0, 320px)` track, with zero slack past
+     the card's own real width, instead of a `1fr` share means it never
+     claims more width than it can actually use and leaves no dead gutter
+     between the card and `.hero`; hero/flightInfo split what card no
+     longer needs, at their prior 1.4:1 ratio to each other. The card's own
+     aspect ratio is untouched by this track's width — `.aircraftRarityFrame`
+     stays a fixed 320px with auto (content-driven) height, uniformly
+     contain-scaled into whatever this track/row actually gives it (see
+     PlaneCard.tsx's ResizeObserver), so tightening the track only removes
+     unused space; it can never distort the card. */
+  grid-template-columns: minmax(0, 320px) 1.4fr 1fr;
   /* Row 1 (card/hero/flightInfo) claims all height not needed by the
      marquee's own compact, fixed-height ticker strip — rather than a fixed
      80/20 split, the card and flight-info graph get proportionally larger

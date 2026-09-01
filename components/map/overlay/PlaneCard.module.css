@@ -59,6 +59,14 @@
   transition: transform 0.16s ease-out, box-shadow 0.2s;
   width: 320px;
   flex-shrink: 0;
+  /* Must match `.cardScaleWrap`'s own alignment (`justify-content: flex-start`,
+     `align-items: center`): the default `center center` transform-origin
+     shrinks a scaled-down frame in from all four sides at once, which
+     re-opens a gap on the left even though the *unscaled* box starts flush
+     against the wrap's left edge — `left center` anchors the shrink to that
+     same left edge instead, so the card visually stays flush left at every
+     scale, not just at scale 1. */
+  transform-origin: left center;
 }
 
 @supports (color: color-mix(in lab, red, red)) {
