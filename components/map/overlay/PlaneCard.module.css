@@ -612,9 +612,14 @@
   overflow: hidden;
 }
 
+/* `--tier-color`/`--tier-highlight` (the material-tier axis, set on
+   `.aircraftTierCard[data-material-tier]` above), not `--rarity-color`/
+   `--rarity-highlight` — this bar tracks the account's real adsb.win tier
+   progress, a different axis than the card's rarityTier frame/badge; it was
+   previously cross-wired to the rarity variables (design.md Decision 1). */
 .progressFill {
   height: 100%;
-  background: var(--rarity-color);
+  background: var(--tier-color);
   border-radius: 9999px;
 }
 
@@ -622,7 +627,7 @@
    4a) — full-width bar with no percentage label, matching the reference
    screenshot's "MAXIMUM TIER" card. */
 .progressFillMax {
-  background: var(--rarity-highlight);
+  background: var(--tier-highlight);
 }
 
 .statsEmpty {
