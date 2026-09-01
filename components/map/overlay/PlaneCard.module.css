@@ -22,7 +22,12 @@
   min-height: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
+  /* Left-aligned, not centered: `.card`'s grid track (AircraftOverlay.module.css)
+     is deliberately sized wider than the frame's own 320px so the card has
+     room to breathe/shrink, but any width past what the card actually uses
+     should read as "the card sits at the drawer's left edge," not as
+     symmetric side gutters. */
+  justify-content: flex-start;
   overflow: hidden;
 }
 
