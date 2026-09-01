@@ -285,12 +285,12 @@ export function PlaneCard({
 
   return (
     <div className={styles.aircraftRarityFrame} data-tier={rarityTier}>
-      <div className={styles.aircraftTierCard}>
+      <div className={styles.aircraftTierCard} data-material-tier={materialTierAttr(cardStats)}>
         <div className={styles.glowOrb} aria-hidden="true" />
         <div
           className={styles.scaledContent}
           ref={contentRef}
-          style={scale !== 1 ? { transform: `scaleY(${scale})` } : undefined}
+          style={scale !== 1 ? { transform: `scale(${scale})` } : undefined}
         >
           <div className={styles.headerRow}>
             <div className={styles.identity}>

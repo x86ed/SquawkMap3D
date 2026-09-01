@@ -47,20 +47,20 @@
   background: linear-gradient(145deg, rgb(16, 23, 32), rgb(8, 11, 16) 62%, rgb(17, 24, 39));
 }
 
-/* Measured, vertical-only shrink-to-fit for everything below `.glowOrb`
+/* Measured, uniform shrink-to-fit for everything below `.glowOrb`
    (PlaneCard.tsx's `contentRef`) — a ResizeObserver compares this
-   wrapper's natural, unscaled `scrollHeight` against `.aircraftTierCard`'s
-   actual `clientHeight` and sets a `transform: scaleY()` correction,
-   capped at 1, loosely mirroring AircraftOverlay.tsx's own grid-level
-   scale mechanism (which can't reach in here itself — this card's
-   overflow must stay clipped at its own boundary for the two-layer
-   rarity-frame border technique, so the outer ResizeObserver never sees
-   this content overflow). `scaleY` only, not a uniform `scale()`: shrinking
-   the horizontal dimension too would leave empty space somewhere no matter
-   how it's anchored (left, right, or split evenly via centering) — the
-   stat grid stays full-bleed edge to edge and only the vertical extent
-   compresses when content doesn't fit. `transform-origin: top` keeps the
-   header's vertical start position fixed as the shrink is applied. */
+   wrapper's natural, unscaled `scrollHeight` against its own actual
+   `clientHeight` and sets a `transform: scale()` correction, capped at 1,
+   mirroring AircraftOverlay.tsx's own grid-level scale mechanism (which
+   can't reach in here itself — this card's overflow must stay clipped at
+   its own boundary for the two-layer rarity-frame border technique, so the
+   outer ResizeObserver never sees this content overflow). Uniform `scale`,
+   not `scaleY`: a vertical-only scale distorts every child element's own
+   proportions (badges flatten into ovals, the aircraft silhouette's aspect
+   ratio skews) — the resulting horizontal letterboxing when scale < 1 is
+   an accepted trade-off, matching AircraftOverlay.tsx's own outer shrink
+   mechanism. `transform-origin: top center` keeps the header's vertical
+   start position fixed as the shrink is applied. */
 .scaledContent {
   display: flex;
   flex-direction: column;
