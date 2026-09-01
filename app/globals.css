@@ -49,6 +49,12 @@ a {
 .airport-popup {
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
+  /* MapLibre's popup root ships with no z-index (auto), but the deck.gl
+   * overlays (plane tracks, radar sweep) live inside MapLibre's corner
+   * control containers, which the library hard-codes to z-index:2 — so
+   * without this the popup painted underneath them. 22 clears both that
+   * and the top controls cluster (MapView.module.css .controls, z-index:21). */
+  z-index: 22;
 }
 
 .airport-popup .maplibregl-popup-content {
