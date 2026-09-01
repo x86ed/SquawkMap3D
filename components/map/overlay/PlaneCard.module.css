@@ -67,6 +67,12 @@
   flex: 1;
   min-height: 0;
   transform-origin: top center;
+  /* Stacks real content above the material-tier `:before`/`:after`
+     decorative overlays added to `.aircraftTierCard` below (design.md
+     Decision 2), mirroring the reference's own `.aircraft-tier > * {
+     z-index: 1 }`. */
+  position: relative;
+  z-index: 1;
 }
 
 /* Per-tier custom-property overrides — literal values matching
@@ -116,6 +122,295 @@
   --rarity-glow: #cffafed1;
   box-shadow: 0 14px 32px #02061747, 0 0 14px #ffffffb8, 0 0 34px var(--rarity-glow);
   background: linear-gradient(120deg, #fff, #ecfeff 18%, #bae6fd 46%, #e0e7ff 72%, #fff);
+}
+
+@keyframes rarity-sheen {
+  0%,
+  55% {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -80% 0;
+  }
+}
+
+/* mythic/apex's animated diagonal highlight sweep (design.md Decision 3) —
+   the two tiers' static gradient/box-shadow above is already correct; this
+   is the one piece that was missing. Lives on `.aircraftRarityFrame` (the
+   outer frame), not `.aircraftTierCard`, matching the reference's own
+   `.aircraft-rarity--mythic:after,.aircraft-rarity--apex:after` scope. */
+.aircraftRarityFrame[data-tier="mythic"]::after,
+.aircraftRarityFrame[data-tier="apex"]::after {
+  content: "";
+  z-index: 3;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 20%, #ffffff85 48%, transparent 55%) 150% 0 / 240% 100% no-repeat;
+  animation: 4s ease-in-out infinite rarity-sheen;
+}
+
+/* adsb.win's own material tier ("account XP tier": carbon/alloy/titanium/
+   iridium/plasma/quantum — see `tierProgress.ts`'s `TIER_ORDER`) card-body
+   decoration (design.md Decision 1/2, source: tailwind-1909ad77.css's
+   `.aircraft-tier`/`.aircraft-tier--*` rules). `data-material-tier` is set
+   by `PlaneCard.tsx` on `.aircraftTierCard` only when a successful
+   `cardStats` result reports a tier name this table recognizes — absent
+   otherwise, so a non-"ok"/unrecognized-tier card falls through to the
+   plain `.aircraftTierCard` rule above (today's flat gradient, pixel-
+   identical to the pre-change baseline). */
+@property --tier-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes iridium-shimmer {
+  0% {
+    background-position: 0 0, 0 0, 0 0;
+  }
+  to {
+    background-position: 0 0, 0 0, 100% 0;
+  }
+}
+
+@keyframes plasma-drift {
+  0% {
+    background-position: 0 0, 0 0, 0 0, 0 0, 0 0, 0 0, 0 0;
+  }
+  to {
+    background-position: 40px -60px, -55px -75px, 70px -45px, -80px -95px, 65px -80px, 0 0, 0 0;
+  }
+}
+
+@keyframes plasma-pulse {
+  0%,
+  to {
+    opacity: 0.62;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* The reference's own `0%` keyframe is the literal, argument-less
+   `hue-rotate()`, which is invalid CSS and is silently ignored by browsers,
+   leaving that offset at the property's initial `hue-rotate(0deg)` —
+   reproduced here as `hue-rotate(0deg)` explicitly instead of copying the
+   malformed value verbatim (design.md Decision 2). */
+@keyframes quantum-aurora {
+  0% {
+    filter: hue-rotate(0deg);
+    background-position: 0 0, 0 0, -8% 0, 8% 0, 0 0;
+  }
+  to {
+    filter: hue-rotate(24deg);
+    background-position: 0 0, 0 0, 8% 0, -8% 0, 22px 31px;
+  }
+}
+
+@keyframes quantum-rim {
+  to {
+    --tier-angle: 360deg;
+  }
+}
+
+/* Card-body-scoped `--tier-color`/`--tier-highlight`/`--tier-glow` table
+   (design.md Decision 1's first table) — DELIBERATELY DIFFERENT from the
+   badge-row-scoped table further below (near `.tierBadge`); the reference
+   itself uses two distinct value sets for the card body vs. the badge, so
+   these two tables are never merged. `carbon` sets no `--tier-glow` (the
+   reference's own base `.aircraft-tier` rule leaves it `transparent`, and
+   nothing at this scope reads it). */
+.aircraftTierCard[data-material-tier="carbon"] {
+  --tier-color: #64748b;
+  --tier-highlight: #cbd5e1;
+}
+.aircraftTierCard[data-material-tier="alloy"] {
+  --tier-color: #71717a;
+  --tier-highlight: #e4e4e7;
+  --tier-glow: #a1a1aa47;
+}
+.aircraftTierCard[data-material-tier="titanium"] {
+  --tier-color: #8b7cf6;
+  --tier-highlight: #c4b5fd;
+  --tier-glow: #8b7cf659;
+}
+.aircraftTierCard[data-material-tier="iridium"] {
+  --tier-color: #db2777;
+  --tier-highlight: #fde68a;
+  --tier-glow: #ec489985;
+}
+.aircraftTierCard[data-material-tier="plasma"] {
+  --tier-color: #fb923c;
+  --tier-highlight: #f472b6;
+  --tier-glow: #f97316a6;
+}
+.aircraftTierCard[data-material-tier="quantum"] {
+  --tier-color: #22d3ee;
+  --tier-highlight: #a855f7;
+  --tier-glow: #22d3eecc;
+}
+
+/* Per-tier background gradient overrides — `!important` matching the
+   reference's own `.aircraft-tier--{name}{background:...!important}` rules.
+   `carbon`'s value is byte-for-byte today's existing fixed gradient from
+   the plain `.aircraftTierCard` rule above (confirmed against the
+   reference to already be exactly the `carbon` tier's own background, not
+   a tier-neutral default), so a `carbon` card renders identically to
+   before this override existed. */
+.aircraftTierCard[data-material-tier="carbon"] {
+  background: linear-gradient(145deg, rgb(16, 23, 32), rgb(8, 11, 16) 62%, rgb(17, 24, 39)) !important;
+}
+.aircraftTierCard[data-material-tier="alloy"] {
+  background: linear-gradient(145deg, #29292d, #111216 62%, #1b1c21) !important;
+}
+.aircraftTierCard[data-material-tier="titanium"] {
+  background: linear-gradient(145deg, #252847, #0c1020 60%, #17152f) !important;
+}
+.aircraftTierCard[data-material-tier="iridium"] {
+  background: linear-gradient(145deg, #35233b, #15101d 56%, #33270f) !important;
+}
+.aircraftTierCard[data-material-tier="plasma"] {
+  background: linear-gradient(145deg, #35131a, #140b13 55%, #2d102c) !important;
+}
+.aircraftTierCard[data-material-tier="quantum"] {
+  background: linear-gradient(145deg, #06192b, #030711 58%, #150b32) !important;
+}
+
+/* Shared `:before`/`:after` base — matches the reference's own shared
+   `.aircraft-tier:before,.aircraft-tier:after` rule. `carbon`/`alloy`/
+   `titanium` get only a `:before` (a static texture, no animation);
+   `iridium`/`plasma`/`quantum` get both. */
+.aircraftTierCard[data-material-tier="carbon"]:before,
+.aircraftTierCard[data-material-tier="alloy"]:before,
+.aircraftTierCard[data-material-tier="titanium"]:before,
+.aircraftTierCard[data-material-tier="iridium"]:before,
+.aircraftTierCard[data-material-tier="iridium"]:after,
+.aircraftTierCard[data-material-tier="plasma"]:before,
+.aircraftTierCard[data-material-tier="plasma"]:after,
+.aircraftTierCard[data-material-tier="quantum"]:before,
+.aircraftTierCard[data-material-tier="quantum"]:after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: inherit;
+}
+
+.aircraftTierCard[data-material-tier="carbon"]:before {
+  opacity: 0.22;
+  background-image:
+    repeating-linear-gradient(45deg, transparent 0 5px, #0f172a2e 5px 7px),
+    repeating-linear-gradient(-45deg, transparent 0 5px, #ffffff1a 5px 7px);
+  background-size: 14px 14px;
+  border-color: #ffffff1a;
+}
+
+.aircraftTierCard[data-material-tier="alloy"]:before {
+  opacity: 0.38;
+  background:
+    repeating-linear-gradient(0deg, #3f3f461a 0 1px, transparent 1px 4px),
+    linear-gradient(115deg, transparent 10%, #ffffff61 48%, transparent 72%);
+  border-color: #3f3f466b;
+}
+
+.aircraftTierCard[data-material-tier="titanium"]:before {
+  opacity: 0.42;
+  background:
+    linear-gradient(120deg, transparent 8%, #c4b5fd0a 30%, #818cf842 49%, transparent 67%) 0 0 / 220% 100%,
+    repeating-linear-gradient(110deg, transparent 0 8px, #ffffff09 8px 9px);
+  transition: background-position 0.7s;
+  border-color: #a5b4fc8c;
+}
+
+.aircraftTierCard[data-material-tier="iridium"]:before {
+  opacity: 0.72;
+  background:
+    radial-gradient(circle at 92% 4%, #fde04757, transparent 30%) 0 0 / 100% 100%,
+    radial-gradient(circle at 8% 92%, #22d3ee47, transparent 38%) 0 0 / 100% 100%,
+    linear-gradient(112deg, transparent 12%, #ffffff4d 31%, #f472b657 43%, #fde04747 52%, #22d3ee40 61%, transparent 78%)
+      0 0 / 260% 100%;
+  animation: 8s ease-in-out infinite alternate iridium-shimmer;
+}
+
+.aircraftTierCard[data-material-tier="iridium"]:after {
+  opacity: 0.7;
+  background: linear-gradient(120deg, #22d3ee, #f472b6, #fde047, #fff, #22d3ee) border-box;
+  border: 1px solid #0000;
+  inset: 1px;
+  -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  -webkit-mask-position: 0 0, 0 0;
+  mask-position: 0 0, 0 0;
+  -webkit-mask-size: auto, auto;
+  mask-size: auto, auto;
+  -webkit-mask-repeat: repeat, repeat;
+  mask-repeat: repeat, repeat;
+  -webkit-mask-clip: padding-box, border-box;
+  mask-clip: padding-box, border-box;
+  -webkit-mask-origin: padding-box, border-box;
+  mask-origin: padding-box, border-box;
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  mask-mode: match-source, match-source;
+}
+
+.aircraftTierCard[data-material-tier="plasma"]:before {
+  opacity: 0.72;
+  background-image:
+    radial-gradient(circle at 18% 24%, #fdba74 0 1px, transparent 2px),
+    radial-gradient(circle at 78% 18%, #fb7185 0 1px, transparent 2px),
+    radial-gradient(circle at 66% 74%, #f97316 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 32% 88%, #f43f5e 0 1px, transparent 2px),
+    radial-gradient(circle at 96% 60%, #facc15 0 1px, transparent 2px),
+    radial-gradient(circle at 100% 100%, #f43f5e42, transparent 48%),
+    radial-gradient(circle at 0 0, #f9731633, transparent 42%);
+  background-size: 97px 113px, 137px 151px, 173px 127px, 193px 181px, 223px 199px, 100% 100%, 100% 100%;
+  animation: 11s linear infinite plasma-drift;
+}
+
+.aircraftTierCard[data-material-tier="plasma"]:after {
+  border: 1px solid #fb923cb3;
+  animation: 3.6s ease-in-out infinite plasma-pulse;
+  box-shadow: inset 0 0 14px #f43f5e38, 0 0 14px #f973164d;
+}
+
+.aircraftTierCard[data-material-tier="quantum"]:before {
+  opacity: 0.82;
+  background-image:
+    repeating-radial-gradient(circle at 78% 28%, transparent 0 24px, #22d3ee17 25px 26px, transparent 27px 43px),
+    repeating-conic-gradient(from 0deg at 78% 28%, #22d3ee14 0 1deg, transparent 1deg 28deg),
+    radial-gradient(circle at 20% 10%, #22d3ee4d, transparent 32%),
+    radial-gradient(circle at 100% 84%, #a855f757, transparent 44%),
+    radial-gradient(circle, #ffffffd9 0 1px, transparent 1.5px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, 43px 47px;
+  animation: 9s ease-in-out infinite alternate quantum-aurora;
+}
+
+.aircraftTierCard[data-material-tier="quantum"]:after {
+  background: conic-gradient(from var(--tier-angle), #22d3ee, #2563eb, #a855f7, #ec4899, #22d3ee) border-box;
+  filter: drop-shadow(0 0 5px #22d3eeb3);
+  border: 1px solid #0000;
+  animation: 5s linear infinite quantum-rim;
+  inset: 1px;
+  -webkit-mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  mask-image: linear-gradient(#000 0 0), linear-gradient(#000 0 0);
+  -webkit-mask-position: 0 0, 0 0;
+  mask-position: 0 0, 0 0;
+  -webkit-mask-size: auto, auto;
+  mask-size: auto, auto;
+  -webkit-mask-repeat: repeat, repeat;
+  mask-repeat: repeat, repeat;
+  -webkit-mask-clip: padding-box, border-box;
+  mask-clip: padding-box, border-box;
+  -webkit-mask-origin: padding-box, border-box;
+  mask-origin: padding-box, border-box;
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  mask-mode: match-source, match-source;
 }
 
 .glowOrb {
