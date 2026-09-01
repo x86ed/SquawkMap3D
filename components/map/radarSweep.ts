@@ -3,7 +3,6 @@ import { ScatterplotLayer, SolidPolygonLayer, TextLayer } from "@deck.gl/layers"
 import * as turf from "@turf/turf";
 import type { Feature, FeatureCollection, MultiLineString, MultiPolygon, Polygon } from "geojson";
 import type { Aircraft } from "./aircraft";
-import { altitudeToRenderMeters } from "./aircraftLayer";
 import { METERS_PER_NM } from "./constants";
 import type { GeoCoords } from "./geolocation";
 
@@ -263,7 +262,10 @@ function buildWedgeSlices(
  * called every `requestAnimationFrame` rather than once per feeder poll
  * (design.md Decision 4). Builds the sweep wedge (`SolidPolygonLayer`) and
  * the tracked-aircraft dots/labels (`ScatterplotLayer` + `TextLayer`),
- * positioned at real `[lon, lat, altitude]` like `aircraftLayer.ts`'s icons.
+ * positioned at ground level (`[lon, lat, 0]`) so they read as flat radar
+ * blips regardless of the aircraft's real altitude — a deliberate divergence
+ * from `aircraftLayer.ts`'s own altitude-based icon positioning (see
+ * reposition-radar-sweep-dot's design.md Decision 1).
  *
  * No-ops (`[]`) when the outline has no polygon yet or the site location is
  * unknown (design.md Decision 4b's "no error, just nothing to draw" case).
@@ -303,7 +305,7 @@ export function buildRangeOutlineSweepLayers(params: {
   const dotLayer = new ScatterplotLayer<PositionedAircraft>({
     id: RANGE_OUTLINE_AIRCRAFT_DOT_LAYER_ID,
     data: positioned,
-    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
+    getPosition: (d) => [d.lon, d.lat, 0],
     getFillColor: (d) => (isFlashing(d.hex, now) ? AIRCRAFT_DOT_FLASH_COLOR : AIRCRAFT_DOT_COLOR),
     getRadius: (d) =>
       isFlashing(d.hex, now) ? AIRCRAFT_DOT_FLASH_RADIUS_PIXELS : AIRCRAFT_DOT_RADIUS_PIXELS,
@@ -314,7 +316,7 @@ export function buildRangeOutlineSweepLayers(params: {
   const labelLayer = new TextLayer<PositionedAircraft>({
     id: RANGE_OUTLINE_AIRCRAFT_LABEL_LAYER_ID,
     data: positioned,
-    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
+    getPosition: (d) => [d.lon, d.lat, 0],
     getText: (d) => d.hex,
     getColor: (d) =>
       isFlashing(d.hex, now) ? AIRCRAFT_LABEL_FLASH_COLOR : AIRCRAFT_LABEL_COLOR,

@@ -22,6 +22,14 @@ export const FAA_SECTIONAL_MAXZOOM = 12;
 export const METERS_PER_NM = 1852;
 export const RANGE_RING_RADII_NM = [50, 100, 150, 200] as const;
 
+// First-load-only zoom radius (nautical miles) around the map's center —
+// both the pre-geolocation/fallback view and the post-geolocation view use
+// this, replacing the old zoom-4 continental default and ~200 NM
+// range-ring fit. Deliberately narrower than RANGE_RING_RADII_NM's
+// outermost ring, which the "jump to my location"/satellite-icon recenters
+// still use unchanged (see reposition-radar-sweep-dot's design.md Decision 2).
+export const INITIAL_ZOOM_RADIUS_NM = 60;
+
 // Solar-elevation thresholds (degrees) for the day/night terminator's
 // twilight bands, from a light dusk threshold down to -18° (the end of
 // astronomical twilight — beyond this the sky is fully dark). Ordered
