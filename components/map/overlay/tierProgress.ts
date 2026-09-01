@@ -21,8 +21,8 @@ function capitalizeTierName(name: string): string {
 }
 
 /**
- * Computes progress toward the next adsb.win material tier from a
- * provisional, explicitly-unsourced default threshold table (see top-of-file
+ * Computes progress toward the next adsb.win material tier from the
+ * confirmed, tester-sourced default threshold table (see top-of-file
  * comment). Returns `null` for any tier name this table doesn't recognize —
  * a safety valve so an unrecognized/future tier never renders a guessed
  * percentage, only a real "no bar" fallback.
