@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import styles from "./RecordPanelHero.module.css";
 import { fetchAircraftPhoto, type PlanespottersPhoto } from "../planespottersPhoto";
+import { splitManufacturerModel } from "./manufacturerModel";
 
 const UNKNOWN = "Unknown";
 
@@ -101,6 +102,7 @@ export function RecordPanelHero({
   }, [hex]);
 
   const registryLookupHref = registryHref(registration);
+  const { manufacturer, model } = splitManufacturerModel(manufacturerModel);
 
   return (
     <div
@@ -146,8 +148,8 @@ export function RecordPanelHero({
           <p className={styles.subline}>CALL // {callsign ?? UNKNOWN}</p>
           <p className={styles.subline}>ICAO // {hex.toUpperCase()}</p>
           <div className={styles.specGrid}>
-            <SpecCell label="Manufacturer" value={manufacturerModel ?? UNKNOWN} />
-            <SpecCell label="Model" value={manufacturerModel ?? UNKNOWN} />
+            <SpecCell label="Manufacturer" value={manufacturer ?? UNKNOWN} />
+            <SpecCell label="Model" value={model ?? UNKNOWN} />
             <SpecCell label="Operator" value={operator ?? UNKNOWN} />
             <SpecCell label="Age" value={computeAge(year)} />
           </div>

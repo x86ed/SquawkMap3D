@@ -410,7 +410,7 @@
    name. Plain/neutral styling rather than a per-tier accent color: only
    one real tier name ("Alloy") has ever been observed against this app's
    own live account, not enough to build a verified color mapping for the
-   rest (same discipline as `tierProgress.ts`'s provisional-data caveat). */
+   rest, mirroring `tierProgress.ts`'s own single-real-tier caveat. */
 .tierBadge {
   padding: 7px 12px;
   border-radius: 9999px;

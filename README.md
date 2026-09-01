@@ -11,7 +11,7 @@ Optionally set `NEXT_PUBLIC_FEEDER_URL` to your ADS-B feeder's `aircraft.json` e
 
 To see your own adsb.win fleet-wide stats (unique registrations, flights captured, observed flight time, highest altitude, XP, and tier) for the selected aircraft's type in `PlaneCard`, enter your adsb.win feeder UUID directly in the app — the first time you select an aircraft, `PlaneCard`'s stat region shows a prompt with a field to paste it in. This is **not** an environment variable: the UUID is a real bearer credential for your adsb.win account, so it's stored only in your browser's `localStorage` (never baked into the compiled JS bundle, never committed to git, never sent anywhere but `app-api.adsb.win`'s `Authorization` header). See your feeder UUID on your adsb.win account/feeder page.
 
-The XP progress-to-next-tier bar shown for a successful card is driven by a small, explicitly **provisional** default per-tier XP threshold table (`components/map/overlay/tierProgress.ts`) — adsb.win's API doesn't document real per-tier thresholds, so these are best-effort estimates pending a follow-up change with confirmed numbers.
+The XP progress-to-next-tier bar shown for a successful card is driven by a small default per-tier XP threshold table (`components/map/overlay/tierProgress.ts`) — adsb.win's API doesn't document real per-tier thresholds itself, but the values in this table are confirmed, tester-sourced real numbers (not placeholders).
 
 ## Attribution
 
