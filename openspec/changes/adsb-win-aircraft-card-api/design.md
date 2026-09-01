@@ -20,7 +20,7 @@ This app builds as a static export (`next.config.js`: `output: "export"`, "no No
 **Non-Goals:**
 - A dedicated global "Settings" UI surface. The feeder UUID is entered inline in `PlaneCard` itself, contextually, the first time there's something to configure — see Decision 3.
 - Wiring `unique_aircraft`, `name`, `manufacturer`, `first_seen_at`, `last_seen_at`, or `historical_through` into any UI. `PlaneCard` has no existing slot for these (only `unique_registrations` has a matching prop today); the fetch/parse layer captures the full response shape anyway (Decision 6) so a later change can surface them without touching the API layer again, but this change renders only the fields `PlaneCard` already had a slot for, per the acceptance criteria's "fill in the currently-missing values."
-- Confirmed, accurate per-tier XP thresholds. See Decision 4 — this change ships a **provisional** default threshold table (best-effort estimate, not sourced from adsb.win) so the progress bar isn't blank; getting the real thresholds from adsb.win is explicitly deferred to a follow-up change.
+- ~~Confirmed, accurate per-tier XP thresholds~~ — no longer a non-goal. See Decision 4/4a: the tester has since confirmed the real per-tier XP thresholds directly, and the default threshold table now reflects those confirmed values rather than a provisional placeholder.
 - A retry button for the generic-error state. The aircraft poll loop already re-attempts the fetch on the very next ~1s tick (uncached, since error results aren't cached — Decision 5) for as long as the aircraft stays selected, which is an adequate implicit retry for a transient failure.
 - A server-side proxy for this request. See Decision 1's tradeoff.
 
