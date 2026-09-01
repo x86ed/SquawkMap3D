@@ -701,16 +701,15 @@
   z-index: 2;
   display: flex;
   justify-content: center;
-  gap: 8px;
+  gap: 0.35rem;
+  max-width: calc(100% - 2rem);
 }
 
 /* adsb.win's own material-tier badge (e.g. "Titanium") — a *different* axis
-   than `.rarityBadge`'s `rarityTier` (design.md Decision 4/4a), rendered
-   next to it only when a successful `cardStats` result carries a real tier
-   name. Plain/neutral styling rather than a per-tier accent color: only
-   one real tier name ("Alloy") has ever been observed against this app's
-   own live account, not enough to build a verified color mapping for the
-   rest, mirroring `tierProgress.ts`'s own single-real-tier caveat. */
+   than `.rarityBadge`'s `rarityTier`, rendered next to it only when a
+   successful `cardStats` result carries a tier name `tierProgress.ts`'s
+   table recognizes. Falls back to this flat/neutral styling (no ancestor
+   `[data-material-tier]` present) otherwise. */
 .tierBadge {
   padding: 7px 12px;
   border-radius: 9999px;
@@ -720,6 +719,60 @@
   text-transform: uppercase;
   color: rgb(203, 213, 225);
   background: rgba(255, 255, 255, 0.08);
+  max-width: calc(100% - 2rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Badge-row-scoped `--tier-color`/`--tier-highlight`/`--tier-glow` table
+   (design.md Decision 1's second table) — DELIBERATELY DIFFERENT from the
+   card-body-scoped table near `.aircraftTierCard` above; do not merge these
+   two tables, the reference itself keeps them distinct (brighter/more
+   saturated here, for legibility against the card's own background).
+   `.tierBadge` isn't a descendant of `.aircraftTierCard` (they're siblings
+   under `.aircraftRarityFrame`), so `:has()` reaches across to detect which
+   tier, if any, is set. */
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="carbon"]) .tierBadge {
+  --tier-color: #94a3b8;
+  --tier-highlight: #e2e8f0;
+  --tier-glow: #cbd5e161;
+}
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="alloy"]) .tierBadge {
+  --tier-color: #a1a1aa;
+  --tier-highlight: #f4f4f5;
+  --tier-glow: #d4d4d857;
+}
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="titanium"]) .tierBadge {
+  --tier-color: #8b7cf6;
+  --tier-highlight: #ddd6fe;
+  --tier-glow: #8b7cf67a;
+}
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="iridium"]) .tierBadge {
+  --tier-color: #ec4899;
+  --tier-highlight: #fde68a;
+  --tier-glow: #ec489985;
+}
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="plasma"]) .tierBadge {
+  --tier-color: #fb923c;
+  --tier-highlight: #fda4af;
+  --tier-glow: #f9731694;
+}
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="quantum"]) .tierBadge {
+  --tier-color: #22d3ee;
+  --tier-highlight: #c4b5fd;
+  --tier-glow: #22d3eead;
+}
+
+/* Applies whenever any of the six tier-scoped rules above has set the
+   `--tier-*` variables (i.e. any recognized `[data-material-tier]` is
+   present) — matching the reference's own `.aircraft-card-badges>
+   .aircraft-tier__badge` rule. */
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier]) .tierBadge {
+  border: 1px solid color-mix(in srgb, var(--tier-highlight) 76%, transparent);
+  background: color-mix(in srgb, var(--tier-color) 30%, #060a13);
+  box-shadow: inset 0 1px 0 #ffffff3d, 0 0 13px var(--tier-glow);
+  color: var(--tier-highlight);
 }
 
 .rarityBadge {
@@ -730,11 +783,17 @@
   letter-spacing: 1.08px;
   text-transform: uppercase;
   color: var(--rarity-highlight);
+  border: 1px solid color-mix(in srgb, var(--rarity-highlight) 72%, transparent);
   /* Verified against adsb.win's live `.aircraft-rarity__badge` computed
      background for all of standard/prime/remarkable/exceptional/epic/
      legendary — matches to 5-6 decimal places, so used uniformly for
      mythic/apex/unidentified too rather than needing a per-tier literal. */
   background: color-mix(in srgb, var(--rarity-color) 24%, #060a13);
+  box-shadow: inset 0 1px 0 #ffffff3d, 0 0 13px var(--rarity-glow);
+  max-width: calc(100% - 2rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .rarityBadge::before {
