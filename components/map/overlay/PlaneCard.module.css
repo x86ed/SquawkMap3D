@@ -1,3 +1,31 @@
+/* `.card` (AircraftOverlay.module.css) hands this a grid cell whose own
+   width:height ratio is dictated by the drawer's layout, not by this card's
+   own content — a wide/short cell would otherwise force `.aircraftRarityFrame`
+   into a squashed, un-portrait shape (real observed bug: content readable but
+   the card itself rendered wide-and-short instead of adsb.win's tall
+   trading-card proportions). `.cardScaleWrap` fills that cell and centers a
+   fixed-width, auto-height (i.e. genuinely intrinsic, content-driven) frame
+   inside it, uniformly scaled down (`PlaneCard.tsx`'s ResizeObserver,
+   comparing the frame's own `scrollWidth`/`scrollHeight` against this wrap's
+   `clientWidth`/`clientHeight`) whenever the cell is smaller than the frame's
+   natural size — the same contain-fit `transform: scale()` technique
+   `AircraftOverlay.tsx` already uses one level up for its whole grid. Because
+   both axes scale together, the frame's real aspect ratio (a product of its
+   fixed 320px width plus this content's real, byte-for-byte-ported padding/
+   gap/font-size values — not a guessed `aspect-ratio` number) is preserved
+   at every size, satisfying "keep the scale consistent with the aspect ratio
+   ... regardless of scale" directly rather than approximating it. */
+.cardScaleWrap {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
 /* Two-layer gradient-border-frame technique, adsb.win's own real, verified-
    exact 9-tier taxonomy CSS (design.md Decision 5, source:
    https://adsb.win/assets/tailwind-1909ad77.css, fetched and diffed
@@ -5,8 +33,14 @@
    the inner card sits on top, covering all but a ~2px ring plus a 22px
    strip at the bottom where the floating tier badge sits. `unidentified`
    gets no `[data-tier="unidentified"]` rule at all — it inherits this base
-   rule's own defaults verbatim, exactly like adsb.win's own CSS. */
+   rule's own defaults verbatim, exactly like adsb.win's own CSS.
 
+   `width: 320px` (a typical fixed trading-card width) plus auto `height` —
+   not `height: 100%` — is what actually produces the reference's portrait
+   proportions: this card's padding/gaps/font-sizes are fixed px values (not
+   `%`/`cqw`), so letting the browser compute a real intrinsic height at a
+   fixed width is what "matches the aspect ratio of the cards" means here,
+   rather than whatever shape an outer grid cell happens to hand it. */
 .aircraftRarityFrame {
   --rarity-color: #64748b;
   --rarity-highlight: #cbd5e1;
@@ -18,7 +52,8 @@
   overflow: hidden;
   box-shadow: 0 14px 32px #02061747, 0 0 22px var(--rarity-glow);
   transition: transform 0.16s ease-out, box-shadow 0.2s;
-  height: 100%;
+  width: 320px;
+  flex-shrink: 0;
 }
 
 @supports (color: color-mix(in lab, red, red)) {
@@ -39,7 +74,6 @@
 .aircraftTierCard {
   border-radius: 1.5rem; /* 24px */
   position: relative;
-  height: 100%;
   display: flex;
   flex-direction: column;
   padding: 20px;
@@ -47,26 +81,9 @@
   background: linear-gradient(145deg, rgb(16, 23, 32), rgb(8, 11, 16) 62%, rgb(17, 24, 39));
 }
 
-/* Measured, uniform shrink-to-fit for everything below `.glowOrb`
-   (PlaneCard.tsx's `contentRef`) — a ResizeObserver compares this
-   wrapper's natural, unscaled `scrollHeight` against its own actual
-   `clientHeight` and sets a `transform: scale()` correction, capped at 1,
-   mirroring AircraftOverlay.tsx's own grid-level scale mechanism (which
-   can't reach in here itself — this card's overflow must stay clipped at
-   its own boundary for the two-layer rarity-frame border technique, so the
-   outer ResizeObserver never sees this content overflow). Uniform `scale`,
-   not `scaleY`: a vertical-only scale distorts every child element's own
-   proportions (badges flatten into ovals, the aircraft silhouette's aspect
-   ratio skews) — the resulting horizontal letterboxing when scale < 1 is
-   an accepted trade-off, matching AircraftOverlay.tsx's own outer shrink
-   mechanism. `transform-origin: top center` keeps the header's vertical
-   start position fixed as the shrink is applied. */
 .scaledContent {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  transform-origin: top center;
   /* Stacks real content above the material-tier `:before`/`:after`
      decorative overlays added to `.aircraftTierCard` below (design.md
      Decision 2), mirroring the reference's own `.aircraft-tier > * {
