@@ -28,12 +28,12 @@
 - **WHEN** a feeder UUID is configured, the aircraft type is known, and the request fails for a reason other than `401`/`404`
 - **THEN** `PlaneCard`'s stat region shows a generic "unable to load stats right now" message, not a fabricated value and not the "not tracked yet" empty state
 
-#### Scenario: Successful card result renders real stats, XP, tier name, and a provisional progress bar
-- **WHEN** a feeder UUID is configured, adsb.win returns a successful aircraft-model card for the selected aircraft's type, and the response's `tier` name is one the app's provisional threshold table recognizes
-- **THEN** `PlaneCard` renders the unique registrations, flights captured, observed flight time, and highest altitude values from that response (an explicit placeholder for highest altitude if it is `null`), plus the response's XP count, tier name, and a progress-to-next-tier bar computed from the provisional threshold table, never showing 100%/a completed bar unless the tier is the table's max tier
+#### Scenario: Successful card result renders real stats, XP, tier name, and a confirmed progress bar
+- **WHEN** a feeder UUID is configured, adsb.win returns a successful aircraft-model card for the selected aircraft's type, and the response's `tier` name is one the app's confirmed threshold table recognizes
+- **THEN** `PlaneCard` renders the unique registrations, flights captured, observed flight time, and highest altitude values from that response (an explicit placeholder for highest altitude if it is `null`), plus the response's XP count, tier name, and a progress-to-next-tier bar computed from the confirmed threshold table, never showing 100%/a completed bar unless the tier is the table's max tier
 
 #### Scenario: An unrecognized tier name renders XP and tier name with no progress bar
-- **WHEN** a successful card result's `tier` name is not one the provisional threshold table recognizes
+- **WHEN** a successful card result's `tier` name is not one the confirmed threshold table recognizes
 - **THEN** `PlaneCard` renders the XP count and tier name as plain values with no progress bar, rather than fabricating a percentage for an unknown tier
 
 #### Scenario: rarityTier styling is unaffected by the real tier name or its progress bar
