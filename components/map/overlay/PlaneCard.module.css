@@ -804,3 +804,20 @@
   content: "◆";
   margin-right: 6.4px;
 }
+
+/* Matches the reference's own `@media (prefers-reduced-motion: reduce)`
+   block: disables the mythic/apex rarity-sheen sweep and all six material-
+   tier `:before`/`:after` decorative animations (shimmer/drift/pulse/
+   aurora/rim). */
+@media (prefers-reduced-motion: reduce) {
+  .aircraftRarityFrame[data-tier="mythic"]::after,
+  .aircraftRarityFrame[data-tier="apex"]::after {
+    opacity: 0;
+    animation: none;
+  }
+
+  .aircraftTierCard[data-material-tier]:before,
+  .aircraftTierCard[data-material-tier]:after {
+    animation: none !important;
+  }
+}
