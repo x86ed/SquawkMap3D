@@ -80,6 +80,7 @@ import {
 } from "./airportPopup";
 import {
   addUserLocationLayers,
+  getBoundsForRadiusNM,
   getUserLocationBounds,
   setUserLocationMarkerVisibility,
   setRangeRingsVisibility,
@@ -107,6 +108,7 @@ import {
   FOLLOW_SELECTED_AIRCRAFT_EASE_MS,
   INITIAL_BEARING,
   INITIAL_PITCH,
+  INITIAL_ZOOM_RADIUS_NM,
   MAX_PITCH,
   RAINVIEWER_REFRESH_INTERVAL_MS,
   RANGE_OUTLINE_REFRESH_INTERVAL_MS,
@@ -614,8 +616,7 @@ export default function MapView() {
     const map = new MapLibreMap({
       container: containerRef.current,
       style: getStyleUrl(themeRef.current),
-      center: DEFAULT_VIEW.center,
-      zoom: DEFAULT_VIEW.zoom,
+      bounds: getBoundsForRadiusNM(DEFAULT_VIEW.center, INITIAL_ZOOM_RADIUS_NM),
       pitch: INITIAL_PITCH,
       maxPitch: MAX_PITCH,
       bearing: INITIAL_BEARING,
@@ -832,9 +833,10 @@ export default function MapView() {
     resolveUserLocation().then((coords) => {
       handleLocationResolved(coords);
       if (!coords || !mapRef.current) return;
-      mapRef.current.fitBounds(getUserLocationBounds(coords), {
-        padding: 40,
-      });
+      mapRef.current.fitBounds(
+        getBoundsForRadiusNM([coords.longitude, coords.latitude], INITIAL_ZOOM_RADIUS_NM),
+        { padding: 40 },
+      );
     });
 
     const terminatorIntervalId = setInterval(() => {

@@ -54,26 +54,39 @@ export function buildUserLocationFeatures(
 
 /**
  * Bounding box (`[[west, south], [east, north]]`, suitable for
- * `map.fitBounds`) that encloses the outermost range ring around `coords`.
- * The rings' real-world radii (up to 200 NM / ~370km) are far larger than
- * what a fixed `flyTo` zoom can guarantee fits on screen across different
- * viewport sizes, so callers should `fitBounds` to this instead of flying to
- * a hardcoded zoom if they want the rings visible on arrival.
+ * `map.fitBounds`) that encloses a `radiusNM`-radius circle around `center`.
+ * Real-world radii of this size are far larger than what a fixed `flyTo`
+ * zoom can guarantee fits on screen across different viewport sizes, so
+ * callers should `fitBounds` to this instead of flying to a hardcoded zoom.
  */
-export function getUserLocationBounds(
-  coords: GeoCoords,
+export function getBoundsForRadiusNM(
+  center: [number, number],
+  radiusNM: number,
 ): [[number, number], [number, number]] {
-  const outermostRadiusNM = Math.max(...RANGE_RING_RADII_NM);
-  const circle = turf.circle(
-    [coords.longitude, coords.latitude],
-    outermostRadiusNM * METERS_PER_NM,
-    { steps: 64, units: "meters" },
-  );
+  const circle = turf.circle(center, radiusNM * METERS_PER_NM, {
+    steps: 64,
+    units: "meters",
+  });
   const [minLng, minLat, maxLng, maxLat] = turf.bbox(circle);
   return [
     [minLng, minLat],
     [maxLng, maxLat],
   ];
+}
+
+/**
+ * Bounding box (`[[west, south], [east, north]]`, suitable for
+ * `map.fitBounds`) that encloses the outermost range ring around `coords`.
+ * Thin wrapper around `getBoundsForRadiusNM` — used by the satellite-icon
+ * click handler and "jump to my location" recenter, both deliberately wider
+ * than the first-load view (see reposition-radar-sweep-dot's design.md
+ * Decision 2).
+ */
+export function getUserLocationBounds(
+  coords: GeoCoords,
+): [[number, number], [number, number]] {
+  const outermostRadiusNM = Math.max(...RANGE_RING_RADII_NM);
+  return getBoundsForRadiusNM([coords.longitude, coords.latitude], outermostRadiusNM);
 }
 
 /**

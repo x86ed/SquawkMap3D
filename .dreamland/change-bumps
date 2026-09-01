@@ -15,6 +15,10 @@
     "version": "v0.17.0",
     "initialized_at": "2026-08-30T06:33:47Z"
   },
+  "reposition-radar-sweep-dot": {
+    "version": "v0.33.0",
+    "initialized_at": "2026-08-31T23:52:15Z"
+  },
   "terrain-based-outline": {
     "version": "v0.15.0",
     "initialized_at": "2026-08-29T22:26:48Z"
