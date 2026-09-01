@@ -833,9 +833,10 @@ export default function MapView() {
     resolveUserLocation().then((coords) => {
       handleLocationResolved(coords);
       if (!coords || !mapRef.current) return;
-      mapRef.current.fitBounds(getUserLocationBounds(coords), {
-        padding: 40,
-      });
+      mapRef.current.fitBounds(
+        getBoundsForRadiusNM([coords.longitude, coords.latitude], INITIAL_ZOOM_RADIUS_NM),
+        { padding: 40 },
+      );
     });
 
     const terminatorIntervalId = setInterval(() => {
