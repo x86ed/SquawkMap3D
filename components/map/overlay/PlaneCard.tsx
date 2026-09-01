@@ -91,6 +91,23 @@ function FeederUuidForm({ message, buttonLabel }: { message: string; buttonLabel
 }
 
 /**
+ * `data-material-tier` for `.aircraftTierCard` (design.md Decision 1) —
+ * normalized the same way `computeTierProgress` normalizes its own `tierName`
+ * argument (trim + lowercase), and only returned when that normalized value
+ * is one `tierProgress.ts`'s table actually recognizes (delegates to
+ * `computeTierProgress` itself rather than re-deriving the recognized-tier
+ * list here, so there's one source of truth). `undefined` — never an empty
+ * or unrecognized string — for a non-`"ok"` status or an unrecognized tier
+ * name, so `PlaneCard`'s JSX omits the attribute entirely (React drops a
+ * `data-*` prop set to `undefined`) rather than rendering a guessed style.
+ */
+function materialTierAttr(cardStats: AircraftModelCardResult | undefined): string | undefined {
+  if (cardStats?.status !== "ok") return undefined;
+  const normalized = cardStats.attributes.tier.trim().toLowerCase();
+  return computeTierProgress(cardStats.attributes.tier, cardStats.attributes.xp) ? normalized : undefined;
+}
+
+/**
  * Renders `PlaneCard`'s stat region for every real `cardStats` outcome
  * (`adsb-win-aircraft-stats` capability, design.md Decision 5). `undefined`
  * and `"not_found"` are treated identically — both mean "nothing to show,
@@ -213,8 +230,8 @@ export function PlaneCard({
   const [scale, setScale] = useState(1);
 
   /**
-   * Measured, vertical-only shrink-to-fit for the card's own content
-   * (header + stat region), mirroring `AircraftOverlay.tsx`'s grid-level
+   * Measured, uniform shrink-to-fit for the card's own content (header +
+   * stat region), mirroring `AircraftOverlay.tsx`'s grid-level
    * ResizeObserver/`transform: scale()` mechanism — but comparing
    * `.scaledContent`'s `scrollHeight` (its true, unscaled content extent)
    * against its own `clientHeight` (its actual laid-out box, pinned to the
@@ -234,16 +251,18 @@ export function PlaneCard({
    * this content before it could ever contribute to the drawer grid's own
    * `scrollHeight`.
    *
-   * Height only, not width: an earlier version scaled both axes uniformly
-   * (matching `AircraftOverlay.tsx` exactly), but any scale below 1 then
-   * shrinks the content's rendered width below the card's full width by
-   * construction — there's no anchor point that avoids leaving empty space
-   * somewhere (top-left anchoring left it on the right; centering left it
-   * evenly split on both sides). The stat grid's columns are already
-   * `1fr 1fr` and don't need to shrink horizontally to avoid overflow in
-   * practice — the real failure mode this fixes is vertical (the card
-   * being shorter than its content wants), so `scaleY` alone removes the
-   * gutters entirely by never touching the horizontal dimension.
+   * Uniform `scale()`, not `scaleY()`: an earlier version scaled only the
+   * vertical axis to avoid the horizontal "gutter" a uniform scale leaves
+   * once compressed below full width, but that distorted every child
+   * element's own proportions under compression — badges (circular pills)
+   * flattened into ovals, glyphs squashed vertically while keeping their
+   * full horizontal advance, and the aircraft silhouette's own aspect ratio
+   * skewed. `AircraftOverlay.module.css`'s own outer, grid-level shrink-to-
+   * fit already uses a uniform `scale()` and accepts the resulting
+   * letterboxing as the better trade-off; this brings `PlaneCard`'s own
+   * inner shrink mechanism in line with that established precedent instead
+   * of the one-off `scaleY`. `.scaledContent`'s `transform-origin: top
+   * center` is unaffected — already the correct anchor for a uniform scale.
    */
   useEffect(() => {
     const content = contentRef.current;
