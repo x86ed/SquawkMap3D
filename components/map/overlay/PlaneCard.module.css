@@ -1,6 +1,6 @@
 /* Two-layer gradient-border-frame technique, adsb.win's own real, verified-
    exact 9-tier taxonomy CSS (design.md Decision 5, source:
-   https://adsb.win/assets/tailwind-255296c3.css, fetched and diffed
+   https://adsb.win/assets/tailwind-1909ad77.css, fetched and diffed
    byte-for-byte). The outer frame's own `background` IS the border color;
    the inner card sits on top, covering all but a ~2px ring plus a 22px
    strip at the bottom where the floating tier badge sits. `unidentified`
