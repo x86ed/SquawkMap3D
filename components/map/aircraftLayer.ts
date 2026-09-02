@@ -1,5 +1,7 @@
 import type { Layer } from "@deck.gl/core";
 import { IconLayer, PathLayer, ScatterplotLayer } from "@deck.gl/layers";
+import { ScenegraphLayer } from "@deck.gl/mesh-layers";
+import { GLTFLoader } from "@loaders.gl/gltf";
 import type { Aircraft, TrackPoint } from "./aircraft";
 import {
   brightenColor,
@@ -11,10 +13,13 @@ import {
   ROTOR_ACCENT_KEY,
   type IconAtlas,
 } from "./aircraftIcons";
+import { resolveModelUrl } from "./aircraftModels";
 import {
   AIRCRAFT_GLOW_BRIGHTEN_AMOUNT,
   AIRCRAFT_ICON_GLOW_ALPHA,
   AIRCRAFT_ICON_GLOW_SIZE_PIXELS,
+  AIRCRAFT_MODEL_MIN_SIZE_PIXELS_PER_METER,
+  AIRCRAFT_MODEL_SIZE_SCALE,
   AIRCRAFT_TRACK_DROPLINE_ALPHA,
   AIRCRAFT_TRACK_DROPLINE_DOT_COUNT,
   AIRCRAFT_TRACK_DROPLINE_DOT_RADIUS_PIXELS,
@@ -27,6 +32,7 @@ import {
 } from "./constants";
 
 export const AIRCRAFT_ICON_LAYER_ID = "aircraft-icons";
+export const AIRCRAFT_MODEL_LAYER_ID = "aircraft-models";
 export const AIRCRAFT_TRACK_LAYER_ID = "aircraft-tracks";
 export const AIRCRAFT_SELECTION_GLOW_LAYER_ID = "aircraft-selection-glow";
 export const AIRCRAFT_ROTOR_ACCENT_LAYER_ID = "aircraft-rotor-accent";
@@ -146,9 +152,78 @@ export function buildAircraftLayers(params: {
       a.lat !== undefined && a.lon !== undefined,
   );
 
+  // Replace-2d-sprite-with-3d-model: any aircraft whose exact ICAO type
+  // designator has a vendored .glb (aircraftModels.ts) renders as a real
+  // ScenegraphLayer mesh instead of the flat IconLayer sprite — the icon,
+  // icon-glow, and rotor-accent layers below are all built from
+  // `iconOnlyPositioned`, not `positioned`, so a modeled aircraft is never
+  // double-rendered as both a sprite and a mesh.
+  const modeledByType = new Map<string, (Aircraft & { lat: number; lon: number })[]>();
+  const iconOnlyPositioned: (Aircraft & { lat: number; lon: number })[] = [];
+  for (const d of positioned) {
+    const url = resolveModelUrl(d);
+    if (url && d.typeDesignator) {
+      const group = modeledByType.get(d.typeDesignator);
+      if (group) group.push(d);
+      else modeledByType.set(d.typeDesignator, [d]);
+    } else {
+      iconOnlyPositioned.push(d);
+    }
+  }
+
+  // One ScenegraphLayer per distinct modeled type — ScenegraphLayer loads a
+  // single `scenegraph` mesh per layer instance, unlike IconLayer's atlas,
+  // so multiple vendored models can't share one layer the way icons share
+  // one atlas.
+  const modelLayers: Layer[] = [...modeledByType.entries()].map(([typeDesignator, data]) => {
+    const url = resolveModelUrl(data[0]) as string;
+    return new ScenegraphLayer<Aircraft & { lat: number; lon: number }>({
+      id: `${AIRCRAFT_MODEL_LAYER_ID}-${typeDesignator}`,
+      data,
+      scenegraph: url,
+      loaders: [GLTFLoader],
+      getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
+      // The vendored B738.glb's own local axes (confirmed by inspecting its
+      // accessor bounding box: X ±14.2, Y -2.78..4.8, Z ±12.85, scaled
+      // near-identically off the real 737-800's 39.5m length/35.8m
+      // wingspan) are X=fuselage length (forward), Y=height (up), Z=
+      // wingspan (lateral) — already forward-aligned to ScenegraphLayer's
+      // own required local convention (confirmed against
+      // calculateTransformMatrix's fused Rz(yaw)*Ry(pitch)*Rx(roll) form:
+      // yaw rotates X/Y leaving Z fixed, pitch rotates X/Z leaving Y
+      // fixed, roll rotates Y/Z leaving X fixed — i.e. deck.gl expects
+      // local X=forward/roll-axis, Y=lateral/pitch-axis, Z=up/yaw-axis).
+      // A fixed `roll: 90` swaps the model's Y (up) and Z (lateral) into
+      // that required slotting; `yaw: 90 - track` then layers the real
+      // compass heading on top in world space (forward is +X, i.e. "east",
+      // at yaw=0 — the `90 -` term rotates that to point +Y/"north" at
+      // track=0, matching compass clockwise-from-north). Derived
+      // algebraically from the shader's own matrix formula, not visually
+      // confirmed against a live render — the `roll: 90` sign (vs. -90)
+      // in particular assumes the model's +Y is genuinely "up" (plausible
+      // given its bounding box's asymmetry — more room above the origin,
+      // 4.8, than below, -2.78, consistent with a tail fin/cockpit hump
+      // above vs. a shallower belly/gear line below — but revisit if a
+      // modeled aircraft renders upside-down or nose-reversed once seen).
+      // Live-render feedback: the model rendered rotated 90° left (as
+      // viewed from above) of its actual track — subtracting the extra 90°
+      // here (yaw: -track instead of 90-track) corrects it, confirming the
+      // model's own forward axis is offset 90° clockwise from what the
+      // `90 -` term above assumed.
+      getOrientation: (d) => [0, -(d.track ?? 0), 90],
+      getColor: (d) => [...resolveAircraftColor(d, colorMode), 255],
+      sizeScale: AIRCRAFT_MODEL_SIZE_SCALE,
+      sizeMinPixels: AIRCRAFT_MODEL_MIN_SIZE_PIXELS_PER_METER,
+      _lighting: "pbr",
+      pickable: true,
+      onClick: (info) => onAircraftClick(info.object ? info.object.hex : null),
+      onHover: (info) => onAircraftHover(info.object ?? null, info.x, info.y),
+    });
+  });
+
   const iconLayer = new IconLayer<Aircraft & { lat: number; lon: number }>({
     id: AIRCRAFT_ICON_LAYER_ID,
-    data: positioned,
+    data: iconOnlyPositioned,
     iconAtlas: iconAtlas.image,
     iconMapping: iconAtlas.mapping,
     getIcon: (d) => resolveIconKey(d).key,
@@ -218,7 +293,7 @@ export function buildAircraftLayers(params: {
   // aircraft's rarity ring still stands out.
   const iconGlowLayer = new IconLayer<Aircraft & { lat: number; lon: number }>({
     id: AIRCRAFT_ICON_GLOW_LAYER_ID,
-    data: positioned,
+    data: iconOnlyPositioned,
     iconAtlas: iconAtlas.image,
     iconMapping: iconAtlas.mapping,
     getIcon: (d) => glowIconKey(resolveIconKey(d).key),
@@ -356,7 +431,7 @@ export function buildAircraftLayers(params: {
   // continuously-animated rotor would visually mismatch its own
   // "teleporting" parent anyway; the large per-poll step (~143°/s) still
   // reads as spinning rather than static.
-  const rotorcraft = positioned.filter((a) => a.category === ROTORCRAFT_CATEGORY);
+  const rotorcraft = iconOnlyPositioned.filter((a) => a.category === ROTORCRAFT_CATEGORY);
   const rotorSpinAngleDeg = (Date.now() / 7) % 360;
   const rotorLayer = new IconLayer<Aircraft & { lat: number; lon: number }>({
     id: AIRCRAFT_ROTOR_ACCENT_LAYER_ID,
@@ -385,5 +460,6 @@ export function buildAircraftLayers(params: {
     trackLayer,
     rotorLayer,
     iconLayer,
+    ...modelLayers,
   ].filter((layer): layer is Layer => layer !== null);
 }
