@@ -9,7 +9,7 @@ Default ICAO per emitter category, and 3D model coverage:
 ├──────────────────────┼───────────────────┼──────────────┤
 │ A3 large/airliner    │ B738              │ ✅ has model │
 ├──────────────────────┼───────────────────┼──────────────┤
-│ A4 high vortex large │ B752              │ ❌ no model  │
+│ A4 high vortex large │ B752              │ ✅ has model │
 ├──────────────────────┼───────────────────┼──────────────┤
 │ A5 heavy             │ B744              │ ❌ no model  │
 ├──────────────────────┼───────────────────┼──────────────┤
