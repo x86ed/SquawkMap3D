@@ -26,6 +26,7 @@ import {
   type Aircraft,
 } from "./aircraft";
 import { buildAircraftIconAtlas, type ColorMode, type IconAtlas } from "./aircraftIcons";
+import { loadAircraftModelManifest } from "./aircraftModels";
 import { buildAircraftLayers } from "./aircraftLayer";
 import { computeRarityTier, RARITY_TIER_STYLES } from "./aircraftRarity";
 import { buildSelectionPulseLayer, type SelectionPulseTarget } from "./selectionPulse";
@@ -694,6 +695,12 @@ export default function MapView() {
       aircraftIconAtlasRef.current = atlas;
       void refreshAircraft();
     });
+
+    // Vendored 3D-model manifest (replace-2d-sprite-with-3d-model) — loaded
+    // independently of the icon atlas above; once it resolves, any aircraft
+    // matching a vendored type renders as a ScenegraphLayer mesh on the
+    // next refresh instead of its 2D icon.
+    loadAircraftModelManifest().then(() => void refreshAircraft());
 
     // The sweep's own site anchor (design.md Decision 5) — resolved once,
     // independent of `resolveUserLocation()` below, which can fall back to

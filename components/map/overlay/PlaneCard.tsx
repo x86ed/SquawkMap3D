@@ -91,6 +91,23 @@ function FeederUuidForm({ message, buttonLabel }: { message: string; buttonLabel
 }
 
 /**
+ * `data-material-tier` for `.aircraftTierCard` (design.md Decision 1) —
+ * normalized the same way `computeTierProgress` normalizes its own `tierName`
+ * argument (trim + lowercase), and only returned when that normalized value
+ * is one `tierProgress.ts`'s table actually recognizes (delegates to
+ * `computeTierProgress` itself rather than re-deriving the recognized-tier
+ * list here, so there's one source of truth). `undefined` — never an empty
+ * or unrecognized string — for a non-`"ok"` status or an unrecognized tier
+ * name, so `PlaneCard`'s JSX omits the attribute entirely (React drops a
+ * `data-*` prop set to `undefined`) rather than rendering a guessed style.
+ */
+function materialTierAttr(cardStats: AircraftModelCardResult | undefined): string | undefined {
+  if (cardStats?.status !== "ok") return undefined;
+  const normalized = cardStats.attributes.tier.trim().toLowerCase();
+  return computeTierProgress(cardStats.attributes.tier, cardStats.attributes.xp) ? normalized : undefined;
+}
+
+/**
  * Renders `PlaneCard`'s stat region for every real `cardStats` outcome
  * (`adsb-win-aircraft-stats` capability, design.md Decision 5). `undefined`
  * and `"not_found"` are treated identically — both mean "nothing to show,
@@ -209,92 +226,88 @@ export function PlaneCard({
   const viewBox = useTightAircraftShapeViewBox(shape);
   const { manufacturer, model } = splitManufacturerModel(manufacturerModel);
 
-  const contentRef = useRef<HTMLDivElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const frameRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
 
   /**
-   * Measured, vertical-only shrink-to-fit for the card's own content
-   * (header + stat region), mirroring `AircraftOverlay.tsx`'s grid-level
-   * ResizeObserver/`transform: scale()` mechanism — but comparing
-   * `.scaledContent`'s `scrollHeight` (its true, unscaled content extent)
-   * against its own `clientHeight` (its actual laid-out box, pinned to the
-   * remaining space by `flex: 1; min-height: 0`), not `.aircraftTierCard`'s
-   * — comparing against the outer box directly first shipped here as a
-   * straight copy of the `AircraftOverlay.tsx` pattern, but
-   * `.aircraftTierCard` has its own 20px padding on every side that
-   * `.scaledContent` sits inside; using its `clientHeight` as "available"
-   * overstated the real budget by that padding and under-scaled content by
-   * exactly as much. Neither `clientHeight` nor `scrollHeight` are affected
-   * by an already-applied `transform`, so this self-referential comparison
-   * is stable and can't feed back on itself. Capped at 1 (never scales up),
-   * so a card whose content already fits renders pixel-identical to today.
-   * `.aircraftTierCard`'s `overflow: hidden` (required for the two-layer
-   * rarity-frame border technique, see the file-top doc comment) is why
-   * this card needs its own copy of the outer mechanism at all — it clips
-   * this content before it could ever contribute to the drawer grid's own
-   * `scrollHeight`.
-   *
-   * Height only, not width: an earlier version scaled both axes uniformly
-   * (matching `AircraftOverlay.tsx` exactly), but any scale below 1 then
-   * shrinks the content's rendered width below the card's full width by
-   * construction — there's no anchor point that avoids leaving empty space
-   * somewhere (top-left anchoring left it on the right; centering left it
-   * evenly split on both sides). The stat grid's columns are already
-   * `1fr 1fr` and don't need to shrink horizontally to avoid overflow in
-   * practice — the real failure mode this fixes is vertical (the card
-   * being shorter than its content wants), so `scaleY` alone removes the
-   * gutters entirely by never touching the horizontal dimension.
+   * Contain-fit scale for the whole card: `.aircraftRarityFrame` renders at
+   * its real, intrinsic size (a fixed 320px width, auto height — see
+   * `PlaneCard.module.css`'s doc comment on `.aircraftRarityFrame`), and
+   * this ResizeObserver compares that natural `scrollWidth`/`scrollHeight`
+   * against `.cardScaleWrap`'s actual `clientWidth`/`clientHeight` (the box
+   * `.card`'s drawer-grid cell actually hands this component), applying a
+   * uniform `transform: scale()` — capped at 1, so a cell already big
+   * enough to fit the card renders it pixel-identical to its natural size —
+   * mirroring `AircraftOverlay.tsx`'s own grid-level contain-fit mechanism
+   * one level up. Because both axes scale together off the frame's own
+   * fixed-width/auto-height box, the card's real aspect ratio is preserved
+   * at every size ("keep the scale consistent with the aspect ratio ...
+   * regardless of scale"), and shrinking a too-short cell shrinks the whole
+   * card — fonts and the silhouette included — to fit its vertical height,
+   * rather than only the inner content while the frame itself stayed
+   * stretched to the cell's own (often much wider) shape. Neither
+   * `clientWidth`/`clientHeight` nor `scrollWidth`/`scrollHeight` are
+   * affected by an already-applied `transform`, so this self-referential
+   * comparison is stable and can't feed back on itself.
    */
   useEffect(() => {
-    const content = contentRef.current;
-    if (!content) return;
+    const wrap = wrapRef.current;
+    const frame = frameRef.current;
+    if (!wrap || !frame) return;
 
     const recompute = () => {
-      const availableHeight = content.clientHeight;
-      const contentHeight = content.scrollHeight;
-      if (availableHeight <= 0 || contentHeight <= 0) {
+      const availableWidth = wrap.clientWidth;
+      const availableHeight = wrap.clientHeight;
+      const naturalWidth = frame.scrollWidth;
+      const naturalHeight = frame.scrollHeight;
+      if (availableWidth <= 0 || availableHeight <= 0 || naturalWidth <= 0 || naturalHeight <= 0) {
         return;
       }
-      setScale(Math.min(1, availableHeight / contentHeight));
+      setScale(Math.min(1, availableWidth / naturalWidth, availableHeight / naturalHeight));
     };
 
     const observer = new ResizeObserver(recompute);
-    observer.observe(content);
+    observer.observe(wrap);
+    observer.observe(frame);
     recompute();
     return () => observer.disconnect();
   }, [cardStats, rarityTier, typeDesignator, manufacturerModel]);
 
   return (
-    <div className={styles.aircraftRarityFrame} data-tier={rarityTier}>
-      <div className={styles.aircraftTierCard}>
-        <div className={styles.glowOrb} aria-hidden="true" />
-        <div
-          className={styles.scaledContent}
-          ref={contentRef}
-          style={scale !== 1 ? { transform: `scaleY(${scale})` } : undefined}
-        >
-          <div className={styles.headerRow}>
-            <div className={styles.identity}>
-              {/* ICAO type designator, not the rarity tier — that's shown on
-               * `.rarityBadge` at the card's bottom edge already. */}
-              <span className={styles.typeBadge}>{typeDesignator?.toUpperCase() ?? UNKNOWN}</span>
-              <p className={styles.manufacturerLabel}>{manufacturer ?? UNKNOWN}</p>
-              <h3 className={styles.modelName}>{model ?? manufacturerModel ?? UNKNOWN}</h3>
+    <div className={styles.cardScaleWrap} ref={wrapRef}>
+      <div
+        className={styles.aircraftRarityFrame}
+        ref={frameRef}
+        data-tier={rarityTier}
+        style={scale !== 1 ? { transform: `scale(${scale})` } : undefined}
+      >
+        <div className={styles.aircraftTierCard} data-material-tier={materialTierAttr(cardStats)}>
+          <div className={styles.glowOrb} aria-hidden="true" />
+          <div className={styles.scaledContent}>
+            <div className={styles.headerRow}>
+              <div className={styles.identity}>
+                {/* ICAO type designator, not the rarity tier — that's shown on
+                 * `.rarityBadge` at the card's bottom edge already. */}
+                <span className={styles.typeBadge}>{typeDesignator?.toUpperCase() ?? UNKNOWN}</span>
+                <p className={styles.manufacturerLabel}>{manufacturer ?? UNKNOWN}</p>
+                <h3 className={styles.modelName}>{model ?? manufacturerModel ?? UNKNOWN}</h3>
+              </div>
+              <svg
+                className={styles.shapeIcon}
+                viewBox={viewBox}
+                aria-hidden="true"
+                // shape.markup is sourced only from the vendored, license-attributed SVG files at build time (scripts/generate-aircraft-shapes-manifest.mjs), never from user/network input
+                dangerouslySetInnerHTML={{ __html: shape.markup }}
+              />
             </div>
-            <svg
-              className={styles.shapeIcon}
-              viewBox={viewBox}
-              aria-hidden="true"
-              // shape.markup is sourced only from the vendored, license-attributed SVG files at build time (scripts/generate-aircraft-shapes-manifest.mjs), never from user/network input
-              dangerouslySetInnerHTML={{ __html: shape.markup }}
-            />
+            {renderStatRegion(cardStats)}
           </div>
-          {renderStatRegion(cardStats)}
         </div>
-      </div>
-      <div className={styles.badgeRow}>
-        {cardStats?.status === "ok" && <span className={styles.tierBadge}>{cardStats.attributes.tier}</span>}
-        <span className={styles.rarityBadge}>{rarityTier}</span>
+        <div className={styles.badgeRow}>
+          {cardStats?.status === "ok" && <span className={styles.tierBadge}>{cardStats.attributes.tier}</span>}
+          <span className={styles.rarityBadge}>{rarityTier}</span>
+        </div>
       </div>
     </div>
   );

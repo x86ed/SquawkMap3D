@@ -236,6 +236,26 @@ export const AIRCRAFT_DESELECT_CLICK_GUARD_MS = 50;
 // aircraft.json exposes (only ADS-B ground speed).
 export const MACH1_APPROX_KTS = 660;
 
+// 3D aircraft-model layer (aircraftModels.ts/aircraftLayer.ts's
+// AIRCRAFT_MODEL_LAYER_ID) — glTF's own convention is meters, and the
+// vendored public/aircraft-models/*.glb models are authored at real-world
+// scale, so 1 deck.gl ScenegraphLayer "size" unit already equals 1 meter
+// and needs no additional scale factor. Left as a tunable constant in case
+// a future vendored model isn't authored at that scale.
+export const AIRCRAFT_MODEL_SIZE_SCALE = 1;
+// ScenegraphLayer's `sizeMinPixels` is a floor on pixels-per-scene-unit
+// (i.e. pixels per meter at AIRCRAFT_MODEL_SIZE_SCALE=1), NOT a floor on
+// the model's overall on-screen size — a real 1:1-meter model otherwise
+// shrinks to sub-pixel at any zoom level where more than a neighborhood is
+// in view, unlike the icon layer's fixed `getSize: 40` pixels (which is
+// itself already a pixel size, not a per-meter one). The vendored
+// B738.glb's own bounding box is ~28.4 units along its longest (fuselage)
+// axis, so a ~1.4px/meter floor keeps its floor-clamped on-screen length
+// near the 40px icon size (28.4 * 1.4 ≈ 40) while still letting it grow
+// larger, at its real 1:1 scale, once zoomed in close enough for that to
+// exceed the floor.
+export const AIRCRAFT_MODEL_MIN_SIZE_PIXELS_PER_METER = 1.4;
+
 export const AIRCRAFT_CATEGORY_FALLBACK_ICON: Record<string, string> = {
   A1: "/aircraft-silhouettes/A1.svg", // light
   A2: "/aircraft-silhouettes/A2.svg", // medium 1 (7,000-34,000 kg)

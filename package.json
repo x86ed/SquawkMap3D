@@ -1,6 +1,6 @@
 {
   "name": "squawkmap3d",
-  "version": "0.35.11",
+  "version": "0.38.1",
   "description": "an adsb map",
   "keywords": [
     "ADSB",
@@ -36,6 +36,10 @@
     "@deck.gl/core": "^9.3.10",
     "@deck.gl/layers": "^9.3.10",
     "@deck.gl/mapbox": "^9.3.10",
+    "@deck.gl/mesh-layers": "^9.3.11",
+    "@loaders.gl/core": "^4.4.5",
+    "@loaders.gl/gltf": "^4.4.5",
+    "@luma.gl/engine": "^9.3.5",
     "@turf/turf": "^7.4.0",
     "flag-icons": "^7.5.0",
     "maplibre-gl": "^6.5.0",
