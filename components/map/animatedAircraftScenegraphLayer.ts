@@ -84,6 +84,8 @@ export class AnimatedAircraftScenegraphLayer<DataT> extends ScenegraphLayer<
       AnimatedAircraftExtraProps;
 
     const rotors = findNodeById(scenegraph, ROTOR_NODE_ID);
+    // eslint-disable-next-line no-console
+    console.log("[rotor-debug]", { found: !!rotors, rotorSpinDeg });
     if (rotors && rotorSpinDeg !== undefined) {
       rotors.update({ rotation: [rotorSpinDeg * DEG_TO_RAD, 0, 0] });
     }
