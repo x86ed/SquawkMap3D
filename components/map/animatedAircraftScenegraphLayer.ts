@@ -34,6 +34,30 @@ function findNodeById(node: ScenegraphNode, id: string): ScenegraphNode | null {
   return null;
 }
 
+/**
+ * Every node matching `id` anywhere in the scenegraph, not just the first —
+ * a multi-engine type (e.g. two wing-mounted turbofans) needs one
+ * independently-spinning node per engine, each with its own pivot/axis
+ * (`rotorSpinInfo` below); glTF allows sibling nodes to share the same
+ * `name`, so a model authored with e.g. two separate nodes both named
+ * "Rotors" (one per engine) is picked up here as two independent rotor
+ * assemblies rather than one. A model whose engines are instead baked into
+ * a single merged "Rotors" mesh only ever yields one match here — that's an
+ * asset-authoring limit (no way to spin two physically-fused meshes apart
+ * from a single node transform), not something this lookup can fix; the
+ * source model needs re-exporting with one node per engine.
+ */
+function findAllNodesById(node: ScenegraphNode, id: string): ScenegraphNode[] {
+  const found: ScenegraphNode[] = [];
+  if (node.id === id) found.push(node);
+  if (node instanceof GroupNode) {
+    for (const child of node.children) {
+      found.push(...findAllNodesById(child, id));
+    }
+  }
+  return found;
+}
+
 interface RotorSpinInfo {
   /** Geometric center of the "Rotors" node's own mesh, in its local space —
    * the point `spinRotors` rotates about instead of the node's raw
@@ -141,14 +165,15 @@ export class AnimatedAircraftScenegraphLayer<DataT> extends ScenegraphLayer<
 
     const { gearHidden } = this.props as ScenegraphLayerProps<DataT> & AnimatedAircraftExtraProps;
 
-    const rotors = findNodeById(scenegraph, ROTOR_NODE_ID);
-    if (rotors) {
+    const allRotors = findAllNodesById(scenegraph, ROTOR_NODE_ID);
+    if (allRotors.length > 0) {
       // Sampled fresh every `draw()` call off the wall clock, not once per
       // feeder poll — `setNeedsRedraw` keeps deck.gl calling `draw()` every
       // animation frame regardless of whether this poll's aircraft data
       // actually changed, so the spin reads as continuous motion instead of
       // snapping ~143° at a time on a ~1s cadence.
-      spinRotors(rotors, (Date.now() * ROTOR_DEG_PER_MS) % 360);
+      const spinDeg = (Date.now() * ROTOR_DEG_PER_MS) % 360;
+      for (const rotors of allRotors) spinRotors(rotors, spinDeg);
       this.setNeedsRedraw();
     }
 
