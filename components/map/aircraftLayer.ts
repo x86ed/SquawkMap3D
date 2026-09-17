@@ -1,6 +1,5 @@
 import type { Layer } from "@deck.gl/core";
 import { IconLayer, PathLayer, ScatterplotLayer } from "@deck.gl/layers";
-import { GLTFLoader } from "@loaders.gl/gltf";
 import type { Aircraft, TrackPoint } from "./aircraft";
 import {
   brightenColor,
@@ -12,7 +11,7 @@ import {
   ROTOR_ACCENT_KEY,
   type IconAtlas,
 } from "./aircraftIcons";
-import { landingGearHideThresholdFeet, resolveModelUrl } from "./aircraftModels";
+import { landingGearHideThresholdFeet, resolveModelScenegraph } from "./aircraftModels";
 import { AnimatedAircraftScenegraphLayer } from "./animatedAircraftScenegraphLayer";
 import {
   AIRCRAFT_GLOW_BRIGHTEN_AMOUNT,
@@ -172,17 +171,23 @@ export function buildAircraftLayers(params: {
   // separate layer, with gear retracted, from one of the same type still
   // below it. Types with no gear threshold (`hideThreshold === undefined`)
   // always key to `false` and never split.
-  const modeledByGroup = new Map<string, (Aircraft & { lat: number; lon: number })[]>();
+  //
+  // An aircraft only joins a model group once `resolveModelScenegraph` has
+  // an already-parsed scenegraph ready for its (type, gearHidden) pair —
+  // aircraftModels.ts's preload runs in the background, so a just-seen
+  // modeled type stays on the 2D icon layer for its first poll or two
+  // rather than being handed a not-yet-loaded model.
+  const modeledByGroup = new Map<string, { scenegraph: unknown; data: (Aircraft & { lat: number; lon: number })[] }>();
   const iconOnlyPositioned: (Aircraft & { lat: number; lon: number })[] = [];
   for (const d of positioned) {
-    const url = resolveModelUrl(d);
-    if (url && d.typeDesignator) {
-      const hideThreshold = landingGearHideThresholdFeet(d.typeDesignator);
-      const gearHidden = hideThreshold !== undefined && (d.altitude ?? 0) > hideThreshold;
+    const hideThreshold = landingGearHideThresholdFeet(d.typeDesignator);
+    const gearHidden = hideThreshold !== undefined && (d.altitude ?? 0) > hideThreshold;
+    const scenegraph = d.typeDesignator ? resolveModelScenegraph(d.typeDesignator, gearHidden) : null;
+    if (scenegraph && d.typeDesignator) {
       const key = `${d.typeDesignator}|${gearHidden}`;
       const group = modeledByGroup.get(key);
-      if (group) group.push(d);
-      else modeledByGroup.set(key, [d]);
+      if (group) group.data.push(d);
+      else modeledByGroup.set(key, { scenegraph, data: [d] });
     } else {
       iconOnlyPositioned.push(d);
     }
@@ -192,17 +197,15 @@ export function buildAircraftLayers(params: {
   // ScenegraphLayer loads a single `scenegraph` mesh per layer instance,
   // unlike IconLayer's atlas, so multiple vendored models can't share one
   // layer the way icons share one atlas.
-  const modelLayers: Layer[] = [...modeledByGroup.entries()].map(([key, data]) => {
+  const modelLayers: Layer[] = [...modeledByGroup.entries()].map(([key, { scenegraph, data }]) => {
     const [typeDesignator, gearHiddenStr] = key.split("|");
     const gearHidden = gearHiddenStr === "true";
-    const url = resolveModelUrl(data[0]) as string;
     return new AnimatedAircraftScenegraphLayer<Aircraft & { lat: number; lon: number }>({
       id: `${AIRCRAFT_MODEL_LAYER_ID}-${typeDesignator}-${gearHidden}`,
       data,
       rotorSpinDeg: rotorSpinAngleDeg,
       gearHidden,
-      scenegraph: url,
-      loaders: [GLTFLoader],
+      scenegraph,
       getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
       // The vendored B738.glb's own local axes (confirmed by inspecting its
       // accessor bounding box: X ±14.2, Y -2.78..4.8, Z ±12.85, scaled
