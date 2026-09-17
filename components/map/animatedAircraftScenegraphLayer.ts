@@ -1,4 +1,5 @@
 import { ScenegraphLayer, type ScenegraphLayerProps } from "@deck.gl/mesh-layers";
+import { GroupNode, type ScenegraphNode } from "@luma.gl/engine";
 
 // Node names as authored in the vendored .glb files (see
 // scripts/generate-aircraft-models-manifest.mjs and aircraftModels.ts) — a
@@ -8,6 +9,30 @@ const ROTOR_NODE_ID = "Rotors";
 const LANDING_GEAR_NODE_ID = "Landing gear";
 
 const DEG_TO_RAD = Math.PI / 180;
+
+/**
+ * Finds the named glTF node's own `GroupNode` wrapper anywhere in the
+ * scenegraph. Deliberately not `GroupNode.traverse()` — that only invokes
+ * its visitor on *leaf* nodes (skipping straight through every intermediate
+ * `GroupNode`, by design, to accumulate their `worldMatrix`), so it never
+ * hands back the named "Rotors"/"Landing gear" node itself, only the
+ * anonymous auto-`id`'d `ModelNode` several levels beneath it (glTF node ->
+ * glTF mesh -> primitive `ModelNode`, each an extra `GroupNode` layer —
+ * confirmed live: `traverse()`'s visitor only ever saw ids like
+ * "ModelNode-1"). Mutating the named node's own local matrix instead still
+ * correctly cascades to every descendant via that same `worldMatrix` chain
+ * when the layer's own `draw()` runs its traversal right after this.
+ */
+function findNodeById(node: ScenegraphNode, id: string): ScenegraphNode | null {
+  if (node.id === id) return node;
+  if (node instanceof GroupNode) {
+    for (const child of node.children) {
+      const found = findNodeById(child, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
 
 interface AnimatedAircraftExtraProps {
   /**
@@ -58,12 +83,14 @@ export class AnimatedAircraftScenegraphLayer<DataT> extends ScenegraphLayer<
     const { rotorSpinDeg, gearHidden } = this.props as ScenegraphLayerProps<DataT> &
       AnimatedAircraftExtraProps;
 
-    scenegraph.traverse((node) => {
-      if (node.id === ROTOR_NODE_ID && rotorSpinDeg !== undefined) {
-        node.update({ rotation: [rotorSpinDeg * DEG_TO_RAD, 0, 0] });
-      } else if (node.id === LANDING_GEAR_NODE_ID) {
-        node.update({ scale: gearHidden ? [0, 0, 0] : [1, 1, 1] });
-      }
-    });
+    const rotors = findNodeById(scenegraph, ROTOR_NODE_ID);
+    if (rotors && rotorSpinDeg !== undefined) {
+      rotors.update({ rotation: [rotorSpinDeg * DEG_TO_RAD, 0, 0] });
+    }
+
+    const landingGear = findNodeById(scenegraph, LANDING_GEAR_NODE_ID);
+    if (landingGear) {
+      landingGear.update({ scale: gearHidden ? [0, 0, 0] : [1, 1, 1] });
+    }
   }
 }
