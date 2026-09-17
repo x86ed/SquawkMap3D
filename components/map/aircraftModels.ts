@@ -1,5 +1,14 @@
 import type { Aircraft } from "./aircraft";
 
+interface AircraftModelManifestEntry {
+  type: string;
+  /** Feet AGL above which the model's "Landing gear" node should be hidden
+   * (retracted) — read straight out of the glTF's own node extras by
+   * `scripts/generate-aircraft-models-manifest.mjs`. Omitted for models
+   * with no "Landing gear" node. */
+  landingGearHideAboveFeetAGL?: number;
+}
+
 /**
  * ICAO type designators known to have a vendored 3D model, loaded once from
  * the manifest `scripts/generate-aircraft-models-manifest.mjs` writes
@@ -10,7 +19,7 @@ import type { Aircraft } from "./aircraft";
  * an aircraft on the existing 2D icon layer) if called before that
  * resolves.
  */
-let knownModelTypeDesignators = new Set<string>();
+let modelInfoByTypeDesignator = new Map<string, AircraftModelManifestEntry>();
 
 const modelUrl = (typeDesignator: string) =>
   `/aircraft-models/${encodeURIComponent(typeDesignator)}.glb`;
@@ -23,8 +32,8 @@ const modelUrl = (typeDesignator: string) =>
  */
 export async function loadAircraftModelManifest(): Promise<void> {
   const response = await fetch("/aircraft-models/manifest.json").catch(() => null);
-  const typeDesignators: string[] = response?.ok ? await response.json() : [];
-  knownModelTypeDesignators = new Set(typeDesignators);
+  const entries: AircraftModelManifestEntry[] = response?.ok ? await response.json() : [];
+  modelInfoByTypeDesignator = new Map(entries.map((entry) => [entry.type, entry]));
 }
 
 /**
@@ -36,8 +45,19 @@ export async function loadAircraftModelManifest(): Promise<void> {
  * misleading than a wrong-shape 2D silhouette.
  */
 export function resolveModelUrl(aircraft: Aircraft): string | null {
-  if (aircraft.typeDesignator && knownModelTypeDesignators.has(aircraft.typeDesignator)) {
+  if (aircraft.typeDesignator && modelInfoByTypeDesignator.has(aircraft.typeDesignator)) {
     return modelUrl(aircraft.typeDesignator);
   }
   return null;
+}
+
+/**
+ * Feet AGL above which `typeDesignator`'s vendored model has retractable
+ * landing gear that should render hidden, or `undefined` when that type's
+ * model has no "Landing gear" node (e.g. no vendored model at all, or a
+ * fixed-gear type like C172) — see `AircraftModelManifestEntry` above.
+ */
+export function landingGearHideThresholdFeet(typeDesignator: string | undefined): number | undefined {
+  if (!typeDesignator) return undefined;
+  return modelInfoByTypeDesignator.get(typeDesignator)?.landingGearHideAboveFeetAGL;
 }

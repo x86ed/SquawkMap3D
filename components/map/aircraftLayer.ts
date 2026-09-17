@@ -1,6 +1,5 @@
 import type { Layer } from "@deck.gl/core";
 import { IconLayer, PathLayer, ScatterplotLayer } from "@deck.gl/layers";
-import { ScenegraphLayer } from "@deck.gl/mesh-layers";
 import { GLTFLoader } from "@loaders.gl/gltf";
 import type { Aircraft, TrackPoint } from "./aircraft";
 import {
@@ -13,7 +12,8 @@ import {
   ROTOR_ACCENT_KEY,
   type IconAtlas,
 } from "./aircraftIcons";
-import { resolveModelUrl } from "./aircraftModels";
+import { landingGearHideThresholdFeet, resolveModelUrl } from "./aircraftModels";
+import { AnimatedAircraftScenegraphLayer } from "./animatedAircraftScenegraphLayer";
 import {
   AIRCRAFT_GLOW_BRIGHTEN_AMOUNT,
   AIRCRAFT_ICON_GLOW_ALPHA,
@@ -152,34 +152,55 @@ export function buildAircraftLayers(params: {
       a.lat !== undefined && a.lon !== undefined,
   );
 
+  // Per-poll wall-clock-derived spin angle shared by the 2D rotor accent
+  // (below) and every 3D-modeled type's own "Rotors" node
+  // (animatedAircraftScenegraphLayer.ts) — computed once here so both stay
+  // in lockstep.
+  const rotorSpinAngleDeg = (Date.now() / 7) % 360;
+
   // Replace-2d-sprite-with-3d-model: any aircraft whose exact ICAO type
   // designator has a vendored .glb (aircraftModels.ts) renders as a real
   // ScenegraphLayer mesh instead of the flat IconLayer sprite — the icon,
   // icon-glow, and rotor-accent layers below are all built from
   // `iconOnlyPositioned`, not `positioned`, so a modeled aircraft is never
   // double-rendered as both a sprite and a mesh.
-  const modeledByType = new Map<string, (Aircraft & { lat: number; lon: number })[]>();
+  //
+  // Grouped by type + gear-hidden state, not just type: `ScenegraphLayer`
+  // renders one shared instanced mesh per layer (see
+  // animatedAircraftScenegraphLayer.ts), so an aircraft whose altitude puts
+  // it above its type's `landingGearHideThresholdFeet` has to land in a
+  // separate layer, with gear retracted, from one of the same type still
+  // below it. Types with no gear threshold (`hideThreshold === undefined`)
+  // always key to `false` and never split.
+  const modeledByGroup = new Map<string, (Aircraft & { lat: number; lon: number })[]>();
   const iconOnlyPositioned: (Aircraft & { lat: number; lon: number })[] = [];
   for (const d of positioned) {
     const url = resolveModelUrl(d);
     if (url && d.typeDesignator) {
-      const group = modeledByType.get(d.typeDesignator);
+      const hideThreshold = landingGearHideThresholdFeet(d.typeDesignator);
+      const gearHidden = hideThreshold !== undefined && (d.altitude ?? 0) > hideThreshold;
+      const key = `${d.typeDesignator}|${gearHidden}`;
+      const group = modeledByGroup.get(key);
       if (group) group.push(d);
-      else modeledByType.set(d.typeDesignator, [d]);
+      else modeledByGroup.set(key, [d]);
     } else {
       iconOnlyPositioned.push(d);
     }
   }
 
-  // One ScenegraphLayer per distinct modeled type — ScenegraphLayer loads a
-  // single `scenegraph` mesh per layer instance, unlike IconLayer's atlas,
-  // so multiple vendored models can't share one layer the way icons share
-  // one atlas.
-  const modelLayers: Layer[] = [...modeledByType.entries()].map(([typeDesignator, data]) => {
+  // One ScenegraphLayer per distinct (modeled type, gear-hidden) group —
+  // ScenegraphLayer loads a single `scenegraph` mesh per layer instance,
+  // unlike IconLayer's atlas, so multiple vendored models can't share one
+  // layer the way icons share one atlas.
+  const modelLayers: Layer[] = [...modeledByGroup.entries()].map(([key, data]) => {
+    const [typeDesignator, gearHiddenStr] = key.split("|");
+    const gearHidden = gearHiddenStr === "true";
     const url = resolveModelUrl(data[0]) as string;
-    return new ScenegraphLayer<Aircraft & { lat: number; lon: number }>({
-      id: `${AIRCRAFT_MODEL_LAYER_ID}-${typeDesignator}`,
+    return new AnimatedAircraftScenegraphLayer<Aircraft & { lat: number; lon: number }>({
+      id: `${AIRCRAFT_MODEL_LAYER_ID}-${typeDesignator}-${gearHidden}`,
       data,
+      rotorSpinDeg: rotorSpinAngleDeg,
+      gearHidden,
       scenegraph: url,
       loaders: [GLTFLoader],
       getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
@@ -432,7 +453,6 @@ export function buildAircraftLayers(params: {
   // "teleporting" parent anyway; the large per-poll step (~143°/s) still
   // reads as spinning rather than static.
   const rotorcraft = iconOnlyPositioned.filter((a) => a.category === ROTORCRAFT_CATEGORY);
-  const rotorSpinAngleDeg = (Date.now() / 7) % 360;
   const rotorLayer = new IconLayer<Aircraft & { lat: number; lon: number }>({
     id: AIRCRAFT_ROTOR_ACCENT_LAYER_ID,
     data: rotorcraft,
