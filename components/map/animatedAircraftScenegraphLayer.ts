@@ -5,7 +5,14 @@ import { GroupNode, type ScenegraphNode } from "@luma.gl/engine";
 // scripts/generate-aircraft-models-manifest.mjs and aircraftModels.ts) — a
 // model with no matching node (e.g. C172.glb has no "Landing gear" node) is
 // simply left untouched by the corresponding override below.
-const ROTOR_NODE_ID = "Rotors";
+//
+// Most models name their rotor node(s) exactly "Rotors", but a split-rotor
+// export (one node per engine, e.g. B752.glb) comes out of the authoring
+// tool with generated per-node suffixes instead
+// ("Rotor 1789683625120-ueflswm1dth", "...-mirror") — matching by prefix
+// picks up both the plain "Rotors" convention and any split/mirrored
+// per-engine node without needing the source .glb re-exported.
+const ROTOR_NODE_PREFIX = "Rotor";
 const LANDING_GEAR_NODE_ID = "Landing gear";
 
 const DEG_TO_RAD = Math.PI / 180;
@@ -35,24 +42,25 @@ function findNodeById(node: ScenegraphNode, id: string): ScenegraphNode | null {
 }
 
 /**
- * Every node matching `id` anywhere in the scenegraph, not just the first —
- * a multi-engine type (e.g. two wing-mounted turbofans) needs one
- * independently-spinning node per engine, each with its own pivot/axis
- * (`rotorSpinInfo` below); glTF allows sibling nodes to share the same
- * `name`, so a model authored with e.g. two separate nodes both named
- * "Rotors" (one per engine) is picked up here as two independent rotor
- * assemblies rather than one. A model whose engines are instead baked into
- * a single merged "Rotors" mesh only ever yields one match here — that's an
- * asset-authoring limit (no way to spin two physically-fused meshes apart
- * from a single node transform), not something this lookup can fix; the
- * source model needs re-exporting with one node per engine.
+ * Every node whose name starts with `prefix` anywhere in the scenegraph, not
+ * just the first — a multi-engine type (e.g. two wing-mounted turbofans)
+ * needs one independently-spinning node per engine, each with its own
+ * pivot/axis (`rotorSpinInfo` below). Some vendored models name every rotor
+ * node exactly "Rotors"; a split-rotor export instead gives each engine's
+ * node its own generated suffix (see `ROTOR_NODE_PREFIX` above) — matching
+ * by prefix picks up both conventions as independent rotor assemblies. A
+ * model whose engines are instead baked into a single merged rotor mesh
+ * only ever yields one match here — that's an asset-authoring limit (no way
+ * to spin two physically-fused meshes apart from a single node transform),
+ * not something this lookup can fix; the source model needs re-exporting
+ * with one node per engine.
  */
-function findAllNodesById(node: ScenegraphNode, id: string): ScenegraphNode[] {
+function findAllNodesByPrefix(node: ScenegraphNode, prefix: string): ScenegraphNode[] {
   const found: ScenegraphNode[] = [];
-  if (node.id === id) found.push(node);
+  if (node.id.startsWith(prefix)) found.push(node);
   if (node instanceof GroupNode) {
     for (const child of node.children) {
-      found.push(...findAllNodesById(child, id));
+      found.push(...findAllNodesByPrefix(child, prefix));
     }
   }
   return found;
@@ -165,7 +173,7 @@ export class AnimatedAircraftScenegraphLayer<DataT> extends ScenegraphLayer<
 
     const { gearHidden } = this.props as ScenegraphLayerProps<DataT> & AnimatedAircraftExtraProps;
 
-    const allRotors = findAllNodesById(scenegraph, ROTOR_NODE_ID);
+    const allRotors = findAllNodesByPrefix(scenegraph, ROTOR_NODE_PREFIX);
     if (allRotors.length > 0) {
       // Sampled fresh every `draw()` call off the wall clock, not once per
       // feeder poll — `setNeedsRedraw` keeps deck.gl calling `draw()` every
