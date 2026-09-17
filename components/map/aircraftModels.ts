@@ -1,6 +1,7 @@
 import { load } from "@loaders.gl/core";
 import { GLTFLoader } from "@loaders.gl/gltf";
 import type { Aircraft } from "./aircraft";
+import { CATEGORY_FALLBACK_KEY } from "./aircraftShapes";
 
 interface AircraftModelManifestEntry {
   type: string;
@@ -103,34 +104,54 @@ export async function loadAircraftModelManifest(): Promise<void> {
 }
 
 /**
- * Whether `aircraft`'s exact ICAO type designator has a vendored 3D model —
- * the 2D icon fallback chain (`aircraftIcons.ts`'s `resolveIconKey`) still
- * applies when this is false. Only ever matches an aircraft's exact type,
- * never a category/generic fallback like `resolveIconKey` does — a
- * wrong-model 3D mesh would read as far more misleading than a wrong-shape
- * 2D silhouette.
+ * The vendored-model manifest key for `aircraft` — its own exact ICAO type
+ * designator if that's vendored, else (mirroring `aircraftIcons.ts`'s
+ * `resolveIconKey`/`aircraftShapes.ts`'s `getAircraftShape` category
+ * fallback, via the same `CATEGORY_FALLBACK_KEY` table) its emitter
+ * category's representative modeled type, or `undefined` if neither is
+ * vendored — the caller should fall back to the 2D icon in that case. Kept
+ * in lockstep with the 2D fallback chain so a GA type real ADS-B traffic
+ * reports as a variant designator the model manifest doesn't carry (e.g. a
+ * Cessna 172S variant, category `A1`) still gets the model its 2D icon
+ * already falls back to, instead of only ever matching a literal manifest
+ * entry.
  */
+export function resolveModelKey(aircraft: Aircraft): string | undefined {
+  if (aircraft.typeDesignator && modelInfoByTypeDesignator.has(aircraft.typeDesignator)) {
+    return aircraft.typeDesignator;
+  }
+  const fallbackKey = aircraft.category && CATEGORY_FALLBACK_KEY[aircraft.category.toUpperCase()];
+  if (fallbackKey && modelInfoByTypeDesignator.has(fallbackKey)) {
+    return fallbackKey;
+  }
+  return undefined;
+}
+
+/** Whether `aircraft` has a vendored 3D model, either its own exact type or
+ * (see `resolveModelKey`) its category's fallback type. */
 export function isModeledType(aircraft: Aircraft): boolean {
-  return !!aircraft.typeDesignator && modelInfoByTypeDesignator.has(aircraft.typeDesignator);
+  return resolveModelKey(aircraft) !== undefined;
 }
 
 /**
- * The pre-parsed glTF scenegraph for `typeDesignator`'s vendored model in
- * the given gear-visibility variant, or `null` if that type has no model or
- * its preload (see `preloadModelScenegraphs`) hasn't completed yet — either
- * way, the caller should fall back to the 2D icon for this poll.
+ * The pre-parsed glTF scenegraph for `modelKey`'s (see `resolveModelKey`)
+ * vendored model in the given gear-visibility variant, or `null` if that key
+ * has no model or its preload (see `preloadModelScenegraphs`) hasn't
+ * completed yet — either way, the caller should fall back to the 2D icon
+ * for this poll.
  */
-export function resolveModelScenegraph(typeDesignator: string, gearHidden: boolean): unknown | null {
-  return modelScenegraphByGroupKey.get(scenegraphGroupKey(typeDesignator, gearHidden)) ?? null;
+export function resolveModelScenegraph(modelKey: string, gearHidden: boolean): unknown | null {
+  return modelScenegraphByGroupKey.get(scenegraphGroupKey(modelKey, gearHidden)) ?? null;
 }
 
 /**
- * Feet AGL above which `typeDesignator`'s vendored model has retractable
- * landing gear that should render hidden, or `undefined` when that type's
- * model has no "Landing gear" node (e.g. no vendored model at all, or a
- * fixed-gear type like C172) — see `AircraftModelManifestEntry` above.
+ * Feet AGL above which `modelKey`'s (see `resolveModelKey`) vendored model
+ * has retractable landing gear that should render hidden, or `undefined`
+ * when that model has no "Landing gear" node (e.g. no vendored model at
+ * all, or a fixed-gear type like C172) — see `AircraftModelManifestEntry`
+ * above.
  */
-export function landingGearHideThresholdFeet(typeDesignator: string | undefined): number | undefined {
-  if (!typeDesignator) return undefined;
-  return modelInfoByTypeDesignator.get(typeDesignator)?.landingGearHideAboveFeetAGL;
+export function landingGearHideThresholdFeet(modelKey: string | undefined): number | undefined {
+  if (!modelKey) return undefined;
+  return modelInfoByTypeDesignator.get(modelKey)?.landingGearHideAboveFeetAGL;
 }
