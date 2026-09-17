@@ -34,39 +34,66 @@ function findNodeById(node: ScenegraphNode, id: string): ScenegraphNode | null {
   return null;
 }
 
-/**
- * The "Rotors" node's own geometric center, in its local space, cached per
- * node the first time it's spun (`spinRotors` below) — before that node's
- * `matrix` has ever been touched, so `getBounds()` (which composes its
- * children's bounds through its *own current* `matrix`, per `GroupNode`)
- * reports their raw authored position. Some vendored models' rotor/prop
- * mesh isn't centered on its own node origin (the mesh's own vertices sit
- * off to one side, e.g. forward at the nose, rather than being authored
- * around `[0,0,0]` the way a rotation pivot needs) — rotating about the
- * node's raw origin in that case sweeps the whole mesh through an arc
- * around the fuselage ("orbiting") instead of spinning it in place. This
- * pivot is what lets `spinRotors` rotate about the mesh's actual center
- * instead.
- */
-const rotorPivotByNode = new WeakMap<ScenegraphNode, [number, number, number]>();
-
-function rotorPivot(rotors: ScenegraphNode): [number, number, number] {
-  const cached = rotorPivotByNode.get(rotors);
-  if (cached) return cached;
-  const bounds = rotors.getBounds();
-  const pivot: [number, number, number] = bounds
-    ? [(bounds[0][0] + bounds[1][0]) / 2, (bounds[0][1] + bounds[1][1]) / 2, (bounds[0][2] + bounds[1][2]) / 2]
-    : [0, 0, 0];
-  rotorPivotByNode.set(rotors, pivot);
-  return pivot;
+interface RotorSpinInfo {
+  /** Geometric center of the "Rotors" node's own mesh, in its local space —
+   * the point `spinRotors` rotates about instead of the node's raw
+   * `[0,0,0]` origin. */
+  pivot: [number, number, number];
+  /** Local unit axis to spin about — the bounding box's *shortest* extent.
+   * A propeller/rotor blade assembly is thin through its own shaft (the
+   * blades are flat, stacked along the shaft) and widest across the blade
+   * span — spinning about the shaft (shortest-extent) axis is what lets the
+   * blades sweep their full, widest possible disc, vs. spinning about a
+   * blade-span axis, which would tumble the blades end over end instead of
+   * spinning them in place. */
+  axis: [number, number, number];
 }
 
-/** Rotates `rotors` by `spinDeg` about its own geometric center (see
- * `rotorPivot`) rather than its raw node origin. */
+/**
+ * The "Rotors" node's own spin pivot + axis, cached per node the first time
+ * it's spun (`spinRotors` below) — before that node's `matrix` has ever
+ * been touched, so `getBounds()` (which composes its children's bounds
+ * through its *own current* `matrix`, per `GroupNode`) reports their raw
+ * authored position/shape. Some vendored models' rotor/prop mesh isn't
+ * centered on its own node origin (the mesh's own vertices sit off to one
+ * side, e.g. forward at the nose, rather than being authored around
+ * `[0,0,0]` the way a rotation pivot needs) — rotating about the node's raw
+ * origin in that case sweeps the whole mesh through an arc around the
+ * fuselage ("orbiting") instead of spinning it in place. Likewise, a fixed
+ * "always roll-axis" assumption breaks for a model whose blades aren't
+ * modeled shaft-forward — deriving the axis from the mesh's own bounding
+ * box instead works for any vendored model's authoring convention.
+ */
+const rotorSpinInfoByNode = new WeakMap<ScenegraphNode, RotorSpinInfo>();
+
+function rotorSpinInfo(rotors: ScenegraphNode): RotorSpinInfo {
+  const cached = rotorSpinInfoByNode.get(rotors);
+  if (cached) return cached;
+
+  const bounds = rotors.getBounds();
+  let info: RotorSpinInfo;
+  if (bounds) {
+    const [min, max] = bounds;
+    const pivot: [number, number, number] = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2];
+    const extents = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
+    const shaftAxisIndex = extents.indexOf(Math.min(...extents));
+    const axis: [number, number, number] = [0, 0, 0];
+    axis[shaftAxisIndex] = 1;
+    info = { pivot, axis };
+  } else {
+    info = { pivot: [0, 0, 0], axis: [1, 0, 0] };
+  }
+
+  rotorSpinInfoByNode.set(rotors, info);
+  return info;
+}
+
+/** Rotates `rotors` by `spinDeg` about its own geometric center and shaft
+ * axis (see `rotorSpinInfo`) rather than its raw node origin/a fixed axis. */
 function spinRotors(rotors: ScenegraphNode, spinDeg: number): void {
-  const pivot = rotorPivot(rotors);
+  const { pivot, axis } = rotorSpinInfo(rotors);
   const negatedPivot: [number, number, number] = [-pivot[0], -pivot[1], -pivot[2]];
-  rotors.matrix.identity().translate(pivot).rotateX(spinDeg * DEG_TO_RAD).translate(negatedPivot);
+  rotors.matrix.identity().translate(pivot).rotateAxis(spinDeg * DEG_TO_RAD, axis).translate(negatedPivot);
 }
 
 // Degrees/ms the "Rotors" node spins about its own local forward (roll)
