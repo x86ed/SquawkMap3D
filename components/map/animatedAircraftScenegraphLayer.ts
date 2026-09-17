@@ -69,16 +69,14 @@ function spinRotors(rotors: ScenegraphNode, spinDeg: number): void {
   rotors.matrix.identity().translate(pivot).rotateX(spinDeg * DEG_TO_RAD).translate(negatedPivot);
 }
 
+// Degrees/ms the "Rotors" node spins about its own local forward (roll)
+// axis — matches the rate the old poll-cadence-driven angle
+// (`(Date.now() / 7) % 360`, i.e. 1000/7 deg/s) used to move at, just now
+// sampled continuously (see `draw()`) instead of jumping once per ~1s
+// feeder poll, which read as choppy/orbiting-looking at that step size.
+const ROTOR_DEG_PER_MS = 1 / 7;
+
 interface AnimatedAircraftExtraProps {
-  /**
-   * Degrees to rotate the model's "Rotors" node about its own local forward
-   * (roll) axis — the shaft axis a tractor propeller or turbofan spins
-   * about is aligned with the aircraft's own forward axis for every
-   * currently-vendored modeled type, so a single fixed rotation axis
-   * covers all of them without per-type axis metadata. `undefined` leaves
-   * the node's current rotation alone (no "Rotors" node present).
-   */
-  rotorSpinDeg?: number;
   /**
    * Scales the model's "Landing gear" node to zero (visually retracted)
    * when true, full scale when false. No-op for models with no such node.
@@ -92,9 +90,8 @@ interface AnimatedAircraftExtraProps {
  * `ModelNode`, not per data point), so a named sub-node's transform can only
  * be driven uniformly for every instance in a layer, never per aircraft.
  * That's exactly what rotor spin needs (a single wall-clock-derived angle,
- * shared across every aircraft of a type, same cadence as
- * aircraftLayer.ts's icon-based rotor accent) — but landing-gear visibility
- * is per-aircraft (depends on that aircraft's own altitude), so
+ * shared across every aircraft of a type) — but landing-gear visibility is
+ * per-aircraft (depends on that aircraft's own altitude), so
  * aircraftLayer.ts must split gear-bearing types into a gear-shown and a
  * gear-hidden `AnimatedAircraftScenegraphLayer`, each with a fixed
  * `gearHidden` value for its whole data array, rather than expecting this
@@ -115,12 +112,17 @@ export class AnimatedAircraftScenegraphLayer<DataT> extends ScenegraphLayer<
     const scenegraph = this.state.scenegraph;
     if (!scenegraph) return;
 
-    const { rotorSpinDeg, gearHidden } = this.props as ScenegraphLayerProps<DataT> &
-      AnimatedAircraftExtraProps;
+    const { gearHidden } = this.props as ScenegraphLayerProps<DataT> & AnimatedAircraftExtraProps;
 
     const rotors = findNodeById(scenegraph, ROTOR_NODE_ID);
-    if (rotors && rotorSpinDeg !== undefined) {
-      spinRotors(rotors, rotorSpinDeg);
+    if (rotors) {
+      // Sampled fresh every `draw()` call off the wall clock, not once per
+      // feeder poll — `setNeedsRedraw` keeps deck.gl calling `draw()` every
+      // animation frame regardless of whether this poll's aircraft data
+      // actually changed, so the spin reads as continuous motion instead of
+      // snapping ~143° at a time on a ~1s cadence.
+      spinRotors(rotors, (Date.now() * ROTOR_DEG_PER_MS) % 360);
+      this.setNeedsRedraw();
     }
 
     const landingGear = findNodeById(scenegraph, LANDING_GEAR_NODE_ID);

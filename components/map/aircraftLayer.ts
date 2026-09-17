@@ -151,10 +151,10 @@ export function buildAircraftLayers(params: {
       a.lat !== undefined && a.lon !== undefined,
   );
 
-  // Per-poll wall-clock-derived spin angle shared by the 2D rotor accent
-  // (below) and every 3D-modeled type's own "Rotors" node
-  // (animatedAircraftScenegraphLayer.ts) — computed once here so both stay
-  // in lockstep.
+  // Per-poll wall-clock-derived spin angle for the 2D rotor accent below.
+  // 3D-modeled types animate their own "Rotors" node independently, off a
+  // continuous per-frame clock rather than this per-poll one — see
+  // animatedAircraftScenegraphLayer.ts's `draw()`.
   const rotorSpinAngleDeg = (Date.now() / 7) % 360;
 
   // Replace-2d-sprite-with-3d-model: any aircraft whose exact ICAO type
@@ -204,7 +204,6 @@ export function buildAircraftLayers(params: {
     return new AnimatedAircraftScenegraphLayer<Aircraft & { lat: number; lon: number }>({
       id: `${AIRCRAFT_MODEL_LAYER_ID}-${modelKey}-${gearHidden}`,
       data,
-      rotorSpinDeg: rotorSpinAngleDeg,
       gearHidden,
       scenegraph,
       getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
