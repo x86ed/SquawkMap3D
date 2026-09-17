@@ -34,6 +34,41 @@ function findNodeById(node: ScenegraphNode, id: string): ScenegraphNode | null {
   return null;
 }
 
+/**
+ * The "Rotors" node's own geometric center, in its local space, cached per
+ * node the first time it's spun (`spinRotors` below) — before that node's
+ * `matrix` has ever been touched, so `getBounds()` (which composes its
+ * children's bounds through its *own current* `matrix`, per `GroupNode`)
+ * reports their raw authored position. Some vendored models' rotor/prop
+ * mesh isn't centered on its own node origin (the mesh's own vertices sit
+ * off to one side, e.g. forward at the nose, rather than being authored
+ * around `[0,0,0]` the way a rotation pivot needs) — rotating about the
+ * node's raw origin in that case sweeps the whole mesh through an arc
+ * around the fuselage ("orbiting") instead of spinning it in place. This
+ * pivot is what lets `spinRotors` rotate about the mesh's actual center
+ * instead.
+ */
+const rotorPivotByNode = new WeakMap<ScenegraphNode, [number, number, number]>();
+
+function rotorPivot(rotors: ScenegraphNode): [number, number, number] {
+  const cached = rotorPivotByNode.get(rotors);
+  if (cached) return cached;
+  const bounds = rotors.getBounds();
+  const pivot: [number, number, number] = bounds
+    ? [(bounds[0][0] + bounds[1][0]) / 2, (bounds[0][1] + bounds[1][1]) / 2, (bounds[0][2] + bounds[1][2]) / 2]
+    : [0, 0, 0];
+  rotorPivotByNode.set(rotors, pivot);
+  return pivot;
+}
+
+/** Rotates `rotors` by `spinDeg` about its own geometric center (see
+ * `rotorPivot`) rather than its raw node origin. */
+function spinRotors(rotors: ScenegraphNode, spinDeg: number): void {
+  const pivot = rotorPivot(rotors);
+  const negatedPivot: [number, number, number] = [-pivot[0], -pivot[1], -pivot[2]];
+  rotors.matrix.identity().translate(pivot).rotateX(spinDeg * DEG_TO_RAD).translate(negatedPivot);
+}
+
 interface AnimatedAircraftExtraProps {
   /**
    * Degrees to rotate the model's "Rotors" node about its own local forward
@@ -84,10 +119,8 @@ export class AnimatedAircraftScenegraphLayer<DataT> extends ScenegraphLayer<
       AnimatedAircraftExtraProps;
 
     const rotors = findNodeById(scenegraph, ROTOR_NODE_ID);
-    // eslint-disable-next-line no-console
-    console.log("[rotor-debug]", { found: !!rotors, rotorSpinDeg });
     if (rotors && rotorSpinDeg !== undefined) {
-      rotors.update({ rotation: [rotorSpinDeg * DEG_TO_RAD, 0, 0] });
+      spinRotors(rotors, rotorSpinDeg);
     }
 
     const landingGear = findNodeById(scenegraph, LANDING_GEAR_NODE_ID);
