@@ -5,7 +5,14 @@ import { GroupNode, type ScenegraphNode } from "@luma.gl/engine";
 // scripts/generate-aircraft-models-manifest.mjs and aircraftModels.ts) — a
 // model with no matching node (e.g. C172.glb has no "Landing gear" node) is
 // simply left untouched by the corresponding override below.
-const ROTOR_NODE_ID = "Rotors";
+//
+// Most models name their rotor node(s) exactly "Rotors", but a split-rotor
+// export (one node per engine, e.g. B752.glb) comes out of the authoring
+// tool with generated per-node suffixes instead
+// ("Rotor 1789683625120-ueflswm1dth", "...-mirror") — matching by prefix
+// picks up both the plain "Rotors" convention and any split/mirrored
+// per-engine node without needing the source .glb re-exported.
+const ROTOR_NODE_PREFIX = "Rotor";
 const LANDING_GEAR_NODE_ID = "Landing gear";
 
 const DEG_TO_RAD = Math.PI / 180;
@@ -34,16 +41,101 @@ function findNodeById(node: ScenegraphNode, id: string): ScenegraphNode | null {
   return null;
 }
 
+/**
+ * Every node whose name starts with `prefix` anywhere in the scenegraph, not
+ * just the first — a multi-engine type (e.g. two wing-mounted turbofans)
+ * needs one independently-spinning node per engine, each with its own
+ * pivot/axis (`rotorSpinInfo` below). Some vendored models name every rotor
+ * node exactly "Rotors"; a split-rotor export instead gives each engine's
+ * node its own generated suffix (see `ROTOR_NODE_PREFIX` above) — matching
+ * by prefix picks up both conventions as independent rotor assemblies. A
+ * model whose engines are instead baked into a single merged rotor mesh
+ * only ever yields one match here — that's an asset-authoring limit (no way
+ * to spin two physically-fused meshes apart from a single node transform),
+ * not something this lookup can fix; the source model needs re-exporting
+ * with one node per engine.
+ */
+function findAllNodesByPrefix(node: ScenegraphNode, prefix: string): ScenegraphNode[] {
+  const found: ScenegraphNode[] = [];
+  if (node.id.startsWith(prefix)) found.push(node);
+  if (node instanceof GroupNode) {
+    for (const child of node.children) {
+      found.push(...findAllNodesByPrefix(child, prefix));
+    }
+  }
+  return found;
+}
+
+interface RotorSpinInfo {
+  /** Geometric center of the "Rotors" node's own mesh, in its local space —
+   * the point `spinRotors` rotates about instead of the node's raw
+   * `[0,0,0]` origin. */
+  pivot: [number, number, number];
+  /** Local unit axis to spin about — the bounding box's *shortest* extent.
+   * A propeller/rotor blade assembly is thin through its own shaft (the
+   * blades are flat, stacked along the shaft) and widest across the blade
+   * span — spinning about the shaft (shortest-extent) axis is what lets the
+   * blades sweep their full, widest possible disc, vs. spinning about a
+   * blade-span axis, which would tumble the blades end over end instead of
+   * spinning them in place. */
+  axis: [number, number, number];
+}
+
+/**
+ * The "Rotors" node's own spin pivot + axis, cached per node the first time
+ * it's spun (`spinRotors` below) — before that node's `matrix` has ever
+ * been touched, so `getBounds()` (which composes its children's bounds
+ * through its *own current* `matrix`, per `GroupNode`) reports their raw
+ * authored position/shape. Some vendored models' rotor/prop mesh isn't
+ * centered on its own node origin (the mesh's own vertices sit off to one
+ * side, e.g. forward at the nose, rather than being authored around
+ * `[0,0,0]` the way a rotation pivot needs) — rotating about the node's raw
+ * origin in that case sweeps the whole mesh through an arc around the
+ * fuselage ("orbiting") instead of spinning it in place. Likewise, a fixed
+ * "always roll-axis" assumption breaks for a model whose blades aren't
+ * modeled shaft-forward — deriving the axis from the mesh's own bounding
+ * box instead works for any vendored model's authoring convention.
+ */
+const rotorSpinInfoByNode = new WeakMap<ScenegraphNode, RotorSpinInfo>();
+
+function rotorSpinInfo(rotors: ScenegraphNode): RotorSpinInfo {
+  const cached = rotorSpinInfoByNode.get(rotors);
+  if (cached) return cached;
+
+  const bounds = rotors.getBounds();
+  let info: RotorSpinInfo;
+  if (bounds) {
+    const [min, max] = bounds;
+    const pivot: [number, number, number] = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2];
+    const extents = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
+    const shaftAxisIndex = extents.indexOf(Math.min(...extents));
+    const axis: [number, number, number] = [0, 0, 0];
+    axis[shaftAxisIndex] = 1;
+    info = { pivot, axis };
+  } else {
+    info = { pivot: [0, 0, 0], axis: [1, 0, 0] };
+  }
+
+  rotorSpinInfoByNode.set(rotors, info);
+  return info;
+}
+
+/** Rotates `rotors` by `spinDeg` about its own geometric center and shaft
+ * axis (see `rotorSpinInfo`) rather than its raw node origin/a fixed axis. */
+function spinRotors(rotors: ScenegraphNode, spinDeg: number): void {
+  const { pivot, axis } = rotorSpinInfo(rotors);
+  const negatedPivot: [number, number, number] = [-pivot[0], -pivot[1], -pivot[2]];
+  rotors.matrix.identity().translate(pivot).rotateAxis(spinDeg * DEG_TO_RAD, axis).translate(negatedPivot);
+}
+
+// Degrees/ms the "Rotors" node spins about its own local forward (roll)
+// axis — matches the rate the old poll-cadence-driven angle
+// (`(Date.now() / 7) % 360`, i.e. 1000/7 deg/s) used to move at, just now
+// sampled continuously (see `draw()`) instead of jumping once per ~1s
+// feeder poll, which read as choppy/orbiting-looking at that step size.
+const ROTOR_DEG_PER_MS = 1 / 7;
+
 interface AnimatedAircraftExtraProps {
-  /**
-   * Degrees to rotate the model's "Rotors" node about its own local forward
-   * (roll) axis — the shaft axis a tractor propeller or turbofan spins
-   * about is aligned with the aircraft's own forward axis for every
-   * currently-vendored modeled type, so a single fixed rotation axis
-   * covers all of them without per-type axis metadata. `undefined` leaves
-   * the node's current rotation alone (no "Rotors" node present).
-   */
-  rotorSpinDeg?: number;
   /**
    * Scales the model's "Landing gear" node to zero (visually retracted)
    * when true, full scale when false. No-op for models with no such node.
@@ -57,9 +149,8 @@ interface AnimatedAircraftExtraProps {
  * `ModelNode`, not per data point), so a named sub-node's transform can only
  * be driven uniformly for every instance in a layer, never per aircraft.
  * That's exactly what rotor spin needs (a single wall-clock-derived angle,
- * shared across every aircraft of a type, same cadence as
- * aircraftLayer.ts's icon-based rotor accent) — but landing-gear visibility
- * is per-aircraft (depends on that aircraft's own altitude), so
+ * shared across every aircraft of a type) — but landing-gear visibility is
+ * per-aircraft (depends on that aircraft's own altitude), so
  * aircraftLayer.ts must split gear-bearing types into a gear-shown and a
  * gear-hidden `AnimatedAircraftScenegraphLayer`, each with a fixed
  * `gearHidden` value for its whole data array, rather than expecting this
@@ -80,12 +171,18 @@ export class AnimatedAircraftScenegraphLayer<DataT> extends ScenegraphLayer<
     const scenegraph = this.state.scenegraph;
     if (!scenegraph) return;
 
-    const { rotorSpinDeg, gearHidden } = this.props as ScenegraphLayerProps<DataT> &
-      AnimatedAircraftExtraProps;
+    const { gearHidden } = this.props as ScenegraphLayerProps<DataT> & AnimatedAircraftExtraProps;
 
-    const rotors = findNodeById(scenegraph, ROTOR_NODE_ID);
-    if (rotors && rotorSpinDeg !== undefined) {
-      rotors.update({ rotation: [rotorSpinDeg * DEG_TO_RAD, 0, 0] });
+    const allRotors = findAllNodesByPrefix(scenegraph, ROTOR_NODE_PREFIX);
+    if (allRotors.length > 0) {
+      // Sampled fresh every `draw()` call off the wall clock, not once per
+      // feeder poll — `setNeedsRedraw` keeps deck.gl calling `draw()` every
+      // animation frame regardless of whether this poll's aircraft data
+      // actually changed, so the spin reads as continuous motion instead of
+      // snapping ~143° at a time on a ~1s cadence.
+      const spinDeg = (Date.now() * ROTOR_DEG_PER_MS) % 360;
+      for (const rotors of allRotors) spinRotors(rotors, spinDeg);
+      this.setNeedsRedraw();
     }
 
     const landingGear = findNodeById(scenegraph, LANDING_GEAR_NODE_ID);

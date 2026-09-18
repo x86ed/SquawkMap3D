@@ -11,7 +11,7 @@ import {
   ROTOR_ACCENT_KEY,
   type IconAtlas,
 } from "./aircraftIcons";
-import { landingGearHideThresholdFeet, resolveModelScenegraph } from "./aircraftModels";
+import { landingGearHideThresholdFeet, resolveModelKey, resolveModelScenegraph } from "./aircraftModels";
 import { AnimatedAircraftScenegraphLayer } from "./animatedAircraftScenegraphLayer";
 import {
   AIRCRAFT_GLOW_BRIGHTEN_AMOUNT,
@@ -151,10 +151,10 @@ export function buildAircraftLayers(params: {
       a.lat !== undefined && a.lon !== undefined,
   );
 
-  // Per-poll wall-clock-derived spin angle shared by the 2D rotor accent
-  // (below) and every 3D-modeled type's own "Rotors" node
-  // (animatedAircraftScenegraphLayer.ts) — computed once here so both stay
-  // in lockstep.
+  // Per-poll wall-clock-derived spin angle for the 2D rotor accent below.
+  // 3D-modeled types animate their own "Rotors" node independently, off a
+  // continuous per-frame clock rather than this per-poll one — see
+  // animatedAircraftScenegraphLayer.ts's `draw()`.
   const rotorSpinAngleDeg = (Date.now() / 7) % 360;
 
   // Replace-2d-sprite-with-3d-model: any aircraft whose exact ICAO type
@@ -180,11 +180,12 @@ export function buildAircraftLayers(params: {
   const modeledByGroup = new Map<string, { scenegraph: unknown; data: (Aircraft & { lat: number; lon: number })[] }>();
   const iconOnlyPositioned: (Aircraft & { lat: number; lon: number })[] = [];
   for (const d of positioned) {
-    const hideThreshold = landingGearHideThresholdFeet(d.typeDesignator);
+    const modelKey = resolveModelKey(d);
+    const hideThreshold = landingGearHideThresholdFeet(modelKey);
     const gearHidden = hideThreshold !== undefined && (d.altitude ?? 0) > hideThreshold;
-    const scenegraph = d.typeDesignator ? resolveModelScenegraph(d.typeDesignator, gearHidden) : null;
-    if (scenegraph && d.typeDesignator) {
-      const key = `${d.typeDesignator}|${gearHidden}`;
+    const scenegraph = modelKey ? resolveModelScenegraph(modelKey, gearHidden) : null;
+    if (scenegraph && modelKey) {
+      const key = `${modelKey}|${gearHidden}`;
       const group = modeledByGroup.get(key);
       if (group) group.data.push(d);
       else modeledByGroup.set(key, { scenegraph, data: [d] });
@@ -198,12 +199,11 @@ export function buildAircraftLayers(params: {
   // unlike IconLayer's atlas, so multiple vendored models can't share one
   // layer the way icons share one atlas.
   const modelLayers: Layer[] = [...modeledByGroup.entries()].map(([key, { scenegraph, data }]) => {
-    const [typeDesignator, gearHiddenStr] = key.split("|");
+    const [modelKey, gearHiddenStr] = key.split("|");
     const gearHidden = gearHiddenStr === "true";
     return new AnimatedAircraftScenegraphLayer<Aircraft & { lat: number; lon: number }>({
-      id: `${AIRCRAFT_MODEL_LAYER_ID}-${typeDesignator}-${gearHidden}`,
+      id: `${AIRCRAFT_MODEL_LAYER_ID}-${modelKey}-${gearHidden}`,
       data,
-      rotorSpinDeg: rotorSpinAngleDeg,
       gearHidden,
       scenegraph,
       getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],

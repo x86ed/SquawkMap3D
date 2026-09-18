@@ -6,5 +6,9 @@
   "3-install-maplibre": {
     "version": "v0.2.0",
     "initialized_at": "2026-08-22T05:43:38Z"
+  },
+  "52-fix-the-card-display": {
+    "version": "v0.39.0",
+    "initialized_at": "2026-09-17T16:04:28Z"
   }
 }
