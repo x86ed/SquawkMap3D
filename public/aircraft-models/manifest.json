@@ -1,1 +1,41 @@
-[{"type":"B744","landingGearHideAboveFeetAGL":1000},{"type":"B738","landingGearHideAboveFeetAGL":1000},{"type":"PC12","landingGearHideAboveFeetAGL":1000},{"type":"C172"},{"type":"FFLO"},{"type":"H60"},{"type":"R44"},{"type":"SERV"},{"type":"SHIP"},{"type":"VFHC"}]
+[
+  {
+    "type": "B744"
+  },
+  {
+    "type": "B738",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "PC12",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "C172"
+  },
+  {
+    "type": "FFLO"
+  },
+  {
+    "type": "H60"
+  },
+  {
+    "type": "R44"
+  },
+  {
+    "type": "SERV"
+  },
+  {
+    "type": "SHIP"
+  },
+  {
+    "type": "VFHC"
+  },
+  {
+    "type": "L101"
+  },
+  {
+    "type": "B752",
+    "landingGearHideAboveFeetAGL": 1000
+  }
+]
