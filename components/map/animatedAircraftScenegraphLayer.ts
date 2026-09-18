@@ -71,15 +71,18 @@ interface RotorSpinInfo {
    * the point `spinRotors` rotates about instead of the node's raw
    * `[0,0,0]` origin. */
   pivot: [number, number, number];
-  /** Local unit axis to spin about — the bounding box's *shortest* extent.
-   * A propeller/rotor blade assembly is thin through its own shaft (the
-   * blades are flat, stacked along the shaft) and widest across the blade
-   * span — spinning about the shaft (shortest-extent) axis is what lets the
-   * blades sweep their full, widest possible disc, vs. spinning about a
-   * blade-span axis, which would tumble the blades end over end instead of
-   * spinning them in place. */
+  /** Local unit axis to spin about. Fixed-wing: always the fuselage
+   * (forward, local X) axis. Rotorcraft: the bounding box's *shortest*
+   * extent — a helicopter's main rotor disc is thin through its vertical
+   * mast and a tail rotor is thin through its lateral shaft, so the
+   * shortest-extent axis spins each in place on its own axis (vertical /
+   * sideways) without tumbling the blades end over end. */
   axis: [number, number, number];
 }
+
+// Vendored models' local fuselage-length (forward) axis — see the axis
+// convention note in aircraftLayer.ts's `getOrientation`.
+const FUSELAGE_AXIS: [number, number, number] = [1, 0, 0];
 
 /**
  * The "Rotors" node's own spin pivot + axis, cached per node the first time
@@ -98,7 +101,7 @@ interface RotorSpinInfo {
  */
 const rotorSpinInfoByNode = new WeakMap<ScenegraphNode, RotorSpinInfo>();
 
-function rotorSpinInfo(rotors: ScenegraphNode): RotorSpinInfo {
+function rotorSpinInfo(rotors: ScenegraphNode, rotorcraft: boolean): RotorSpinInfo {
   const cached = rotorSpinInfoByNode.get(rotors);
   if (cached) return cached;
 
@@ -108,22 +111,24 @@ function rotorSpinInfo(rotors: ScenegraphNode): RotorSpinInfo {
     const [min, max] = bounds;
     const pivot: [number, number, number] = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2];
     const extents = [max[0] - min[0], max[1] - min[1], max[2] - min[2]];
-    const shaftAxisIndex = extents.indexOf(Math.min(...extents));
-    const axis: [number, number, number] = [0, 0, 0];
-    axis[shaftAxisIndex] = 1;
+    let axis: [number, number, number] = FUSELAGE_AXIS;
+    if (rotorcraft) {
+      axis = [0, 0, 0];
+      axis[extents.indexOf(Math.min(...extents))] = 1;
+    }
     info = { pivot, axis };
   } else {
-    info = { pivot: [0, 0, 0], axis: [1, 0, 0] };
+    info = { pivot: [0, 0, 0], axis: FUSELAGE_AXIS };
   }
 
   rotorSpinInfoByNode.set(rotors, info);
   return info;
 }
 
-/** Rotates `rotors` by `spinDeg` about its own geometric center and shaft
- * axis (see `rotorSpinInfo`) rather than its raw node origin/a fixed axis. */
-function spinRotors(rotors: ScenegraphNode, spinDeg: number): void {
-  const { pivot, axis } = rotorSpinInfo(rotors);
+/** Rotates `rotors` by `spinDeg` about its own geometric center and spin
+ * axis (see `rotorSpinInfo`) rather than its raw node origin. */
+function spinRotors(rotors: ScenegraphNode, spinDeg: number, rotorcraft: boolean): void {
+  const { pivot, axis } = rotorSpinInfo(rotors, rotorcraft);
   const negatedPivot: [number, number, number] = [-pivot[0], -pivot[1], -pivot[2]];
   rotors.matrix.identity().translate(pivot).rotateAxis(spinDeg * DEG_TO_RAD, axis).translate(negatedPivot);
 }
@@ -141,6 +146,12 @@ interface AnimatedAircraftExtraProps {
    * when true, full scale when false. No-op for models with no such node.
    */
   gearHidden?: boolean;
+  /**
+   * True for helicopter models: rotors spin about their own shortest-extent
+   * (vertical/sideways) axis. False/omitted for fixed-wing: propellers and
+   * fans always spin about the fuselage axis.
+   */
+  rotorcraft?: boolean;
 }
 
 /**
@@ -171,7 +182,7 @@ export class AnimatedAircraftScenegraphLayer<DataT> extends ScenegraphLayer<
     const scenegraph = this.state.scenegraph;
     if (!scenegraph) return;
 
-    const { gearHidden } = this.props as ScenegraphLayerProps<DataT> & AnimatedAircraftExtraProps;
+    const { gearHidden, rotorcraft = false } = this.props as ScenegraphLayerProps<DataT> & AnimatedAircraftExtraProps;
 
     const allRotors = findAllNodesByPrefix(scenegraph, ROTOR_NODE_PREFIX);
     if (allRotors.length > 0) {
@@ -181,7 +192,7 @@ export class AnimatedAircraftScenegraphLayer<DataT> extends ScenegraphLayer<
       // actually changed, so the spin reads as continuous motion instead of
       // snapping ~143° at a time on a ~1s cadence.
       const spinDeg = (Date.now() * ROTOR_DEG_PER_MS) % 360;
-      for (const rotors of allRotors) spinRotors(rotors, spinDeg);
+      for (const rotors of allRotors) spinRotors(rotors, spinDeg, rotorcraft);
       this.setNeedsRedraw();
     }
 
