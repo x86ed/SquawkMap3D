@@ -282,7 +282,21 @@ export function PlaneCard({
         data-tier={rarityTier}
         style={scale !== 1 ? { transform: `scale(${scale})` } : undefined}
       >
-        <div className={styles.aircraftTierCard} data-material-tier={materialTierAttr(cardStats)}>
+        <div
+          className={styles.aircraftTierCard}
+          data-material-tier={materialTierAttr(cardStats)}
+          style={typeDesignator ? { cursor: "pointer" } : undefined}
+          onClick={(event) => {
+            if (!typeDesignator) return;
+            // Leave the feeder-UUID form (and any other control) alone.
+            if ((event.target as HTMLElement).closest("form, input, button, a")) return;
+            window.open(
+              `https://adsb.win/dashboard/aircraft/${encodeURIComponent(typeDesignator.trim().toUpperCase())}`,
+              "_blank",
+              "noopener,noreferrer",
+            );
+          }}
+        >
           <div className={styles.glowOrb} aria-hidden="true" />
           <div className={styles.scaledContent}>
             <div className={styles.headerRow}>
