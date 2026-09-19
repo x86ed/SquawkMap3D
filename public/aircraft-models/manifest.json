@@ -39,5 +39,8 @@
   {
     "type": "B752",
     "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "SF25"
   }
 ]
