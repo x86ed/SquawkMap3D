@@ -146,7 +146,18 @@ export function RecordPanelHero({
             <div className={styles.heading}>{registration ?? UNKNOWN}</div>
           )}
           <p className={styles.subline}>CALL // {callsign ?? UNKNOWN}</p>
-          <p className={styles.subline}>ICAO // {hex.toUpperCase()}</p>
+          <p className={styles.subline}>
+            ICAO //{" "}
+            <a
+              className={styles.sublineLink}
+              href={`https://adsb.win/aircraft/${encodeURIComponent(hex.toLowerCase())}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="View this aircraft on adsb.win"
+            >
+              {hex.toUpperCase()}
+            </a>
+          </p>
           <div className={styles.specGrid}>
             <SpecCell label="Manufacturer" value={manufacturer ?? UNKNOWN} />
             <SpecCell label="Model" value={model ?? UNKNOWN} />
