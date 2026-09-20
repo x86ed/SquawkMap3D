@@ -140,6 +140,10 @@ function spinRotors(rotors: ScenegraphNode, spinDeg: number, rotorcraft: boolean
 // feeder poll, which read as choppy/orbiting-looking at that step size.
 const ROTOR_DEG_PER_MS = 1 / 7;
 
+// Minimum brightness of a shaded surface, as a fraction of the aircraft's
+// tint color (see `getShaders` below).
+const SHADOW_FLOOR = 0.55;
+
 interface AnimatedAircraftExtraProps {
   /**
    * Scales the model's "Landing gear" node to zero (visually retracted)
@@ -172,6 +176,22 @@ export class AnimatedAircraftScenegraphLayer<DataT> extends ScenegraphLayer<
   AnimatedAircraftExtraProps
 > {
   static layerName = "AnimatedAircraftScenegraphLayer";
+
+  // PBR shading leaves surfaces facing away from the (fixed) scene light —
+  // e.g. the whole upper fuselage/wings when viewed from above — nearly
+  // black. Floor the lit result at a fraction of the aircraft's own tint
+  // (`vColor`, from `getColor`) so the model always reads in its assigned
+  // color while highlights and shading detail above the floor are kept.
+  override getShaders() {
+    const shaders = super.getShaders();
+    return {
+      ...shaders,
+      inject: {
+        ...shaders.inject,
+        "fs:#main-end": `fragColor.rgb = max(fragColor.rgb, vColor.rgb * ${SHADOW_FLOOR.toFixed(2)});`,
+      },
+    };
+  }
 
   override draw(opts: Parameters<ScenegraphLayer<DataT>["draw"]>[0]): void {
     this._applyNodeOverrides();
