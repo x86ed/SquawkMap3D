@@ -318,7 +318,9 @@ export function buildAircraftLayers(params: {
   // aircraft's rarity ring still stands out.
   const iconGlowLayer = new IconLayer<Aircraft & { lat: number; lon: number }>({
     id: AIRCRAFT_ICON_GLOW_LAYER_ID,
-    data: iconOnlyPositioned,
+    // `positioned`, not `iconOnlyPositioned`: 3D-modeled aircraft glow too
+    // (same blurred silhouette halo, drawn beneath the mesh).
+    data: positioned,
     iconAtlas: iconAtlas.image,
     iconMapping: iconAtlas.mapping,
     getIcon: (d) => glowIconKey(resolveIconKey(d).key),
