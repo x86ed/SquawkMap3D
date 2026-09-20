@@ -327,7 +327,7 @@ export function buildAircraftLayers(params: {
     getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
     getAngle: (d) => -(d.track ?? 0),
     getColor: (d) => {
-      const [r, g, b] = brightenColor(resolveAircraftColor(d, colorMode), AIRCRAFT_GLOW_BRIGHTEN_AMOUNT);
+      const [r, g, b] = resolveAircraftColor(d, colorMode);
       return [r, g, b, AIRCRAFT_ICON_GLOW_ALPHA];
     },
     getSize: AIRCRAFT_ICON_GLOW_SIZE_PIXELS,

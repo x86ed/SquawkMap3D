@@ -189,7 +189,7 @@ export const AIRCRAFT_GLOW_BRIGHTEN_AMOUNT = 0.4;
 // crisp icon so the pre-baked blur reads as a halo around it rather than
 // being hidden underneath.
 export const AIRCRAFT_ICON_GLOW_SIZE_PIXELS = 64;
-export const AIRCRAFT_ICON_GLOW_ALPHA = 90;
+export const AIRCRAFT_ICON_GLOW_ALPHA = 55;
 export const AIRCRAFT_TRACK_GLOW_WIDTH_PIXELS = 6;
 export const AIRCRAFT_TRACK_GLOW_ALPHA = 90;
 
