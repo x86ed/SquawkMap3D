@@ -11,7 +11,7 @@ import {
   ROTOR_ACCENT_KEY,
   type IconAtlas,
 } from "./aircraftIcons";
-import { landingGearHideThresholdFeet, resolveModelKey, resolveModelScenegraph } from "./aircraftModels";
+import { isRotorcraftModel, landingGearHideThresholdFeet, resolveModelKey, resolveModelScenegraph } from "./aircraftModels";
 import { AnimatedAircraftScenegraphLayer } from "./animatedAircraftScenegraphLayer";
 import {
   AIRCRAFT_GLOW_BRIGHTEN_AMOUNT,
@@ -205,6 +205,7 @@ export function buildAircraftLayers(params: {
       id: `${AIRCRAFT_MODEL_LAYER_ID}-${modelKey}-${gearHidden}`,
       data,
       gearHidden,
+      rotorcraft: isRotorcraftModel(modelKey),
       scenegraph,
       getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
       // The vendored B738.glb's own local axes (confirmed by inspecting its
