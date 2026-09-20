@@ -27,7 +27,7 @@ import {
 } from "./aircraft";
 import { buildAircraftIconAtlas, type ColorMode, type IconAtlas } from "./aircraftIcons";
 import { loadAircraftModelManifest } from "./aircraftModels";
-import { buildAircraftLayers } from "./aircraftLayer";
+import { altitudeToRenderMeters, buildAircraftLayers } from "./aircraftLayer";
 import { computeRarityTier, RARITY_TIER_STYLES } from "./aircraftRarity";
 import { buildSelectionPulseLayer, type SelectionPulseTarget } from "./selectionPulse";
 import { AircraftColorDock } from "./controls/AircraftColorDock";
@@ -308,9 +308,35 @@ export default function MapView() {
   // the target's screen position, in pixels, from the canvas's true center;
   // shifting left by half the drawer's occupied width lands the aircraft at
   // the center of the *visible* remaining area instead.
-  const getAircraftFocusOffset = (): [number, number] => {
+  //
+  // Vertically: the plane drawer (AircraftOverlay.module.css's `.drawer`,
+  // 45vh, or 80vh at <=760px wide) covers the bottom of the canvas while an
+  // aircraft is selected, so the visible area's center sits half a drawer
+  // height above the canvas center. On top of that the aircraft renders at
+  // its real altitude, so under camera pitch it appears above its own
+  // ground [lon, lat] by roughly `altitude * sin(pitch) / metersPerPixel`
+  // (MapLibre's 512px-tile ground resolution, cos(lat)-corrected) — the
+  // ground point has to be shifted down by that much for the aircraft
+  // itself, not its shadow, to land at the visible center.
+  const getAircraftFocusOffset = (
+    lat: number,
+    altitudeFt: number | undefined,
+  ): [number, number] => {
     const occupiedWidth = drawerOpenRef.current ? layerDrawerWidthRef.current : 0;
-    return [-occupiedWidth / 2, 0];
+    const map = mapRef.current;
+    const drawerHeight =
+      selectedAircraftHexRef.current !== null
+        ? window.innerHeight * (window.innerWidth <= 760 ? 0.8 : 0.45)
+        : 0;
+    let altitudePixels = 0;
+    if (map) {
+      const metersPerPixel =
+        (78271.517 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, map.getZoom());
+      altitudePixels =
+        (altitudeToRenderMeters(altitudeFt) * Math.sin((map.getPitch() * Math.PI) / 180)) /
+        metersPerPixel;
+    }
+    return [-occupiedWidth / 2, -drawerHeight / 2 + altitudePixels];
   };
 
   const handleAircraftClick = (hex: string | null, picked?: Aircraft) => {
@@ -354,7 +380,7 @@ export default function MapView() {
       ) {
         mapRef.current.easeTo({
           center: [picked.lon, picked.lat],
-          offset: getAircraftFocusOffset(),
+          offset: getAircraftFocusOffset(picked.lat, picked.altitude),
           duration: FOLLOW_SELECTED_AIRCRAFT_EASE_MS,
         });
       }
@@ -434,7 +460,7 @@ export default function MapView() {
     ) {
       mapRef.current.easeTo({
         center: [selected.lon, selected.lat],
-        offset: getAircraftFocusOffset(),
+        offset: getAircraftFocusOffset(selected.lat, selected.altitude),
         duration: FOLLOW_SELECTED_AIRCRAFT_EASE_MS,
       });
     }

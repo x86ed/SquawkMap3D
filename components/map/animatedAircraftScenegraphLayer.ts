@@ -142,7 +142,7 @@ const ROTOR_DEG_PER_MS = 1 / 7;
 
 // Minimum brightness of a shaded surface, as a fraction of the aircraft's
 // tint color (see `getShaders` below).
-const SHADOW_FLOOR = 0.55;
+const SHADOW_FLOOR = 0.25;
 
 interface AnimatedAircraftExtraProps {
   /**
