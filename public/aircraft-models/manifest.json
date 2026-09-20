@@ -33,6 +33,13 @@
     "type": "VFHC"
   },
   {
+    "type": "BALL"
+  },
+  {
+    "type": "F16",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
     "type": "L101",
     "landingGearHideAboveFeetAGL": 1000
   },

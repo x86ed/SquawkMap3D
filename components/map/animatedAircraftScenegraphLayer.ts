@@ -182,13 +182,15 @@ export class AnimatedAircraftScenegraphLayer<DataT> extends ScenegraphLayer<
   // black. Floor the lit result at a fraction of the aircraft's own tint
   // (`vColor`, from `getColor`) so the model always reads in its assigned
   // color while highlights and shading detail above the floor are kept.
+  // Skipped during the picking pass, where `fragColor` carries the
+  // object-id color and must not be altered (else clicks stop registering).
   override getShaders() {
     const shaders = super.getShaders();
     return {
       ...shaders,
       inject: {
         ...shaders.inject,
-        "fs:#main-end": `fragColor.rgb = max(fragColor.rgb, vColor.rgb * ${SHADOW_FLOOR.toFixed(2)});`,
+        "fs:#main-end": `if (!bool(picking.isActive)) { fragColor.rgb = max(fragColor.rgb, vColor.rgb * ${SHADOW_FLOOR.toFixed(2)}); }`,
       },
     };
   }
