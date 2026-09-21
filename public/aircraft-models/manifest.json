@@ -57,5 +57,11 @@
   {
     "type": "B38M",
     "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "AS35"
+  },
+  {
+    "type": "AS50"
   }
 ]

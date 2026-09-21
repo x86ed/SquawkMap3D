@@ -129,7 +129,7 @@ export function resolveModelKey(aircraft: Aircraft): string | undefined {
 
 /** Model keys whose vendored .glb is a helicopter — their "Rotors" nodes
  * spin about a vertical/sideways axis rather than the fuselage axis. */
-const ROTORCRAFT_MODEL_KEYS = new Set(["R44", "H60"]);
+const ROTORCRAFT_MODEL_KEYS = new Set(["R44", "H60", "AS35", "AS50"]);
 
 export const isRotorcraftModel = (modelKey: string): boolean => ROTORCRAFT_MODEL_KEYS.has(modelKey);
 
