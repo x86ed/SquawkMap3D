@@ -49,5 +49,13 @@
   },
   {
     "type": "SF25"
+  },
+  {
+    "type": "A320",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "B38M",
+    "landingGearHideAboveFeetAGL": 1000
   }
 ]
