@@ -74,5 +74,9 @@
   {
     "type": "A321",
     "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "B77W",
+    "landingGearHideAboveFeetAGL": 1000
   }
 ]
