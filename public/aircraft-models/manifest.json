@@ -63,5 +63,12 @@
   },
   {
     "type": "AS50"
+  },
+  {
+    "type": "A21N",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "A20N"
   }
 ]
