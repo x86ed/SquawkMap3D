@@ -86,5 +86,8 @@
   {
     "type": "B789",
     "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "P28A"
   }
 ]
