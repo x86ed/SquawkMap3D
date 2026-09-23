@@ -78,5 +78,13 @@
   {
     "type": "B77W",
     "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "A388",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "B789",
+    "landingGearHideAboveFeetAGL": 1000
   }
 ]
