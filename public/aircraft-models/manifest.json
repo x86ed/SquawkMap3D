@@ -103,5 +103,13 @@
   },
   {
     "type": "SR22"
+  },
+  {
+    "type": "A319",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "B77L",
+    "landingGearHideAboveFeetAGL": 1000
   }
 ]
