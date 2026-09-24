@@ -93,5 +93,9 @@
   {
     "type": "A359",
     "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "A333",
+    "landingGearHideAboveFeetAGL": 1000
   }
 ]
