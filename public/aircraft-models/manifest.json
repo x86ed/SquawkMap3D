@@ -89,5 +89,9 @@
   },
   {
     "type": "P28A"
+  },
+  {
+    "type": "A359",
+    "landingGearHideAboveFeetAGL": 1000
   }
 ]
