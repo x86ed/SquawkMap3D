@@ -97,5 +97,8 @@
   {
     "type": "A333",
     "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "C150"
   }
 ]
