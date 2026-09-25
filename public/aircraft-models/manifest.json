@@ -119,5 +119,9 @@
   {
     "type": "E75L",
     "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "A339",
+    "landingGearHideAboveFeetAGL": 1000
   }
 ]
