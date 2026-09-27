@@ -36,6 +36,7 @@ import { ColorModeLegendDock } from "./overlay/ColorModeLegendDock";
 import { getCachedFlightRoute, clearFlightRouteCache, type FlightRoute } from "./flightRoute";
 import { getCachedAircraftModelCard, type AircraftModelCardResult } from "./overlay/aircraftModelCard";
 import { getStoredFeederUuid } from "./overlay/feederUuid";
+import { autoDiscoverFeederUuidIfUnset } from "./overlay/feederUuidDiscovery";
 import {
   buildSelectedAircraftInfo,
   type SelectedAircraftInfo,
@@ -633,6 +634,14 @@ export default function MapView() {
       moveRangeOutlineBelowAirports(mapRef.current);
     }
   };
+
+  // Auto-populates the adsb.win feeder UUID from the feeder box's own admin
+  // UI on first load (design.md's Decision 4, auto-load-feeder-uuid) — runs
+  // once, only when nothing is stored yet, and never overwrites a value the
+  // user already has (manually entered or previously autodiscovered).
+  useEffect(() => {
+    void autoDiscoverFeederUuidIfUnset();
+  }, []);
 
   useEffect(() => {
     if (!containerRef.current) return;
