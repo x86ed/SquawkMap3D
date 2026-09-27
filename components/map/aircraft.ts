@@ -111,10 +111,15 @@ interface RawAircraftJson {
 
 const variantsByRegistration = aircraftVariantsByRegistration as Record<string, string>;
 
-/** The vendored variant key for `registration` (case-insensitive), or
- * `undefined` when unset/unmatched — see `Aircraft.variant`. */
-function resolveVariant(registration: string | undefined): string | undefined {
-  return registration ? variantsByRegistration[registration.toUpperCase()] : undefined;
+/** The vendored variant key for `registration` (case-insensitive) in
+ * `variants`, or `undefined` when unset/unmatched — see `Aircraft.variant`.
+ * Takes `variants` as a parameter (rather than closing over the real
+ * dataset directly) so tests can exercise matching against a small fixture
+ * table without needing entries seeded into the real, curated
+ * `aircraftVariants.json`; `normalize` below is the real call site, using
+ * the real dataset. */
+export function resolveVariant(registration: string | undefined, variants: Record<string, string>): string | undefined {
+  return registration ? variants[registration.toUpperCase()] : undefined;
 }
 
 function normalize(raw: NonNullable<RawAircraftJson["aircraft"]>[number]): Aircraft | null {
@@ -133,7 +138,7 @@ function normalize(raw: NonNullable<RawAircraftJson["aircraft"]>[number]): Aircr
     category: raw.category,
     typeDesignator: raw.t?.trim() || undefined,
     registration,
-    variant: resolveVariant(registration),
+    variant: resolveVariant(registration, variantsByRegistration),
     manufacturerModel: raw.desc?.trim() || undefined,
     operator: raw.ownOp?.trim() || undefined,
     year: raw.year?.trim() || undefined,

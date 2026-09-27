@@ -11,7 +11,13 @@ import {
   ROTOR_ACCENT_KEY,
   type IconAtlas,
 } from "./aircraftIcons";
-import { isRotorcraftModel, landingGearHideThresholdFeet, resolveModelKey, resolveModelScenegraph } from "./aircraftModels";
+import {
+  isRotorcraftModel,
+  landingGearHideThresholdFeet,
+  resolveModelKey,
+  resolveModelScenegraph,
+  resolveVariantModelKey,
+} from "./aircraftModels";
 import { AnimatedAircraftScenegraphLayer } from "./animatedAircraftScenegraphLayer";
 import {
   AIRCRAFT_GLOW_BRIGHTEN_AMOUNT,
@@ -180,9 +186,10 @@ export function buildAircraftLayers(params: {
   const modeledByGroup = new Map<string, { scenegraph: unknown; data: (Aircraft & { lat: number; lon: number })[] }>();
   const iconOnlyPositioned: (Aircraft & { lat: number; lon: number })[] = [];
   for (const d of positioned) {
-    const modelKey = resolveModelKey(d);
-    const hideThreshold = landingGearHideThresholdFeet(modelKey);
+    const baseModelKey = resolveModelKey(d);
+    const hideThreshold = landingGearHideThresholdFeet(baseModelKey);
     const gearHidden = hideThreshold !== undefined && (d.altitude ?? 0) > hideThreshold;
+    const modelKey = baseModelKey ? resolveVariantModelKey(baseModelKey, d.variant) : undefined;
     const scenegraph = modelKey ? resolveModelScenegraph(modelKey, gearHidden) : null;
     if (scenegraph && modelKey) {
       const key = `${modelKey}|${gearHidden}`;

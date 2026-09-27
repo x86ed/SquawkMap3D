@@ -18,6 +18,10 @@ export interface PlaneCardProps {
   /** ADS-B emitter category — passed straight through to `getAircraftShape`
    * as its coarse fallback when `typeDesignator` isn't available. */
   category?: string;
+  /** Variant key (see `Aircraft.variant`) — passed straight through to
+   * `getAircraftShape` to prefer a vendored variant silhouette over the
+   * resolved type/category's default one. */
+  variant?: string;
   manufacturerModel?: string;
   rarityTier: RarityTier;
   /**
@@ -218,11 +222,12 @@ function renderStatRegion(cardStats: AircraftModelCardResult | undefined) {
 export function PlaneCard({
   typeDesignator,
   category,
+  variant,
   manufacturerModel,
   rarityTier,
   cardStats,
 }: PlaneCardProps) {
-  const shape = getAircraftShape(typeDesignator, category);
+  const shape = getAircraftShape(typeDesignator, category, variant);
   const viewBox = useTightAircraftShapeViewBox(shape);
   const { manufacturer, model } = splitManufacturerModel(manufacturerModel);
 

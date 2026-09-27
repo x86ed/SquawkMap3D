@@ -95,6 +95,7 @@ export function AircraftOverlay({
                   <PlaneCard
                     typeDesignator={info.typeDesignator}
                     category={info.category}
+                    variant={info.variant}
                     manufacturerModel={info.manufacturerModel}
                     rarityTier={info.rarityTier}
                     cardStats={info.cardStats}

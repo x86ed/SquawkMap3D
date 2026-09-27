@@ -10,6 +10,9 @@ interface AircraftModelManifestEntry {
    * `scripts/generate-aircraft-models-manifest.mjs`. Omitted for models
    * with no "Landing gear" node. */
   landingGearHideAboveFeetAGL?: number;
+  /** Variant keys (e.g. "FLOATS") with a vendored `<type>-<variant>.glb`
+   * sibling to this entry's default model — see `resolveVariantModelKey`. */
+  variants?: string[];
 }
 
 /**
@@ -71,11 +74,18 @@ function scenegraphGroupKey(typeDesignator: string, gearHidden: boolean): string
  * already-resolved object every time sidesteps that race entirely.
  */
 async function preloadModelScenegraphs(entries: AircraftModelManifestEntry[]): Promise<void> {
+  // Each entry's own vendored variants (e.g. C182's "FLOATS") preload as
+  // additional (type, gearHidden) pairs under their composite
+  // `${type}-${variant}` key, inheriting the base entry's gear threshold —
+  // there's no separate per-variant threshold in the manifest (see
+  // AircraftModelManifestEntry).
   const variants = entries.flatMap((entry) =>
-    [false, entry.landingGearHideAboveFeetAGL !== undefined].map((gearHidden) => ({
-      type: entry.type,
-      gearHidden,
-    })),
+    [entry.type, ...(entry.variants ?? []).map((v) => `${entry.type}-${v}`)].flatMap((type) =>
+      [false, entry.landingGearHideAboveFeetAGL !== undefined].map((gearHidden) => ({
+        type,
+        gearHidden,
+      })),
+    ),
   );
   await Promise.all(
     variants.map(async ({ type, gearHidden }) => {
@@ -131,7 +141,25 @@ export function resolveModelKey(aircraft: Aircraft): string | undefined {
  * spin about a vertical/sideways axis rather than the fuselage axis. */
 const ROTORCRAFT_MODEL_KEYS = new Set(["R44", "H60", "AS35", "AS50"]);
 
-export const isRotorcraftModel = (modelKey: string): boolean => ROTORCRAFT_MODEL_KEYS.has(modelKey);
+/** `modelKey` with any `-<VARIANT>` suffix stripped, back to the base type
+ * designator/category-fallback key — type designators never contain a
+ * dash, so splitting on the first one is unambiguous. */
+const baseModelKey = (modelKey: string): string => modelKey.split("-")[0];
+
+export const isRotorcraftModel = (modelKey: string): boolean => ROTORCRAFT_MODEL_KEYS.has(baseModelKey(modelKey));
+
+/**
+ * Narrows `modelKey` (the result of `resolveModelKey`, i.e. already
+ * exact-type-or-category-fallback resolved) to its variant-specific model
+ * key when `variant` is set and vendored for that key, else returns
+ * `modelKey` unchanged. Independent of, and applied after, the
+ * exact/category-fallback resolution `resolveModelKey` already does.
+ */
+export function resolveVariantModelKey(modelKey: string, variant: string | undefined): string {
+  if (!variant) return modelKey;
+  const hasVariant = modelInfoByTypeDesignator.get(modelKey)?.variants?.includes(variant);
+  return hasVariant ? `${modelKey}-${variant}` : modelKey;
+}
 
 /** Whether `aircraft` has a vendored 3D model, either its own exact type or
  * (see `resolveModelKey`) its category's fallback type. */

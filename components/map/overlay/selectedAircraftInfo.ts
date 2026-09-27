@@ -34,6 +34,10 @@ export interface SelectedAircraftInfo {
    * designator isn't available, rather than always falling back to the
    * bare "Unidentified" shape. */
   category?: string;
+  /** Variant key (see `Aircraft.variant`) — passed through to
+   * `aircraftShapes.ts` to prefer a vendored variant silhouette over the
+   * resolved type/category's default one. */
+  variant?: string;
   manufacturerModel?: string;
   operator?: string;
   year?: string;
@@ -93,6 +97,7 @@ export function buildSelectedAircraftInfo(
     registration: aircraft.registration,
     typeDesignator: aircraft.typeDesignator,
     category: aircraft.category,
+    variant: aircraft.variant,
     manufacturerModel: aircraft.manufacturerModel,
     operator: aircraft.operator,
     year: aircraft.year,

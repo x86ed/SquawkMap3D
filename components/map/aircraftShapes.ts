@@ -68,14 +68,42 @@ export const CATEGORY_FALLBACK_KEY: Record<string, string> = {
   B2: "BALL", // lighter-than-air
 };
 
-/** The vendored silhouette for `typeDesignator`, its emitter-`category`'s
- * representative shape when the exact type isn't available, or the shape
- * set's own "Unidentified aircraft" fallback when neither is. */
-export function getAircraftShape(typeDesignator: string | undefined, category?: string): AircraftShape {
-  const exact = typeDesignator && manifest[typeDesignator.toUpperCase()];
-  if (exact) return exact;
-
+/**
+ * The vendored silhouette for `typeDesignator`, its emitter-`category`'s
+ * representative shape when the exact type isn't available, or `shapes`'
+ * own "Unidentified aircraft" fallback when neither is. When `variant` is
+ * set and a vendored `<resolvedKey>-<variant>` shape exists, it is
+ * preferred over the resolved key's default shape — independently of, and
+ * narrowing, whichever key (exact type or category fallback) was already
+ * going to be used.
+ *
+ * Takes `shapes` as a parameter (rather than closing over the real
+ * manifest directly) so tests can exercise variant resolution against a
+ * small fixture manifest without needing fixture entries vendored into the
+ * real, generator-owned `aircraftShapes.json` — `getAircraftShape` below is
+ * the real entry point, calling this with that real manifest.
+ */
+export function resolveAircraftShape(
+  shapes: Record<string, AircraftShape>,
+  typeDesignator: string | undefined,
+  category?: string,
+  variant?: string,
+): AircraftShape {
+  const exactKey = typeDesignator?.toUpperCase();
   const fallbackKey = category && CATEGORY_FALLBACK_KEY[category.toUpperCase()];
-  const byCategory = fallbackKey && manifest[fallbackKey];
-  return byCategory || manifest[UNIDENTIFIED_KEY];
+  const resolvedKey = exactKey && shapes[exactKey] ? exactKey : fallbackKey && shapes[fallbackKey] ? fallbackKey : undefined;
+
+  if (!resolvedKey) return shapes[UNIDENTIFIED_KEY];
+  const byVariant = variant && shapes[`${resolvedKey}-${variant.toUpperCase()}`];
+  return byVariant || shapes[resolvedKey];
+}
+
+/** See `resolveAircraftShape` — this is the real entry point, resolving
+ * against the actual vendored shape manifest. */
+export function getAircraftShape(
+  typeDesignator: string | undefined,
+  category?: string,
+  variant?: string,
+): AircraftShape {
+  return resolveAircraftShape(manifest, typeDesignator, category, variant);
 }

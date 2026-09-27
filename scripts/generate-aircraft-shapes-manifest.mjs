@@ -82,6 +82,10 @@ const manifest = {};
 for (const file of files) {
   const base = file.slice(0, -4); // strip ".svg"
   if (base.endsWith("-fast")) continue; // skip; "-slow" variant wins below (no live wing-sweep telemetry to pick between them)
+  // A vendored `<type>-<variant>.svg` (e.g. c182-floats.svg) naturally
+  // uppercases to the composite `TYPE-VARIANT` key aircraftShapes.ts's
+  // variant resolution looks up — no separate variant list needed, since
+  // this manifest's keys already double as an existence check.
   const key = (base.endsWith("-slow") ? base.slice(0, -5) : base).toUpperCase();
   manifest[key] = extractShape(path.join(shapesDir, file));
 }
