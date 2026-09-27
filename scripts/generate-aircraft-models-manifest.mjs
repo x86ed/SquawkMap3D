@@ -5,13 +5,18 @@
 // "no directory-listing API for Next's public/" reason
 // generate-aircraft-shapes-manifest.mjs writes one for the 2D SVG shapes.
 //
-// Each manifest entry is `{ type, landingGearHideAboveFeetAGL? }` rather
-// than a bare type string — `landingGearHideAboveFeetAGL` is read straight
-// out of the glTF's own "Landing gear" node (`node.extras.landingGear.
-// hideAboveFeetAGL`, e.g. B738.glb) when the model has one, so
+// Each manifest entry is `{ type, landingGearHideAboveFeetAGL?, variants? }`
+// rather than a bare type string — `landingGearHideAboveFeetAGL` is read
+// straight out of the glTF's own "Landing gear" node (`node.extras.
+// landingGear.hideAboveFeetAGL`, e.g. B738.glb) when the model has one, so
 // aircraftLayer.ts knows which modeled types need their gear-visibility
 // split without loading/parsing the .glb itself. Omitted for models with no
 // "Landing gear" node.
+//
+// A vendored `<TYPE>-<VARIANT>.glb` (e.g. C182-FLOATS.glb) is recorded as a
+// `variants` entry on its base `<TYPE>`'s manifest entry, keyed by the
+// dash-separated suffix, rather than becoming a manifest entry of its own
+// — see aircraftModels.ts's variant resolution.
 //
 // Not part of `npm run build`/CI — re-run manually and re-commit the output
 // (both the copied .glb files and manifest.json) whenever aircraft/model/
@@ -45,15 +50,33 @@ function readGlbJsonChunk(filePath) {
   return JSON.parse(jsonBytes.toString("utf8"));
 }
 
+const names = files.map((file) => file.replace(/\.glb$/, "").toUpperCase());
+const baseTypes = new Set(names.filter((n) => !n.includes("-")));
+
+const variantsByType = new Map();
+for (const name of names) {
+  const dashIndex = name.indexOf("-");
+  if (dashIndex === -1) continue;
+  const baseType = name.slice(0, dashIndex);
+  const variant = name.slice(dashIndex + 1);
+  if (!baseTypes.has(baseType)) continue; // orphan variant, no base model to attach to
+  const variants = variantsByType.get(baseType) ?? [];
+  variants.push(variant);
+  variantsByType.set(baseType, variants);
+}
+
 const manifest = files
+  .filter((file) => !file.replace(/\.glb$/, "").toUpperCase().includes("-"))
   .map((file) => {
     const typeDesignator = file.replace(/\.glb$/, "").toUpperCase();
     const gltf = readGlbJsonChunk(path.join(sourceDir, file));
     const landingGearNode = gltf.nodes?.find((n) => n.name === "Landing gear");
     const hideAboveFeetAGL = landingGearNode?.extras?.landingGear?.hideAboveFeetAGL;
+    const variants = variantsByType.get(typeDesignator);
     return {
       type: typeDesignator,
       ...(typeof hideAboveFeetAGL === "number" ? { landingGearHideAboveFeetAGL: hideAboveFeetAGL } : {}),
+      ...(variants ? { variants: variants.sort() } : {}),
     };
   })
   .sort((a, b) => a.type.localeCompare(b.type));

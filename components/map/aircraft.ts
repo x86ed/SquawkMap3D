@@ -1,4 +1,5 @@
 import { AIRCRAFT_TRACK_RETENTION_MS, getFeederUrl } from "./constants";
+import aircraftVariantsByRegistration from "./data/aircraftVariants.json";
 
 /**
  * Normalized aircraft state, mapped from a feeder's aircraft.json entry.
@@ -33,6 +34,12 @@ export interface Aircraft {
    * feeder loads a tar1090-db aircraft.csv.gz — same optional treatment as
    * `typeDesignator`. */
   registration?: string;
+  /** Variant key (e.g. "FLOATS", "FREIGHTER"), resolved from `registration`
+   * against `data/aircraftVariants.json` — not a feeder field; ADS-B carries
+   * no variant of its own. Narrows model/shape resolution (see
+   * `aircraftModels.ts`/`aircraftShapes.ts`) when a variant-specific asset
+   * is vendored, else those fall back to the type's default asset. */
+  variant?: string;
   /** Manufacturer/model description string (readsb's `desc`). */
   manufacturerModel?: string;
   /** Operator name (readsb's `ownOp`). */
@@ -102,8 +109,17 @@ interface RawAircraftJson {
   }>;
 }
 
+const variantsByRegistration = aircraftVariantsByRegistration as Record<string, string>;
+
+/** The vendored variant key for `registration` (case-insensitive), or
+ * `undefined` when unset/unmatched — see `Aircraft.variant`. */
+function resolveVariant(registration: string | undefined): string | undefined {
+  return registration ? variantsByRegistration[registration.toUpperCase()] : undefined;
+}
+
 function normalize(raw: NonNullable<RawAircraftJson["aircraft"]>[number]): Aircraft | null {
   if (!raw.hex) return null;
+  const registration = raw.r?.trim() || undefined;
   return {
     hex: raw.hex,
     callsign: raw.flight?.trim() || undefined,
@@ -116,7 +132,8 @@ function normalize(raw: NonNullable<RawAircraftJson["aircraft"]>[number]): Aircr
     squawk: raw.squawk,
     category: raw.category,
     typeDesignator: raw.t?.trim() || undefined,
-    registration: raw.r?.trim() || undefined,
+    registration,
+    variant: resolveVariant(registration),
     manufacturerModel: raw.desc?.trim() || undefined,
     operator: raw.ownOp?.trim() || undefined,
     year: raw.year?.trim() || undefined,
