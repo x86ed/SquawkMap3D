@@ -633,7 +633,7 @@
 .shapeIcon {
   flex-shrink: 0;
   width: clamp(72px, 32cqmin, 140px);
-  height: clamp(72px, 32cqmin, 140px);
+  aspect-ratio: 1;
   color: var(--rarity-color);
   filter: drop-shadow(0 0 3px var(--rarity-glow));
 }
