@@ -10,7 +10,7 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  padding: 10px 20px 20px;
+  padding: 10px 20px 8px;
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--text);
   background: linear-gradient(180deg, var(--panel-2), var(--panel) 62%, var(--panel-2));
@@ -70,19 +70,20 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  /* `PlaneCard` renders at a fixed intrinsic 320px width (portrait trading-
-     card proportions, see PlaneCard.module.css), not a fluid one — giving
-     its column a matching `minmax(0, 320px)` track, with zero slack past
-     the card's own real width, instead of a `1fr` share means it never
-     claims more width than it can actually use and leaves no dead gutter
-     between the card and `.hero`; hero/flightInfo split what card no
-     longer needs, at their prior 1.4:1 ratio to each other. The card's own
-     aspect ratio is untouched by this track's width — `.aircraftRarityFrame`
-     stays a fixed 320px with auto (content-driven) height, uniformly
-     contain-scaled into whatever this track/row actually gives it (see
-     PlaneCard.tsx's ResizeObserver), so tightening the track only removes
-     unused space; it can never distort the card. */
-  grid-template-columns: minmax(0, 320px) 1.4fr 1fr;
+  /* `PlaneCard` sizes itself from the row's own height (`height: 100%` +
+     `aspect-ratio: 5 / 7`, capped at a 320px max-width — see
+     PlaneCard.module.css), rather than always rendering at a fixed 320px
+     width regardless of how tall row 1 actually is. `--card-col-width`
+     (set by AircraftOverlay.tsx's ResizeObserver, computed from row 1's own
+     known height — this grid's total height minus the marquee row and row
+     gap) reflects that same derived width, so this column never reserves
+     more horizontal space than the card can actually use at its current
+     height. A CSS-only `auto` track was tried here first and doesn't work:
+     grid column auto-sizing doesn't account for a stretched item's
+     `aspect-ratio`-derived width, and collapses the track to 0 instead —
+     JS must compute and hand it this pixel value directly. Defaults to
+     320px (this card's max) before the first measurement runs. */
+  grid-template-columns: var(--card-col-width, 320px) 1.4fr 1fr;
   /* Row 1 (card/hero/flightInfo) claims all height not needed by the
      marquee's own compact, fixed-height ticker strip — rather than a fixed
      80/20 split, the card and flight-info graph get proportionally larger
@@ -145,14 +146,19 @@
 /* Bleeds past the drawer's own side padding and tucks up underneath row
    1's bottom edge (negative margin-top beyond the grid's 16px row gap,
    z-index:1 under card/hero/flightInfo's z-index:2) rather than sitting in
-   its own clean, fully-separate strip. */
+   its own clean, fully-separate strip. A stretch-aligned grid item's used
+   height is (track size βˆ’ its own margin-block); a *negative* top margin
+   here therefore makes this item render *taller* than its 44px row track by
+   that same amount, not just repositioned — trimmed from -24px to -8px
+   (was rendering ~68px tall, mostly empty space below the single line of
+   ticker text, read as "too thick"/"padding at the bottom"). */
 .marquee {
   grid-area: marquee;
   position: relative;
   z-index: 1;
   min-width: 0;
   min-height: 0;
-  margin: -24px -20px 0;
+  margin: -8px -20px 0;
   /* Lets the marquee's own font-size/spacing scale off `cqw` — the strip's
      actual rendered width — so it reads as adaptive on a narrow drawer
      instead of staying pinned to its desktop-width font size. */
