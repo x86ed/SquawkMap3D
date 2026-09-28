@@ -56,21 +56,21 @@ The compass card's 3D model input SHALL resolve from a registry keyed by the sel
 - **WHEN** the selected aircraft's ICAO type designator has no registered compass-card model
 - **THEN** the compass card renders the shared default/generic stand-in model rather than a blank or broken scene
 
-### Requirement: Compass card's credit HUD is replaced by a "create a model" call-to-action for unauthored models
-When the compass card's resolved model is the default/generic stand-in, or a registered model with no recorded modeler credit, the card's built-in bottom-right credit HUD SHALL be replaced with a "Create a model for this aircraft?" call-to-action linking out to the configured model CRUD endpoint (per the `aircraft-record-edit-links` capability) for that type. When the resolved model has a recorded modeler credit, the card's own built-in credit HUD (modeler name/profile link) SHALL be shown unmodified.
+### Requirement: Compass card's built-in credit HUD shows a "create a model" call-to-action for unauthored models
+The compass card kind's own built-in bottom-right credit HUD SHALL show a "+ Add a model"-style call-to-action linking to the configured model CRUD endpoint (per the `aircraft-record-edit-links` capability) whenever the resolved model — the default/generic stand-in, or a registered model with no recorded modeler credit — has no modeler name/profile URL, by supplying that CRUD URL as the model input's call-to-action URL rather than by modifying the card's rendered output after the fact. When the resolved model has a recorded modeler credit, the card's built-in credit HUD SHALL show that credit (modeler name/profile link) instead.
 
 #### Scenario: Authored model shows its own credit
 - **WHEN** the compass card's resolved model has a recorded modeler name and profile URL
-- **THEN** the card's bottom-right HUD shows that modeler's credit link, unmodified from the card's own default rendering
+- **THEN** the card's bottom-right HUD shows that modeler's credit link
 
 #### Scenario: Default stand-in model shows the create-a-model CTA
-- **WHEN** the compass card is rendering the default/generic stand-in model (no registry entry for the type)
-- **THEN** the card's bottom-right HUD area shows a "Create a model for this aircraft?" call-to-action linking to the configured model CRUD endpoint, instead of a credit link
+- **WHEN** the compass card is rendering the default/generic stand-in model (no registry entry for the type) and the model CRUD endpoint is configured
+- **THEN** the card's bottom-right HUD area shows a "create a model" call-to-action linking to the configured model CRUD endpoint, instead of a credit link
 
 #### Scenario: Registered model with no recorded credit shows the create-a-model CTA
-- **WHEN** the compass card's resolved model is a registry entry that has no recorded modeler name or profile URL
-- **THEN** the card's bottom-right HUD area shows the same "Create a model for this aircraft?" call-to-action, instead of a blank or broken credit link
+- **WHEN** the compass card's resolved model is a registry entry that has no recorded modeler name or profile URL, and the model CRUD endpoint is configured
+- **THEN** the card's bottom-right HUD area shows the same "create a model" call-to-action, instead of a blank or broken credit link
 
 #### Scenario: CTA is omitted when the model CRUD endpoint is not configured
 - **WHEN** the compass card would otherwise show the "create a model" call-to-action, and no model CRUD endpoint URL is configured
-- **THEN** the HUD area renders with no credit link and no call-to-action, rather than a link to nowhere
+- **THEN** the HUD area renders an unlinked placeholder, with no call-to-action link to nowhere

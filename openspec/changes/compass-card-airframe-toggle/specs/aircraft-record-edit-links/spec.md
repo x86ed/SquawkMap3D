@@ -34,7 +34,7 @@ The app SHALL support three independently configurable external URL templates, e
 - **THEN** `PlaneCard`'s type display shows no "Edit" control, regardless of whether the type CRUD endpoint is configured
 
 ### Requirement: "Create a model" call-to-action links to the model CRUD endpoint with ICAO designator and variant
-The compass card's "create a model" call-to-action (per the `airframe-compass-card` capability, shown in place of the credit HUD for a default/unauthored model) SHALL, when the model CRUD endpoint is configured, open that endpoint with the selected aircraft's ICAO type designator and variant substituted into the URL template.
+The compass card's built-in "create a model" call-to-action (per the `airframe-compass-card` capability, shown by the card's own credit HUD for a default/unauthored model) SHALL, when the model CRUD endpoint is configured, open that endpoint with the selected aircraft's ICAO type designator and variant substituted into the URL template — supplied to the card as its model input's call-to-action URL, not activated via a separately-built control.
 
 #### Scenario: Activating the call-to-action opens the model CRUD page with ICAO and variant
 - **WHEN** the model CRUD endpoint is configured, the compass card is showing the "create a model" call-to-action for a selected aircraft with a known ICAO type designator, and the user activates the call-to-action

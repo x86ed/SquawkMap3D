@@ -11,6 +11,7 @@
 - [ ] 2.2 Add one default/generic stand-in `.glb` asset (unauthored) and its entry, used whenever a type has no registry match
 - [ ] 2.3 Implement `getCompassTrackModel(typeDesignator, variant)` in `components/map/overlay/compassCard/compassTrackModels.ts`, returning the matched entry or the default stand-in
 - [ ] 2.4 Add a couple of hand-picked real registry entries (with real modeler credit) to exercise the "authored model" path end to end
+- [ ] 2.5 When building the `CompassTrackModel` passed to the card, set `modelerAddUrl` to the configured model CRUD URL (icao + variant, when configured) whenever the resolved entry has no `modelerName`/`modelerProfileUrl` — leave it unset when the model CRUD endpoint isn't configured (the vendored card's `creditLinkMarkup` already renders the right fallback in each case; see design.md)
 
 ## 3. Live telemetry feed
 
@@ -27,11 +28,10 @@
 - [ ] 4.5 Dispose the mounted handle on hex change, view-mode switch away from compass, and unmount
 - [ ] 4.6 Remove the old bare "✈" placeholder glyph path (`styles.iconBlock`) now that the compass card covers the no-photo case
 
-## 5. Credit HUD → "create a model" CTA swap
+## 5. Credit HUD / "create a model" CTA styling
 
-- [ ] 5.1 After mounting, check the resolved model entry for `modelerName`/`modelerProfileUrl`; if either is missing, replace the credit HUD element's (`CARD_COMPASS_TRACK_CREDIT_HUD_ID`) children with this app's own CTA link
-- [ ] 5.2 Style the CTA to visually match the hero's existing photo-caption/credit styling
-- [ ] 5.3 Only render the CTA when the model CRUD endpoint is configured (per section 6); otherwise leave the HUD area empty
+- [ ] 5.1 Verify the vendored card's built-in "+ Add a model" CTA (rendered natively from `modelerAddUrl`, per task 2.5 — no DOM patch needed) renders and is clickable once wired up
+- [ ] 5.2 Style/theme the card's credit HUD (authored-credit and CTA states, plus the unlinked-placeholder state when the model CRUD endpoint isn't configured) to fit this app's light/dark themes
 
 ## 6. CRUD endpoint configuration and edit links
 
@@ -39,7 +39,7 @@
 - [ ] 6.2 Implement `components/map/overlay/crudLinks.ts`: `getModelCrudUrl()`/`getTypeCrudUrl()`/`getAircraftCrudUrl()` accessors and a `buildCrudUrl(template, params)` helper that URI-encodes and substitutes `{icao}`/`{variant}`/`{hex}` placeholders
 - [ ] 6.3 Add an "Edit" control next to `RecordPanelHero`'s registration heading, rendered only when the aircraft CRUD URL is configured, linking to it with the selected aircraft's hex
 - [ ] 6.4 Add an "Edit" control next to `PlaneCard`'s type (manufacturer/model) display, rendered only when the type CRUD URL is configured and the type designator is known, linking to it with that designator
-- [ ] 6.5 Wire the compass card's "create a model" CTA (section 5) to the model CRUD URL with the selected aircraft's ICAO designator and variant
+- [ ] 6.5 Confirm task 2.5's `modelerAddUrl` wiring uses this URL builder (ICAO designator + variant), and that it's omitted entirely when the model CRUD endpoint isn't configured
 
 ## 7. Specs and styling polish
 
