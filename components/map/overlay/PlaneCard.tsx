@@ -327,14 +327,23 @@ export function PlaneCard({
     if (!slot) return;
     let cancelled = false;
     const color = RARITY_TIER_STYLES[rarityTier].color;
+    // `shape.markup` is inner content only (paths/groups, no `<svg>` tag —
+    // see `aircraftShapes.ts`'s doc comment) meant to be rendered inside a
+    // caller-provided `<svg viewBox>`, same as the back face's own shapeIcon
+    // below. `mountCardArt`'s flat-fallback path sets this directly as a
+    // plain `<div>`'s `innerHTML`; without the wrapping `<svg viewBox>` tag,
+    // the browser's HTML parser never enters SVG foreign-content mode for
+    // the bare `<g>`/`<path>` markup, so it rendered broken/tiny instead of
+    // filling the front face like the 3D wireframe does.
+    const fallbackSvg = `<svg viewBox="${viewBox}">${shape.markup}</svg>`;
     loadAircraftGltfScene(typeDesignator, category).then((scene) => {
       if (cancelled) return;
-      mountCardArt(slot, scene ?? undefined, color, shape.markup);
+      mountCardArt(slot, scene ?? undefined, color, fallbackSvg);
     });
     return () => {
       cancelled = true;
     };
-  }, [typeDesignator, category, rarityTier, shape]);
+  }, [typeDesignator, category, rarityTier, shape, viewBox]);
 
   return (
     <div className={styles.cardScaleWrap} ref={wrapRef}>
