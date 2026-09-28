@@ -1,17 +1,26 @@
 /* `.card` (AircraftOverlay.module.css) hands this a grid cell whose own
    width:height ratio is dictated by the drawer's layout, not by this card's
-   own content. `.cardScaleWrap` fills that cell; `.aircraftRarityFrame`
-   fills it vertically (`height: 100%`) and derives its own width from that
-   height via `aspect-ratio` (capped at `max-width`, its natural size at
-   generous heights) — so the card is exactly as tall as its row actually is
-   and never leaves blank space above/below or (via the column-sizing note
-   below) beside it, rather than rendering at a fixed 320px width regardless
-   of how short the row is and then needing a second, separate shrink pass.
-   A ResizeObserver-driven `transform: scale()` (`PlaneCard.tsx`) remains as
-   a safety net for browsers/edge cases where the row's cross-axis stretch
-   doesn't resolve as expected, but in the normal case now computes to 1 (a
-   no-op) since the frame's CSS-computed size already fits `.cardScaleWrap`
-   exactly. */
+   own content — a wide/short cell would otherwise force `.aircraftRarityFrame`
+   into a squashed, un-portrait shape. `.cardScaleWrap` fills that cell and
+   centers a fixed-width, auto-height (i.e. genuinely intrinsic, content-
+   driven) frame inside it, uniformly scaled down (`PlaneCard.tsx`'s
+   ResizeObserver, comparing the frame's own `scrollWidth`/`scrollHeight`
+   against this wrap's `clientWidth`/`clientHeight`) whenever the cell is
+   smaller than the frame's natural size.
+
+   **Deliberately not a CSS `aspect-ratio` box** (an earlier version of this
+   file tried `height: 100%; aspect-ratio: 5 / 7`, driving the column width
+   in AircraftOverlay.module.css to match): a `transform: scale()` shrinks
+   *everything inside the frame together* — text, padding, badges all scale
+   down as one raster/vector unit, staying legible and complete at any size.
+   `aspect-ratio` instead forces a *layout* resize: the frame's box shrinks,
+   but its children's fixed-px padding/font-sizes/grid gaps don't shrink
+   with it, so real content (the stat grid, the badge row) stopped fitting
+   at the smaller absolute sizes a short drawer row actually produces —
+   verified broken: the stat grid rendered fully clipped and both faces'
+   badge pills truncated to "TITANI…"/"LEGEND…". A uniform `transform: scale`
+   of a fixed-size, fully-laid-out card is the only one of the two that
+   keeps content complete and legible at every size. */
 .cardScaleWrap {
   width: 100%;
   height: 100%;
@@ -32,26 +41,21 @@
    gets no `[data-tier="unidentified"]` rule at all — it inherits this base
    rule's own defaults verbatim, exactly like adsb.win's own CSS.
 
-   `height: 100%` + `aspect-ratio: 5 / 7` (rather than a fixed `width: 320px`
-   — see design.md's flip-card-layout revision) is what lets
-   `AircraftOverlay.module.css`'s `.card` grid column auto-size to the
-   card's real rendered width instead of always reserving a fixed 320px
-   whether or not the row is tall enough to use it — a fixed-width card in a
-   short drawer row was getting shrunk (both axes, to preserve the ratio) far
-   below 320px to fit the row's actual height, leaving a large, empty gap
-   between the card and `.hero` where the unused reserved column width used
-   to be. `max-width: 320px` caps it at this card's original size on a
-   generously tall row instead of growing without bound. */
+   `width: 320px` (a typical fixed trading-card width) plus auto `height` —
+   not `height: 100%`/`aspect-ratio` (see `.cardScaleWrap`'s doc comment
+   above) — is what actually produces the reference's portrait proportions:
+   this card's padding/gaps/font-sizes are fixed px values, so letting the
+   browser compute a real intrinsic height at a fixed width, then uniformly
+   `transform: scale()`-ing the *whole* result down to fit, is what keeps
+   content complete at every size, rather than whatever shape an outer grid
+   cell happens to hand it. */
 .aircraftRarityFrame {
   --rarity-color: #64748b;
   --rarity-highlight: #cbd5e1;
   --rarity-glow: #64748b33;
   border-radius: 1.65rem; /* 26.4px */
   position: relative;
-  height: 100%;
-  width: auto;
-  max-width: 320px;
-  aspect-ratio: 5 / 7;
+  width: 320px;
   flex-shrink: 0;
   /* Flip-card depth for `.cardInner`'s 3D `rotateY` transform — ported
      verbatim (selector semantics included) from `plens-win/Card`'s
@@ -78,8 +82,7 @@
    and flipped only the inner content, which read as content flipping
    *inside* a stationary frame rather than the card itself flipping). */
 .cardInner {
-  position: absolute;
-  inset: 0;
+  position: relative;
   transform-style: preserve-3d;
   transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
 }
@@ -116,9 +119,13 @@
    ancestor. `unidentified` gets no `[data-tier="unidentified"]` rule at all —
    it inherits this base rule's own defaults verbatim, exactly like adsb.win's
    own CSS. */
+/* `.cardFaceBack` stays in normal flow — its content (identity header + stat
+   region) is what gives the card its real intrinsic height, same as before
+   the flip card existed. `.cardFaceFront` is absolutely positioned over it,
+   sharing that same box (its own `.cardFrontContent` is `flex: 1`, so its
+   full-bleed art still fills the whole face even though front's own content
+   is naturally shorter than back's). */
 .cardFace {
-  position: absolute;
-  inset: 0;
   backface-visibility: hidden;
   display: flex;
   flex-direction: column;
@@ -150,6 +157,8 @@
 }
 
 .cardFaceFront {
+  position: absolute;
+  inset: 0;
   transform: rotateY(0deg);
   min-height: 0;
 }
@@ -1106,22 +1115,6 @@
 .rarityBadge::before {
   content: "◆";
   margin-right: 6.4px;
-}
-
-/* `AircraftOverlay.module.css`'s narrow/portrait breakpoint (same 760px
-   cutoff) gives `.card` a fixed-*width* column (shared `1fr` with
-   `flightInfo`) rather than a fixed-*height* row — the opposite of the
-   desktop layout's constraint. `height: 100%` there would stretch the card
-   to match `flightInfo`'s own (unrelated) intrinsic height instead of
-   deriving a sensible size from the column's actual width, so this flips
-   which dimension is authoritative: full column width, height derived from
-   it via the same `aspect-ratio`. */
-@media (max-width: 760px) {
-  .aircraftRarityFrame {
-    height: auto;
-    width: 100%;
-    max-width: none;
-  }
 }
 
 /* Matches the reference's own `@media (prefers-reduced-motion: reduce)`
