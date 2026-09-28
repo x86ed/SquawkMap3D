@@ -764,6 +764,26 @@
   padding-top: 0;
 }
 
+/* `.xpValue`/`.progressLabel` default to light text for the back face's
+   dark `.aircraftTierCard` background — illegible here, since this panel
+   sits directly on the bright `.cardFace` gradient-border strip instead.
+   Dark text instead, matching `@card/core`'s own `.card-front-xp-label`
+   (`color:#07101d`). `.progressTrack`/`.progressFill` need no override:
+   their own background/fill values are already dark-ish/tier-colored and
+   read fine against the bright strip either way. */
+.frontXpPanel .xpValue,
+.frontXpPanel .progressLabel {
+  color: rgb(7, 16, 29);
+}
+
+/* `.progressTrack`'s translucent-white fill (tuned for the back face's dark
+   background) reads as almost no contrast against this panel's bright
+   gradient-border background. A dark, mostly-opaque track here instead —
+   the tier-colored `.progressFill` itself still shows clearly against it. */
+.frontXpPanel .progressTrack {
+  background: rgba(7, 16, 29, 0.35);
+}
+
 /* Front face content — full-bleed 3D/silhouette art behind an identity
    header, ported from `@card/core`'s `.card-front-content`/`.card-front-header`/
    `.card-front-pills`/`.card-front-art`/`.card-front-grid` (design.md
