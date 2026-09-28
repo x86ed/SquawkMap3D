@@ -632,8 +632,8 @@
    around it. */
 .shapeIcon {
   flex-shrink: 0;
-  width: clamp(48px, 20cqmin, 88px);
-  height: clamp(48px, 20cqmin, 88px);
+  width: clamp(72px, 32cqmin, 140px);
+  height: clamp(72px, 32cqmin, 140px);
   color: var(--rarity-color);
   filter: drop-shadow(0 0 3px var(--rarity-glow));
 }
@@ -1048,33 +1048,42 @@
    saturated here, for legibility against the card's own background).
    `.tierBadge` isn't a descendant of `.aircraftTierCard` (they're siblings
    under `.aircraftRarityFrame`), so `:has()` reaches across to detect which
-   tier, if any, is set. */
-.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="carbon"]) .tierBadge {
+   tier, if any, is set. Also targets `.frontXpPanel` (front face's XP
+   block, `.cardFaceFront`'s own sibling of `.aircraftTierCard`) — without
+   this, `.progressFill`'s `var(--tier-color)`/`var(--tier-highlight)`
+   resolved to nothing there, rendering the flipped-card XP bar invisible. */
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="carbon"]) .tierBadge,
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="carbon"]) .frontXpPanel {
   --tier-color: #94a3b8;
   --tier-highlight: #e2e8f0;
   --tier-glow: #cbd5e161;
 }
-.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="alloy"]) .tierBadge {
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="alloy"]) .tierBadge,
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="alloy"]) .frontXpPanel {
   --tier-color: #a1a1aa;
   --tier-highlight: #f4f4f5;
   --tier-glow: #d4d4d857;
 }
-.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="titanium"]) .tierBadge {
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="titanium"]) .tierBadge,
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="titanium"]) .frontXpPanel {
   --tier-color: #8b7cf6;
   --tier-highlight: #ddd6fe;
   --tier-glow: #8b7cf67a;
 }
-.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="iridium"]) .tierBadge {
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="iridium"]) .tierBadge,
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="iridium"]) .frontXpPanel {
   --tier-color: #ec4899;
   --tier-highlight: #fde68a;
   --tier-glow: #ec489985;
 }
-.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="plasma"]) .tierBadge {
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="plasma"]) .tierBadge,
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="plasma"]) .frontXpPanel {
   --tier-color: #fb923c;
   --tier-highlight: #fda4af;
   --tier-glow: #f9731694;
 }
-.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="quantum"]) .tierBadge {
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="quantum"]) .tierBadge,
+.aircraftRarityFrame:has(.aircraftTierCard[data-material-tier="quantum"]) .frontXpPanel {
   --tier-color: #22d3ee;
   --tier-highlight: #c4b5fd;
   --tier-glow: #22d3eead;
