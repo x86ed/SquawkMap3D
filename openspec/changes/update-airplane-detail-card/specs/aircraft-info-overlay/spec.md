@@ -58,18 +58,22 @@
 ## ADDED Requirements
 
 ### Requirement: PlaneCard is a two-face flip card that opens adsb.win on click
-`PlaneCard` SHALL render as a two-face card (front and back) sharing one tier-styled frame, flipping via a pure CSS 3D transform triggered by hover. The back face — showing the selected aircraft's identity header and the fleet-wide stat region described in "PlaneCard shows optional fleet-wide stats when available, never fabricated" — SHALL be the face shown by default (no hover/interaction). The front face — showing the identity header, rarity/tier pills, the aircraft's silhouette art, and an XP summary panel — SHALL be revealed only while the user hovers the card. Clicking anywhere on either face, other than the feeder-UUID form's input/button or any rendered link, SHALL open `https://adsb.win/dashboard/aircraft/{TYPE_DESIGNATOR}` (the selected aircraft's ICAO type designator, uppercased) in a new browser tab, when a type designator is known; when no type designator is known, the card SHALL NOT be clickable.
+`PlaneCard` SHALL render as a two-face card (front and back) sharing one tier-styled frame, flipping via a pure CSS 3D transform triggered by hover. Which face rests forward (is shown without hover/interaction) SHALL be controlled by a `showBack` flag on `PlaneCard`, which SHALL default to `true` (back face resting forward) when a view mounting `PlaneCard` does not pass it explicitly. The back face shows the selected aircraft's identity header and the fleet-wide stat region described in "PlaneCard shows optional fleet-wide stats when available, never fabricated"; the front face shows the identity header, rarity/tier pills, the aircraft's silhouette art, and an XP summary panel. Every view in this app that mounts `PlaneCard` SHALL use `showBack`'s enabled (`true`) default, so the back face is what's shown at rest everywhere `PlaneCard` currently appears. Clicking anywhere on either face, other than the feeder-UUID form's input/button or any rendered link, SHALL open `https://adsb.win/dashboard/aircraft/{TYPE_DESIGNATOR}` (the selected aircraft's ICAO type designator, uppercased) in a new browser tab, when a type designator is known; when no type designator is known, the card SHALL NOT be clickable.
 
 #### Scenario: Back face is shown by default
-- **WHEN** the overlay is open for a selected aircraft and the user is not hovering `PlaneCard`
+- **WHEN** the overlay is open for a selected aircraft, `PlaneCard` is mounted without an explicit `showBack` value, and the user is not hovering `PlaneCard`
 - **THEN** `PlaneCard` displays its back face (identity header and stat region)
 
+#### Scenario: Every current view mounting PlaneCard shows the back face at rest
+- **WHEN** any view in this app that renders `PlaneCard` (currently `AircraftOverlay`) is mounted for a selected aircraft, with no hover interaction
+- **THEN** that view's `PlaneCard` instance shows its back face at rest, per `showBack`'s enabled-by-default value
+
 #### Scenario: Hovering reveals the front face
-- **WHEN** the user hovers `PlaneCard`
+- **WHEN** the user hovers `PlaneCard` while `showBack` is at its default (`true`)
 - **THEN** `PlaneCard` flips via its CSS 3D transform to display its front face (identity header, rarity/tier pills, silhouette art, and XP panel)
 
 #### Scenario: Ending hover returns to the back face
-- **WHEN** the user was hovering `PlaneCard` (front face visible) and stops hovering it
+- **WHEN** the user was hovering `PlaneCard` (front face visible, `showBack` at its default) and stops hovering it
 - **THEN** `PlaneCard` flips back to display its back face
 
 #### Scenario: Clicking the card opens the aircraft's adsb.win dashboard page

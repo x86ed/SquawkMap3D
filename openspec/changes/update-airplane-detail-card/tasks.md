@@ -6,23 +6,26 @@
 ## 2. CSS: flip frame and both faces
 
 - [ ] 2.1 Add `.cardFrame` (perspective, `data-tier`-driven gradient border/glow, `mythic`/`apex` sheen) to `PlaneCard.module.css`, replacing/renaming the current `.aircraftRarityFrame` rule set as needed while preserving all existing tier-color CSS custom properties and selectors.
-- [ ] 2.2 Add `.cardInner` with `transform-style: preserve-3d`, a `transition`, and a **base** `transform: rotateY(180deg)` (back face shown by default).
-- [ ] 2.3 Add `.cardFrame:hover .cardInner { transform: rotateY(0deg); }` to flip to the front face on hover.
+- [ ] 2.2 Add `.cardInner` with `transform-style: preserve-3d` and a `transition`; drive its resting `transform` from the new `showBack` prop (e.g. `[data-show-back="true"] .cardInner { transform: rotateY(180deg); }` / `[data-show-back="false"] .cardInner { transform: rotateY(0deg); }`) rather than a single hardcoded base rule.
+- [ ] 2.3 Add hover rules that invert the resting transform per `showBack` (`[data-show-back="true"]:hover .cardInner { transform: rotateY(0deg); }` / `[data-show-back="false"]:hover .cardInner { transform: rotateY(180deg); }`).
 - [ ] 2.4 Add `.cardFace` (shared: `position: absolute`, `backface-visibility: hidden`, border-radius, shared border/background) plus `.cardFaceFront` (`transform: rotateY(180deg)` per the flip technique) and `.cardFaceBack` (`transform: rotateY(0deg)`), matching `iconizer`'s CSS structure so the base/hover swap in 2.2/2.3 correctly shows the back face by default.
 - [ ] 2.5 Port front-face-only styles (pills, `card-front-header`, `card-front-art`, `card-front-xp-panel`, `card-front-grid` background) as new CSS Modules classes.
 - [ ] 2.6 Reduced-motion: keep (or add, if missing) a `@media (prefers-reduced-motion: reduce)` rule disabling the `.cardInner` transition, matching `iconizer`'s existing rule.
 
 ## 3. PlaneCard.tsx: restructure into two faces
 
+- [ ] 3.0 Add `showBack?: boolean` to `PlaneCardProps`, defaulting to `true` in the component's destructured params; set `data-show-back={showBack}` on `.cardFrame` so the CSS in 2.2/2.3 picks it up.
 - [ ] 3.1 Wrap the existing `.aircraftTierCard` content in the new `.cardFrame > .cardInner > (.cardFaceFront, .cardFaceBack)` structure, keeping the outer `.cardScaleWrap`/`ResizeObserver` contain-fit logic unchanged.
 - [ ] 3.2 Move the current identity header + `renderStatRegion` content onto `.cardFaceBack`, unchanged in content/logic.
 - [ ] 3.3 Add new `.cardFaceFront` JSX: identity header (type badge/manufacturer/model), rarity-tier pill, adsb.win tier pill (from `cardStats`, mirroring `levelPillContent` in `iconizer/3D-modeler/src/card.ts`), the existing silhouette `<svg>` (`useTightAircraftShapeViewBox`/`getAircraftShape`, reused as-is — no 3D wireframe), and an XP panel (XP count + tier/progress label + `computeTierProgress`-driven bar, reusing the same helpers `renderStatRegion` already uses).
 - [ ] 3.4 Move the whole-card `onClick` handler (open `https://adsb.win/dashboard/aircraft/{TYPE}`, skipping `form, input, button, a` targets) onto a container that wraps both faces (e.g. `.cardInner` or `.cardFrame`) so it applies regardless of which face is currently visible.
 - [ ] 3.5 Confirm the click handler still no-ops when `typeDesignator` is falsy (`cursor: pointer` and the `onClick` stay conditional on `typeDesignator`, as today).
+- [ ] 3.6 Update `AircraftOverlay.tsx`'s `<PlaneCard ... />` call to pass `showBack={true}` explicitly, so the enabled-by-default flag is visible at the (currently only) view mounting the card, not left implicit.
 
 ## 4. Verify against specs
 
 - [ ] 4.1 Manually verify (dev server, `AircraftOverlay` with a selected aircraft) that the back face renders by default and the front face appears only on hover, per `aircraft-info-overlay`'s "PlaneCard is a two-face flip card" requirement.
+- [ ] 4.1a Manually verify `showBack={false}` (temporarily, e.g. via a local test tweak) flips the resting/hover faces, confirming the flag actually drives the CSS rather than the back-default being hardcoded.
 - [ ] 4.2 Manually verify clicking either face opens the correct `adsb.win/dashboard/aircraft/{TYPE}` tab, and that clicking the feeder-UUID form's input/button does not navigate.
 - [ ] 4.3 Manually verify all five `cardStats` states (empty, not-configured, invalid-token, error, ok+progress bar) still render correctly on the back face, and the front-face XP panel reflects the same `cardStats` value consistently.
 - [ ] 4.4 Manually verify the `mythic`/`apex` tier gradient/sheen and all nine rarity-tier frame styles still render correctly on both faces.
