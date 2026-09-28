@@ -10,5 +10,9 @@
   "52-fix-the-card-display": {
     "version": "v0.39.0",
     "initialized_at": "2026-09-17T16:04:28Z"
+  },
+  "60-update-card-to-new-model": {
+    "version": "v0.45.0",
+    "initialized_at": "2026-09-28T14:59:21Z"
   }
 }
