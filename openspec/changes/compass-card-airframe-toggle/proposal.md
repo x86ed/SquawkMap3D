@@ -8,7 +8,7 @@
   - When a Planespotters photo exists, the image area defaults to the photo, and the toggle switches to a compass-card view (and back).
   - When no photo exists, the image area defaults to the compass card (replacing today's blank plane-icon placeholder), and the toggle switches to the photo view — but only once a photo becomes available; with no photo at all, there is nothing to toggle to and the control is hidden.
   - The compass card is the third-party `compass-track` card kind from `plens-win/Card` (`@card/core`'s `buildCompassTrackCard`/`renderCard`, live-driven by `@card/compass-track-three`'s `mountCompassTrackCard`) — a static HTML shell (mount slot + heading/pitch, lat/lon, and modeler-credit HUD elements) plus a Three.js scene rendering a `.glb` model of the selected aircraft's type, oriented by its live heading/pitch/altitude/position. **Out of scope:** any editing controls beyond what the component itself already renders.
-  - This app must supply the per-type `CompassTrackModel` (`modelUrl`, `rarityTier`, `gearMeshGroupName`, `gearDeploymentAltitudeMeters`, `modelerName`, `modelerProfileUrl`) the card needs — a new small dataset/registry keyed by ICAO type designator (+ variant), analogous to `aircraftShapes.ts`'s manifest. Types with no registered model use a default/generic stand-in `.glb` with no modeler credit.
+  - This app must supply the per-type `CompassTrackModel` (`modelUrl`, `rarityTier`, `gearMeshGroupName`, `gearDeploymentAltitudeMeters`, `modelerName`, `modelerProfileUrl`) the card needs. Rather than a new dataset, this is built from the same vendored `.glb` model pipeline the map and `PlaneCard` already use (`aircraftModels.ts`), which has no per-model credit metadata today — so every currently-vendored type surfaces the "create a model" CTA until real credited models arrive via the external model CRUD flow. Variant refinement is accepted as an optional, currently-unpopulated field.
 - Add an "Edit" button next to the registration heading in `RecordPanelHero`, linking out to this app's configured aircraft-record CRUD page, with the selected aircraft's transponder hex code passed to it.
 - Add an "Edit" button next to the type display in `PlaneCard`, linking out to this app's configured aircraft-type CRUD page, with the aircraft's ICAO type designator passed to it.
 - When the compass card is shown for a type using the default/generic stand-in model, or whose registered model has no recorded modeler credit, its built-in bottom-right credit HUD SHALL show a "create a model" call-to-action (the card's own native handling of a blank credit — no patching required, see design.md), linking out to the configured model CRUD page with the type's ICAO designator and variant.
@@ -22,7 +22,7 @@
 ## Capabilities
 
 ### New Capabilities
-- `airframe-compass-card`: The photo/compass toggle on `RecordPanelHero`'s image area; the compass-card embed (`@card/core` + `@card/compass-track-three`) driven by the selected aircraft's live telemetry; which view is shown by default based on photo availability; the per-type `CompassTrackModel` dataset/registry (including the default/generic stand-in model) that feeds it; and the credit-HUD-vs-"create a model" CTA swap.
+- `airframe-compass-card`: The photo/compass toggle on `RecordPanelHero`'s image area; the compass-card embed (`@card/core` + `@card/compass-track-three`) driven by the selected aircraft's live telemetry; which view is shown by default based on photo availability; resolving its `CompassTrackModel` input from this app's existing vendored `.glb` model pipeline (`aircraftModels.ts`); and its built-in credit-HUD-vs-"create a model" CTA behavior.
 - `aircraft-record-edit-links`: The three configured CRUD endpoint URL templates and the registration/type "Edit" buttons (and the compass card's "create a model" CTA) that link out through them.
 
 ### Modified Capabilities
@@ -33,6 +33,6 @@
 - `components/map/overlay/RecordPanelHero.tsx` (+ `.module.css`): photo/compass toggle state, compass-card mount, registration edit button.
 - `components/map/overlay/PlaneCard.tsx` (+ `.module.css`): type edit button.
 - New dependency: `plens-win/Card`'s `packages/core` and `packages/compass-track-three` (private, unpublished — vendored into this repo, matching the existing vendoring pattern used for `aircraftShapes.ts`/the `.glb` scenegraph models) plus `three` (already a dependency via the existing `.glb` scenegraph layer, per `animatedAircraftScenegraphLayer.ts`).
-- New: a per-ICAO-type (+ variant) `CompassTrackModel` dataset (new `.glb` model assets + metadata, including one default/generic stand-in model), analogous to `aircraftShapes.ts`'s manifest.
-- New env vars (`.env.local`, deployment config, docs): CRUD endpoint URL templates.
+- `components/map/aircraftModels.ts`: reused as-is (`resolveModelKeyForTypeAndCategory`, `modelUrl`, `landingGearHideThresholdFeet`) to build the compass card's model input — no new model assets or dataset added by this change.
+- `components/map/constants.ts`: new `getModelCrudUrl()`/`getTypeCrudUrl()`/`getAircraftCrudUrl()` accessors and `NEXT_PUBLIC_*` env vars (`.env.local`, deployment config, docs), following this file's existing accessor convention.
 - No backend changes — the CRUD pages themselves are external/out of scope; this app only links out to them.

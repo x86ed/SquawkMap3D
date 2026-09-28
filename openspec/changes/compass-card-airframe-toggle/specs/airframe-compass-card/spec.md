@@ -45,15 +45,19 @@ The compass-card view SHALL render `plens-win/Card`'s `compass-track` card kind 
 - **WHEN** the image area switches away from the compass-card view (toggled to photo, or the selected aircraft changes), or the overlay closes
 - **THEN** the compass card's live 3D scene/animation loop is torn down rather than continuing to run invisibly
 
-### Requirement: Compass card's 3D model resolves from a per-type registry, falling back to a default stand-in
-The compass card's 3D model input SHALL resolve from a registry keyed by the selected aircraft's ICAO type designator (optionally refined by variant), analogous to this app's existing vendored aircraft-silhouette manifest. Types with no registry entry SHALL render using one shared default/generic stand-in model rather than failing to render or showing a blank scene.
+### Requirement: Compass card's 3D model resolves from this app's existing vendored model pipeline, falling back to a default stand-in
+The compass card's 3D model input SHALL resolve using this app's existing per-type/category vendored `.glb` model resolution (the same resolution the map's own aircraft rendering and `PlaneCard`'s front-face art already use), keyed by the selected aircraft's ICAO type designator or its emitter category's fallback type, optionally refined by variant. When neither the exact type nor its category fallback has a vendored model, the compass card SHALL render using one shared default/generic stand-in model (a pinned, always-vendored model) rather than failing to render or showing a blank scene.
 
-#### Scenario: Registered type renders its specific model
-- **WHEN** the selected aircraft's ICAO type designator (and variant, if the registry distinguishes it) has a registered compass-card model
-- **THEN** the compass card renders that registered model
+#### Scenario: Exact-type model renders
+- **WHEN** the selected aircraft's ICAO type designator has a vendored model
+- **THEN** the compass card renders that model
 
-#### Scenario: Unregistered type renders the default stand-in model
-- **WHEN** the selected aircraft's ICAO type designator has no registered compass-card model
+#### Scenario: Category-fallback model renders when the exact type isn't vendored
+- **WHEN** the selected aircraft's ICAO type designator has no vendored model, but its emitter category's fallback type does
+- **THEN** the compass card renders that category-fallback model
+
+#### Scenario: Fully unmodeled type renders the default stand-in model
+- **WHEN** the selected aircraft's ICAO type designator has no vendored model and its emitter category has no fallback modeled type either
 - **THEN** the compass card renders the shared default/generic stand-in model rather than a blank or broken scene
 
 ### Requirement: Compass card's built-in credit HUD shows a "create a model" call-to-action for unauthored models
