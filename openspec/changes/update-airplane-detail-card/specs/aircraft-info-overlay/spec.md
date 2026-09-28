@@ -58,7 +58,7 @@
 ## ADDED Requirements
 
 ### Requirement: PlaneCard is a two-face flip card that opens adsb.win on click
-`PlaneCard` SHALL render as a two-face card (front and back) sharing one tier-styled frame, flipping via a pure CSS 3D transform triggered by hover. Which face rests forward (is shown without hover/interaction) SHALL be controlled by a `showBack` flag on `PlaneCard`, which SHALL default to `true` (back face resting forward) when a view mounting `PlaneCard` does not pass it explicitly. The back face shows the selected aircraft's identity header and the fleet-wide stat region described in "PlaneCard shows optional fleet-wide stats when available, never fabricated"; the front face shows the identity header, rarity/tier pills, the aircraft's silhouette art, and an XP summary panel. Every view in this app that mounts `PlaneCard` SHALL use `showBack`'s enabled (`true`) default, so the back face is what's shown at rest everywhere `PlaneCard` currently appears. Clicking anywhere on either face, other than the feeder-UUID form's input/button or any rendered link, SHALL open `https://adsb.win/dashboard/aircraft/{TYPE_DESIGNATOR}` (the selected aircraft's ICAO type designator, uppercased) in a new browser tab, when a type designator is known; when no type designator is known, the card SHALL NOT be clickable.
+`PlaneCard` SHALL render as a two-face card (front and back) sharing one tier-styled frame, flipping via a pure CSS 3D transform triggered by hover. Which face rests forward (is shown without hover/interaction) SHALL be controlled by a `showBack` flag on `PlaneCard`, which SHALL default to `true` (back face resting forward) when a view mounting `PlaneCard` does not pass it explicitly. The back face shows the selected aircraft's identity header and the fleet-wide stat region described in "PlaneCard shows optional fleet-wide stats when available, never fabricated"; the front face shows the identity header, rarity/tier pills, the aircraft's 3D-model or silhouette art (per "PlaneCard's front face shows a 3D model of the aircraft" below), and an XP summary panel. Every view in this app that mounts `PlaneCard` SHALL use `showBack`'s enabled (`true`) default, so the back face is what's shown at rest everywhere `PlaneCard` currently appears. Clicking anywhere on either face, other than the feeder-UUID form's input/button or any rendered link, SHALL open `https://adsb.win/dashboard/aircraft/{TYPE_DESIGNATOR}` (the selected aircraft's ICAO type designator, uppercased) in a new browser tab, when a type designator is known; when no type designator is known, the card SHALL NOT be clickable.
 
 #### Scenario: Back face is shown by default
 - **WHEN** the overlay is open for a selected aircraft, `PlaneCard` is mounted without an explicit `showBack` value, and the user is not hovering `PlaneCard`
@@ -70,7 +70,7 @@
 
 #### Scenario: Hovering reveals the front face
 - **WHEN** the user hovers `PlaneCard` while `showBack` is at its default (`true`)
-- **THEN** `PlaneCard` flips via its CSS 3D transform to display its front face (identity header, rarity/tier pills, silhouette art, and XP panel)
+- **THEN** `PlaneCard` flips via its CSS 3D transform to display its front face (identity header, rarity/tier pills, 3D-model/silhouette art, and XP panel)
 
 #### Scenario: Ending hover returns to the back face
 - **WHEN** the user was hovering `PlaneCard` (front face visible, `showBack` at its default) and stops hovering it
@@ -87,3 +87,18 @@
 #### Scenario: Clicking the feeder-UUID form or a link does not trigger navigation
 - **WHEN** the user clicks the feeder-UUID form's input or submit button, or any rendered link, on `PlaneCard`'s back face
 - **THEN** no adsb.win dashboard tab opens, and the form/link's own behavior proceeds normally
+
+### Requirement: PlaneCard's front face shows a 3D model of the aircraft
+`PlaneCard`'s front face SHALL render a live 3D wireframe of the selected aircraft's model, tinted to the aircraft's rarity-tier color, when a vendored 3D model exists for that aircraft's type designator (or, absent that, its emitter category's fallback type — the same resolution the map's own 3D aircraft rendering uses). When no vendored 3D model exists for the aircraft (by either resolution), or loading it fails, the front face SHALL instead render the same flat 2D top-view silhouette used elsewhere in this app (per "PlaneCard shows aircraft identity and rarity tier"'s silhouette), tinted to the same rarity-tier color, rather than an empty or broken art region.
+
+#### Scenario: Modeled aircraft type renders a 3D wireframe
+- **WHEN** the selected aircraft's type designator (or its emitter category's fallback type) has a vendored 3D model
+- **THEN** `PlaneCard`'s front face renders a live 3D wireframe render of that model, tinted to the aircraft's rarity-tier color
+
+#### Scenario: Unmodeled aircraft type renders the flat silhouette fallback
+- **WHEN** the selected aircraft's type designator has no vendored 3D model and its emitter category has no fallback modeled type either
+- **THEN** `PlaneCard`'s front face renders the flat 2D top-view silhouette, tinted to the aircraft's rarity-tier color, rather than a blank art region
+
+#### Scenario: A failed model load falls back to the flat silhouette
+- **WHEN** the selected aircraft's type designator has a vendored 3D model, but loading or parsing that model fails
+- **THEN** `PlaneCard`'s front face renders the flat 2D top-view silhouette fallback rather than a blank or broken art region

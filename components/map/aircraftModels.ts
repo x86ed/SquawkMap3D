@@ -45,7 +45,7 @@ let modelInfoByTypeDesignator = new Map<string, AircraftModelManifestEntry>();
  */
 const modelScenegraphByGroupKey = new Map<string, unknown>();
 
-const modelUrl = (typeDesignator: string) =>
+export const modelUrl = (typeDesignator: string) =>
   `/aircraft-models/${encodeURIComponent(typeDesignator)}.glb`;
 
 function scenegraphGroupKey(typeDesignator: string, gearHidden: boolean): string {
@@ -117,10 +117,23 @@ export async function loadAircraftModelManifest(): Promise<void> {
  * entry.
  */
 export function resolveModelKey(aircraft: Aircraft): string | undefined {
-  if (aircraft.typeDesignator && modelInfoByTypeDesignator.has(aircraft.typeDesignator)) {
-    return aircraft.typeDesignator;
+  return resolveModelKeyForTypeAndCategory(aircraft.typeDesignator, aircraft.category);
+}
+
+/**
+ * `resolveModelKey`'s lookup, taking the two fields it actually reads
+ * directly rather than a full `Aircraft` — lets callers holding only a
+ * type designator/category (e.g. `PlaneCard`'s props) resolve a vendored
+ * model key without constructing a fake `Aircraft`.
+ */
+export function resolveModelKeyForTypeAndCategory(
+  typeDesignator: string | undefined,
+  category: string | undefined,
+): string | undefined {
+  if (typeDesignator && modelInfoByTypeDesignator.has(typeDesignator)) {
+    return typeDesignator;
   }
-  const fallbackKey = aircraft.category && CATEGORY_FALLBACK_KEY[aircraft.category.toUpperCase()];
+  const fallbackKey = category && CATEGORY_FALLBACK_KEY[category.toUpperCase()];
   if (fallbackKey && modelInfoByTypeDesignator.has(fallbackKey)) {
     return fallbackKey;
   }

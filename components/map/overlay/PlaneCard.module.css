@@ -40,28 +40,26 @@
    gets no `[data-tier="unidentified"]` rule at all — it inherits this base
    rule's own defaults verbatim, exactly like adsb.win's own CSS.
 
-   `width: 320px` (a typical fixed trading-card width) plus auto `height` —
-   not `height: 100%` — is what actually produces the reference's portrait
-   proportions: this card's padding/gaps/font-sizes are fixed px values (not
-   `%`/`cqw`), so letting the browser compute a real intrinsic height at a
-   fixed width is what "matches the aspect ratio of the cards" means here,
-   rather than whatever shape an outer grid cell happens to hand it. */
+   `width: 320px` plus `aspect-ratio: 5 / 7` (design.md's flip-card revision)
+   is what produces the reference's portrait proportions now that both faces
+   are absolutely positioned inside `.cardInner` (a flip card's two faces
+   must share one fixed-size box — neither face can be "the" element whose
+   natural content height defines the box, the way the single pre-flip face
+   used to). `320px`/`5:7` were chosen to stay close to this card's
+   pre-flip natural proportions at its default content. */
 .aircraftRarityFrame {
   --rarity-color: #64748b;
   --rarity-highlight: #cbd5e1;
   --rarity-glow: #64748b33;
-  background: linear-gradient(135deg, var(--rarity-highlight), var(--rarity-color) 35%, var(--rarity-color));
   border-radius: 1.65rem; /* 26.4px */
-  padding: 2px 2px 22px;
   position: relative;
-  overflow: hidden;
-  box-shadow: 0 14px 32px #02061747, 0 0 22px var(--rarity-glow);
-  transition: transform 0.16s ease-out, box-shadow 0.2s;
   width: 320px;
+  aspect-ratio: 5 / 7;
   flex-shrink: 0;
-  /* Flip-card depth for `.cardInner`'s 3D `rotateY` transform (design.md
-     Decision 2, ported from `iconizer/3D-modeler/src/style.css`'s
-     `.card-frame`). */
+  /* Flip-card depth for `.cardInner`'s 3D `rotateY` transform — ported
+     verbatim (selector semantics included) from `plens-win/Card`'s
+     `@card/core` `card.css` (`.card-frame`), the canonical library this
+     card is standardized against; see design.md Decision 2. */
   perspective: 1200px;
   /* Must match `.cardScaleWrap`'s own alignment (`justify-content: flex-start`,
      `align-items: center`): the default `center center` transform-origin
@@ -73,8 +71,70 @@
   transform-origin: left center;
 }
 
+/* Two-face flip card. `.cardInner` fills `.aircraftRarityFrame`'s box and is
+   what actually rotates in 3D; `.cardFaceBack`/`.cardFaceFront` are each a
+   COMPLETE bordered card face (gradient border via the shared `.cardFace`
+   class below, tier variables inherited from `.aircraftRarityFrame`) so the
+   whole visible card — border included, not just its inner content — flips
+   as one object, matching `@card/core`'s own `.card-inner`/`.card-face-*`
+   structure exactly (an earlier version of this file kept the border static
+   and flipped only the inner content, which read as content flipping
+   *inside* a stationary frame rather than the card itself flipping). */
+.cardInner {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+
+/* `showBack` (default `true`, see `PlaneCardProps`) selects which face rests
+   forward without hover, mirrored via `data-show-back`'s mere *presence*
+   (not a `"true"`/`"false"` string value) on the frame — matching
+   `@card/core`'s own boolean-attribute convention exactly, so this stays a
+   drop-in match for the library's CSS contract. With `data-show-back`
+   absent, `.cardInner` is unrotated at rest, so `.cardFaceFront` (itself
+   authored at `rotateY(0deg)`) faces forward and hovering flips to the back;
+   with it present (this app's default), the base rule below rotates
+   `.cardInner` 180deg, so `.cardFaceBack` (authored `rotateY(180deg)`) ends
+   up facing forward instead, and hovering un-rotates back to the front. */
+.aircraftRarityFrame:hover .cardInner {
+  transform: rotateY(180deg);
+}
+
+.aircraftRarityFrame[data-show-back] .cardInner {
+  transform: rotateY(180deg);
+}
+
+.aircraftRarityFrame[data-show-back]:hover .cardInner {
+  transform: rotateY(0deg);
+}
+
+/* Shared by `.cardFaceBack`/`.cardFaceFront`: the two-layer gradient-border
+   technique, adsb.win's own real, verified-exact 9-tier taxonomy CSS
+   (design.md Decision 5, source: https://adsb.win/assets/tailwind-1909ad77.css,
+   fetched and diffed byte-for-byte) — now applied per-face (each face is a
+   complete bordered card, see `.cardInner`'s doc comment above) rather than
+   once on the outer frame; both faces render the identical border look since
+   both inherit the same `--rarity-*` variables from their `.aircraftRarityFrame`
+   ancestor. `unidentified` gets no `[data-tier="unidentified"]` rule at all —
+   it inherits this base rule's own defaults verbatim, exactly like adsb.win's
+   own CSS. */
+.cardFace {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(135deg, var(--rarity-highlight), var(--rarity-color) 35%, var(--rarity-color));
+  border-radius: 1.65rem; /* 26.4px */
+  padding: 2px;
+  overflow: hidden;
+  box-shadow: 0 14px 32px #02061747, 0 0 22px var(--rarity-glow);
+  transition: box-shadow 0.2s;
+}
+
 @supports (color: color-mix(in lab, red, red)) {
-  .aircraftRarityFrame {
+  .cardFace {
     background: linear-gradient(
       135deg,
       var(--rarity-highlight),
@@ -84,8 +144,17 @@
   }
 }
 
-.aircraftRarityFrame:hover {
+.aircraftRarityFrame:hover .cardFace {
   box-shadow: 0 22px 44px #02061761, 0 0 34px var(--rarity-glow);
+}
+
+.cardFaceBack {
+  transform: rotateY(180deg);
+}
+
+.cardFaceFront {
+  transform: rotateY(0deg);
+  min-height: 0;
 }
 
 .aircraftTierCard {
@@ -93,52 +162,11 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
   padding: 20px;
   overflow: hidden;
   background: linear-gradient(145deg, rgb(16, 23, 32), rgb(8, 11, 16) 62%, rgb(17, 24, 39));
-}
-
-/* Two-face flip card (design.md Decision 2, ported from
-   `iconizer/3D-modeler/src/style.css`'s `.card-inner`/`.card-face-*`).
-   `.cardFaceBack` stays in normal flow (its content — identity header +
-   stat region — is what gives the card its real intrinsic height, same as
-   before this change); `.cardFaceFront` is absolutely positioned over it,
-   sharing that same box. Both carry `.aircraftTierCard` for the shared
-   background/padding/material-tier decoration. */
-.cardInner {
-  position: relative;
-  transform-style: preserve-3d;
-  transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
-}
-
-.cardFaceBack {
-  backface-visibility: hidden;
-  transform: rotateY(0deg);
-}
-
-.cardFaceFront {
-  position: absolute;
-  inset: 0;
-  backface-visibility: hidden;
-  transform: rotateY(180deg);
-}
-
-/* `showBack` (default `true`, see `PlaneCardProps`) selects which face rests
-   forward without hover — mirrored via `data-show-back` on the frame rather
-   than a hardcoded default, so a future caller can opt into front-by-default
-   instead (design.md Decision 2). `showBack === true`'s rest state needs no
-   rule: `.cardInner`'s un-rotated `rotateY(0deg)` already faces the back
-   face (itself authored at `rotateY(0deg)`) forward. */
-.aircraftRarityFrame[data-show-back="true"]:hover .cardInner {
-  transform: rotateY(180deg);
-}
-
-.aircraftRarityFrame[data-show-back="false"] .cardInner {
-  transform: rotateY(180deg);
-}
-
-.aircraftRarityFrame[data-show-back="false"]:hover .cardInner {
-  transform: rotateY(0deg);
 }
 
 .scaledContent {
@@ -186,17 +214,23 @@
 }
 /* mythic and apex additionally override `background` (and apex overrides
    `box-shadow`) directly instead of using the shared linear-gradient
-   formula above. */
+   formula above — applied to `.cardFace` (per design.md Decision 2's
+   per-face border, both faces render identically since both are
+   `.aircraftRarityFrame[data-tier="mythic"/"apex"]` descendants). */
 .aircraftRarityFrame[data-tier="mythic"] {
   --rarity-color: #db2777;
   --rarity-highlight: #f0abfc;
   --rarity-glow: #d946ef9e;
+}
+.aircraftRarityFrame[data-tier="mythic"] .cardFace {
   background: conic-gradient(from 210deg, #22d3ee, #8b5cf6, #ec4899, #f59e0b, #22d3ee);
 }
 .aircraftRarityFrame[data-tier="apex"] {
   --rarity-color: #bae6fd;
   --rarity-highlight: #fff;
   --rarity-glow: #cffafed1;
+}
+.aircraftRarityFrame[data-tier="apex"] .cardFace {
   box-shadow: 0 14px 32px #02061747, 0 0 14px #ffffffb8, 0 0 34px var(--rarity-glow);
   background: linear-gradient(120deg, #fff, #ecfeff 18%, #bae6fd 46%, #e0e7ff 72%, #fff);
 }
@@ -213,11 +247,12 @@
 
 /* mythic/apex's animated diagonal highlight sweep (design.md Decision 3) —
    the two tiers' static gradient/box-shadow above is already correct; this
-   is the one piece that was missing. Lives on `.aircraftRarityFrame` (the
-   outer frame), not `.aircraftTierCard`, matching the reference's own
-   `.aircraft-rarity--mythic:after,.aircraft-rarity--apex:after` scope. */
-.aircraftRarityFrame[data-tier="mythic"]::after,
-.aircraftRarityFrame[data-tier="apex"]::after {
+   is the one piece that was missing. Lives on `.cardFace` (per design.md
+   Decision 2's per-face border — renders on both faces identically),
+   matching the reference's own `.aircraft-rarity--mythic:after,
+   .aircraft-rarity--apex:after` scope. */
+.aircraftRarityFrame[data-tier="mythic"] .cardFace::after,
+.aircraftRarityFrame[data-tier="apex"] .cardFace::after {
   content: "";
   z-index: 3;
   position: absolute;
@@ -711,15 +746,175 @@
   background: var(--tier-highlight);
 }
 
-/* Front face's XP summary (design.md Decision 4) — reuses `.xpBlock`'s
-   family of classes (label row, value, progress track/fill) so it stays
-   visually consistent with the back face's own XP block; this wrapper only
-   adds the spacing needed since the front face has no preceding stat grid
-   to sit below. */
+/* Front face's XP summary — a direct child of `.cardFaceFront` (sibling of
+   `.cardFrontContent`, not nested inside it), sitting flush on the exposed
+   `.cardFace` gradient-border strip, same chrome as the back face's
+   `.cardBadgeRow` — matching `@card/core`'s own `.card-front-xp-panel`.
+   Reuses `.xpBlock`'s family of classes (label row, value, progress
+   track/fill) so it stays visually consistent with the back face's own XP
+   block. */
 .frontXpPanel {
-  margin-top: 24px;
-  padding-top: 20px;
-  border-top: 1px solid oklab(0.999994 0.0000455678 0.0000200868 / 0.1);
+  flex-shrink: 0;
+  z-index: 2;
+  padding: 10px 20px 14px;
+}
+
+.frontXpPanel .xpBlock {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+/* Front face content — full-bleed 3D/silhouette art behind an identity
+   header, ported from `@card/core`'s `.card-front-content`/`.card-front-header`/
+   `.card-front-pills`/`.card-front-art`/`.card-front-grid` (design.md
+   Decision 4's "3D model" follow-up). Deliberately its own rule set, not
+   `.aircraftTierCard` reused — the front face has no material-tier body
+   decoration (that's a SquawkMap3D-specific addition to the back face only,
+   not part of the upstream library, which has no such decoration on either
+   face), so duplicating the shared dark-background declaration here (same
+   as the library's own `.card-content`/`.card-front-content` duplication)
+   keeps the two independent instead of accidentally coupling them. */
+.cardFrontContent {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  padding: 20px;
+  overflow: hidden;
+  border-radius: 1.5rem; /* 24px */
+  background: linear-gradient(145deg, rgb(16, 23, 32), rgb(8, 11, 16) 62%, rgb(17, 24, 39));
+}
+
+/* Legibility scrim over the full-bleed 3D/flat art — between the art
+   (z-index 0) and the pills/name text (z-index 2), so the wireframe/grid
+   can fill the whole front face without swallowing the text. */
+.cardFrontContent::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    180deg,
+    rgba(8, 11, 16, 0.82) 0%,
+    rgba(8, 11, 16, 0.35) 30%,
+    rgba(8, 11, 16, 0.15) 55%,
+    rgba(8, 11, 16, 0.55) 100%
+  );
+}
+
+.cardFrontHeader {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.cardFrontPills {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* `.rarityBadge`/`.tierBadge`'s `max-width`/ellipsis (needed in the wide,
+   centered `.cardBadgeRow`) instead reads as this narrow flex column's own
+   width via `calc(100%...)`, and their `text-overflow: ellipsis` gives them
+   a near-zero flex min-width — together, aggressively truncating them
+   whenever `.cardFrontIdentity`'s text needs room. Unconstrained here,
+   matching `@card/core`'s own `.card-pill` (no max-width/ellipsis at all). */
+.cardFrontPills .rarityBadge,
+.cardFrontPills .tierBadge {
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.cardFrontIdentity {
+  text-align: right;
+  min-width: 0;
+}
+
+.cardFrontIdentity .manufacturerLabel {
+  margin-top: 0;
+}
+
+.cardFrontName {
+  margin-top: 4px;
+  font-size: clamp(16px, 6cqmin, 24px);
+  font-weight: 900;
+  line-height: 1.2;
+  color: rgb(241, 245, 249);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Full-bleed background art (not a corner thumbnail) — fills the whole
+ * front face behind the pills/name. Sits below the `::before` legibility
+ * scrim (z-index 1) and the header text (z-index 2). Mounted imperatively
+ * by `planeCardFrontArt.ts`'s `mountCardArt` (ported from
+ * `@card/wireframe-three`), which sets `data-front-art-flat` and inline
+ * `color` on this element when falling back to the flat SVG silhouette. */
+.cardFrontArt {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  color: var(--rarity-highlight);
+}
+
+.cardFrontArt canvas,
+.cardFrontArt svg {
+  width: 100%;
+  height: 100%;
+}
+
+.cardFrontArt[data-front-art-flat] svg {
+  filter: drop-shadow(0 0 4px var(--rarity-glow));
+  opacity: 0.55;
+}
+
+/* Animated grid backdrop shown only behind the flat-SVG fallback (hidden by
+ * `mountCardArt` whenever a real 3D wireframe render is mounted instead) —
+ * ported from `@card/core`'s `.card-front-grid`. */
+.cardFrontGrid {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
+  mask-image: radial-gradient(ellipse at center, #000 70%, transparent 100%);
+}
+
+.cardFrontGrid::before {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  background-image: linear-gradient(color-mix(in srgb, var(--rarity-color) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--rarity-color) 55%, transparent) 1px, transparent 1px);
+  background-size: 14px 14px;
+  animation: 6s linear infinite card-grid-slide;
+}
+
+@keyframes card-grid-slide {
+  0% {
+    transform: translate(0, 0);
+  }
+  100% {
+    transform: translate(14px, 14px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cardFrontGrid::before {
+    animation: none;
+  }
 }
 
 .statsEmpty {
@@ -785,16 +980,19 @@
   filter: brightness(1.1);
 }
 
-.badgeRow {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 4px;
+/* Rarity/material-tier badge row — a direct child of `.cardFaceBack`
+   (sibling of `.aircraftTierCard`, not nested inside it), so it sits in
+   normal flow at the bottom of the face's flex column, directly on the
+   exposed `.cardFace` gradient-border strip rather than the dark card
+   background — matching `@card/core`'s own `.card-badge-row` (sibling of
+   `.card-content` inside `.card-face-back`). */
+.cardBadgeRow {
+  flex-shrink: 0;
   z-index: 2;
   display: flex;
   justify-content: center;
   gap: 0.35rem;
-  max-width: calc(100% - 2rem);
+  padding: 8px 0 4px;
 }
 
 /* adsb.win's own material-tier badge (e.g. "Titanium") — a *different* axis
@@ -898,8 +1096,8 @@
    tier `:before`/`:after` decorative animations (shimmer/drift/pulse/
    aurora/rim). */
 @media (prefers-reduced-motion: reduce) {
-  .aircraftRarityFrame[data-tier="mythic"]::after,
-  .aircraftRarityFrame[data-tier="apex"]::after {
+  .aircraftRarityFrame[data-tier="mythic"] .cardFace::after,
+  .aircraftRarityFrame[data-tier="apex"] .cardFace::after {
     opacity: 0;
     animation: none;
   }

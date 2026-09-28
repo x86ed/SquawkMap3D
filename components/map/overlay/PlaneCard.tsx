@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./PlaneCard.module.css";
-import type { RarityTier } from "../aircraftRarity";
+import { RARITY_TIER_STYLES, type RarityTier } from "../aircraftRarity";
 import { getAircraftShape, type AircraftShape } from "../aircraftShapes";
 import { computeTightViewBox } from "../svgBBox";
 import type { AircraftModelCardResult } from "./aircraftModelCard";
 import { storeFeederUuid } from "./feederUuid";
 import { computeTierProgress } from "./tierProgress";
 import { splitManufacturerModel } from "./manufacturerModel";
+import { loadAircraftGltfScene, mountCardArt } from "./planeCardFrontArt";
 
 const UNKNOWN = "Unknown";
 
@@ -308,24 +309,32 @@ export function PlaneCard({
     return () => observer.disconnect();
   }, [cardStats, rarityTier, typeDesignator, manufacturerModel]);
 
-  const identityHeader = (
-    <div className={styles.headerRow}>
-      <div className={styles.identity}>
-        {/* ICAO type designator, not the rarity tier — that's shown on
-         * `.rarityBadge` at the card's bottom edge already. */}
-        <span className={styles.typeBadge}>{typeDesignator?.toUpperCase() ?? UNKNOWN}</span>
-        <p className={styles.manufacturerLabel}>{manufacturer ?? UNKNOWN}</p>
-        <h3 className={styles.modelName}>{model ?? manufacturerModel ?? UNKNOWN}</h3>
-      </div>
-      <svg
-        className={styles.shapeIcon}
-        viewBox={viewBox}
-        aria-hidden="true"
-        // shape.markup is sourced only from the vendored, license-attributed SVG files at build time (scripts/generate-aircraft-shapes-manifest.mjs), never from user/network input
-        dangerouslySetInnerHTML={{ __html: shape.markup }}
-      />
-    </div>
-  );
+  const frontArtRef = useRef<HTMLDivElement | null>(null);
+
+  /**
+   * Front-face art (design.md Decision 4's "3D model" follow-up): mounts a
+   * themed wireframe render of the aircraft's vendored `.glb` model (the
+   * same files `aircraftModels.ts` feeds to the map's `ScenegraphLayer`),
+   * ported verbatim from `plens-win/Card`'s `@card/wireframe-three`
+   * (`planeCardFrontArt.ts`), falling back to the flat 2D silhouette when
+   * the aircraft has no vendored model. Runs imperatively (not React-owned
+   * DOM) because the underlying library function directly manages a
+   * `<canvas>`/WebGL context; `cancelled` guards against a slower-resolving
+   * earlier aircraft's model landing after a newer selection's effect ran.
+   */
+  useEffect(() => {
+    const slot = frontArtRef.current;
+    if (!slot) return;
+    let cancelled = false;
+    const color = RARITY_TIER_STYLES[rarityTier].color;
+    loadAircraftGltfScene(typeDesignator, category).then((scene) => {
+      if (cancelled) return;
+      mountCardArt(slot, scene ?? undefined, color, shape.markup);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [typeDesignator, category, rarityTier, shape]);
 
   return (
     <div className={styles.cardScaleWrap} ref={wrapRef}>
@@ -333,18 +342,18 @@ export function PlaneCard({
         className={styles.aircraftRarityFrame}
         ref={frameRef}
         data-tier={rarityTier}
-        data-show-back={showBack}
+        data-show-back={showBack || undefined}
         style={scale !== 1 ? { transform: `scale(${scale})` } : undefined}
       >
         {/*
          * Two-face flip card (design.md Decision 2, ported from
-         * `iconizer/3D-modeler/src/card.ts`/`style.css`): `.cardInner` is the
-         * shared click target (both faces navigate identically) and the
-         * element `PlaneCard.module.css`'s `data-show-back`-driven CSS
-         * rotates on hover; `.cardFaceBack` (in normal flow) still gives the
-         * card its real intrinsic size, `.cardFaceFront` sits absolutely atop
-         * it, matching whichever face `backface-visibility: hidden` leaves
-         * facing the viewer.
+         * `plens-win/Card`'s `@card/core`/`@card/wireframe-three`):
+         * `.cardInner` is the shared click target (both faces navigate
+         * identically) and the element `PlaneCard.module.css`'s
+         * `data-show-back`-driven CSS rotates on hover. Each face
+         * (`.cardFace.cardFaceBack`/`.cardFace.cardFaceFront`) is a
+         * COMPLETE bordered card — the whole card flips, not just its inner
+         * content (see `.cardFace`'s doc comment in the CSS).
          */}
         <div
           className={styles.cardInner}
@@ -360,30 +369,51 @@ export function PlaneCard({
             );
           }}
         >
-          <div
-            className={`${styles.aircraftTierCard} ${styles.cardFaceBack}`}
-            data-material-tier={materialTierAttr(cardStats)}
-          >
-            <div className={styles.glowOrb} aria-hidden="true" />
-            <div className={styles.scaledContent}>
-              {identityHeader}
-              {renderStatRegion(cardStats)}
+          <div className={`${styles.cardFace} ${styles.cardFaceBack}`}>
+            <div className={styles.aircraftTierCard} data-material-tier={materialTierAttr(cardStats)}>
+              <div className={styles.glowOrb} aria-hidden="true" />
+              <div className={styles.scaledContent}>
+                <div className={styles.headerRow}>
+                  <div className={styles.identity}>
+                    {/* ICAO type designator, not the rarity tier — that's
+                     * shown on `.rarityBadge`/`.cardBadgeRow` below. */}
+                    <span className={styles.typeBadge}>{typeDesignator?.toUpperCase() ?? UNKNOWN}</span>
+                    <p className={styles.manufacturerLabel}>{manufacturer ?? UNKNOWN}</p>
+                    <h3 className={styles.modelName}>{model ?? manufacturerModel ?? UNKNOWN}</h3>
+                  </div>
+                  <svg
+                    className={styles.shapeIcon}
+                    viewBox={viewBox}
+                    aria-hidden="true"
+                    // shape.markup is sourced only from the vendored, license-attributed SVG files at build time (scripts/generate-aircraft-shapes-manifest.mjs), never from user/network input
+                    dangerouslySetInnerHTML={{ __html: shape.markup }}
+                  />
+                </div>
+                {renderStatRegion(cardStats)}
+              </div>
+            </div>
+            <div className={styles.cardBadgeRow}>
+              {cardStats?.status === "ok" && <span className={styles.tierBadge}>{cardStats.attributes.tier}</span>}
+              <span className={styles.rarityBadge}>{rarityTier}</span>
             </div>
           </div>
-          <div
-            className={`${styles.aircraftTierCard} ${styles.cardFaceFront}`}
-            data-material-tier={materialTierAttr(cardStats)}
-          >
-            <div className={styles.glowOrb} aria-hidden="true" />
-            <div className={styles.scaledContent}>
-              {identityHeader}
-              <div className={styles.frontXpPanel}>{renderXpSummary(cardStats)}</div>
+          <div className={`${styles.cardFace} ${styles.cardFaceFront}`}>
+            <div className={styles.cardFrontContent} data-front-content>
+              <div className={styles.cardFrontGrid} data-front-grid aria-hidden="true" />
+              <div className={styles.cardFrontArt} ref={frontArtRef} aria-hidden="true" />
+              <div className={styles.cardFrontHeader}>
+                <div className={styles.cardFrontPills}>
+                  <span className={styles.rarityBadge}>{rarityTier}</span>
+                  {cardStats?.status === "ok" && <span className={styles.tierBadge}>{cardStats.attributes.tier}</span>}
+                </div>
+                <div className={styles.cardFrontIdentity}>
+                  <p className={styles.manufacturerLabel}>{manufacturer ?? UNKNOWN}</p>
+                  <h2 className={styles.cardFrontName}>{model ?? manufacturerModel ?? UNKNOWN}</h2>
+                </div>
+              </div>
             </div>
+            <div className={styles.frontXpPanel}>{renderXpSummary(cardStats)}</div>
           </div>
-        </div>
-        <div className={styles.badgeRow}>
-          {cardStats?.status === "ok" && <span className={styles.tierBadge}>{cardStats.attributes.tier}</span>}
-          <span className={styles.rarityBadge}>{rarityTier}</span>
         </div>
       </div>
     </div>
