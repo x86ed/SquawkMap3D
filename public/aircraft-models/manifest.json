@@ -123,5 +123,8 @@
   {
     "type": "A339",
     "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "FH11"
   }
 ]
