@@ -1,26 +1,26 @@
 ## 1. Study source implementation
 
-- [ ] 1.1 Re-read `iconizer/3D-modeler/src/card.ts`'s `buildAircraftCard` and `iconizer/3D-modeler/src/style.css`'s `.card-*` rules (lines ~44-165) as the port source for markup structure and flip mechanics.
-- [ ] 1.2 Map each `iconizer` class (`card-frame`, `card-inner`, `card-face`, `card-face-front`, `card-face-back`, `card-front-*`, `card-*`) to a camelCase CSS Modules name for `PlaneCard.module.css`.
+- [x] 1.1 Re-read `iconizer/3D-modeler/src/card.ts`'s `buildAircraftCard` and `iconizer/3D-modeler/src/style.css`'s `.card-*` rules (lines ~44-165) as the port source for markup structure and flip mechanics.
+- [x] 1.2 Map each `iconizer` class to this app's naming. **Deviation**: kept the existing `.aircraftRarityFrame`/`.aircraftTierCard` class names (rather than renaming to `.cardFrame`/`.cardFace`) since they're deeply cross-referenced by the byte-for-byte-ported adsb.win tier CSS (`:has()` selectors, 9 per-tier overrides, 6 material-tier overrides) — renaming risked breaking that pixel-exact styling for no functional benefit. Added only the new structural classes needed for the flip: `.cardInner`, `.cardFaceBack`, `.cardFaceFront`, `.frontXpPanel`.
 
 ## 2. CSS: flip frame and both faces
 
-- [ ] 2.1 Add `.cardFrame` (perspective, `data-tier`-driven gradient border/glow, `mythic`/`apex` sheen) to `PlaneCard.module.css`, replacing/renaming the current `.aircraftRarityFrame` rule set as needed while preserving all existing tier-color CSS custom properties and selectors.
-- [ ] 2.2 Add `.cardInner` with `transform-style: preserve-3d` and a `transition`; drive its resting `transform` from the new `showBack` prop (e.g. `[data-show-back="true"] .cardInner { transform: rotateY(180deg); }` / `[data-show-back="false"] .cardInner { transform: rotateY(0deg); }`) rather than a single hardcoded base rule.
-- [ ] 2.3 Add hover rules that invert the resting transform per `showBack` (`[data-show-back="true"]:hover .cardInner { transform: rotateY(0deg); }` / `[data-show-back="false"]:hover .cardInner { transform: rotateY(180deg); }`).
-- [ ] 2.4 Add `.cardFace` (shared: `position: absolute`, `backface-visibility: hidden`, border-radius, shared border/background) plus `.cardFaceFront` (`transform: rotateY(180deg)` per the flip technique) and `.cardFaceBack` (`transform: rotateY(0deg)`), matching `iconizer`'s CSS structure so the base/hover swap in 2.2/2.3 correctly shows the back face by default.
-- [ ] 2.5 Port front-face-only styles (pills, `card-front-header`, `card-front-art`, `card-front-xp-panel`, `card-front-grid` background) as new CSS Modules classes.
-- [ ] 2.6 Reduced-motion: keep (or add, if missing) a `@media (prefers-reduced-motion: reduce)` rule disabling the `.cardInner` transition, matching `iconizer`'s existing rule.
+- [x] 2.1 Perspective added to the existing `.aircraftRarityFrame` (kept as the outer frame per 1.2's deviation) rather than a renamed `.cardFrame`; all existing tier-color custom properties/selectors untouched.
+- [x] 2.2 Added `.cardInner` (`transform-style: preserve-3d`, `transition`). Resting `transform` needs no rule for `showBack=true` (the default) — `.cardFaceBack` is authored at `rotateY(0deg)`, so an un-rotated `.cardInner` already faces it forward; `[data-show-back="false"] .cardInner` rotates 180deg for front-forward-at-rest.
+- [x] 2.3 Hover rules added: `[data-show-back="true"]:hover .cardInner` → `rotateY(180deg)` (reveals front); `[data-show-back="false"]:hover .cardInner` → `rotateY(0deg)` (reveals back).
+- [x] 2.4 Added `.cardFaceBack`/`.cardFaceFront` (`backface-visibility: hidden`, correct resting `rotateY`, front absolutely positioned over the back). Both faces additionally carry the existing `.aircraftTierCard` class for shared background/padding/material-tier decoration, rather than a separate new shared `.cardFace` class — avoids duplicating that CSS.
+- [x] 2.5 Front-face-only style added: `.frontXpPanel` (spacing wrapper around the shared XP block). **Deviation**: did not port `iconizer`'s pill/credit-row markup — the front face's rarity/tier badges are served by the existing shared floating `.badgeRow` (bottom of the frame, visible on both faces, unaffected by the flip), so no separate front-face pill markup was needed.
+- [x] 2.6 Added `.cardInner { transition: none; }` to the existing `prefers-reduced-motion: reduce` block.
 
 ## 3. PlaneCard.tsx: restructure into two faces
 
-- [ ] 3.0 Add `showBack?: boolean` to `PlaneCardProps`, defaulting to `true` in the component's destructured params; set `data-show-back={showBack}` on `.cardFrame` so the CSS in 2.2/2.3 picks it up.
-- [ ] 3.1 Wrap the existing `.aircraftTierCard` content in the new `.cardFrame > .cardInner > (.cardFaceFront, .cardFaceBack)` structure, keeping the outer `.cardScaleWrap`/`ResizeObserver` contain-fit logic unchanged.
-- [ ] 3.2 Move the current identity header + `renderStatRegion` content onto `.cardFaceBack`, unchanged in content/logic.
-- [ ] 3.3 Add new `.cardFaceFront` JSX: identity header (type badge/manufacturer/model), rarity-tier pill, adsb.win tier pill (from `cardStats`, mirroring `levelPillContent` in `iconizer/3D-modeler/src/card.ts`), the existing silhouette `<svg>` (`useTightAircraftShapeViewBox`/`getAircraftShape`, reused as-is — no 3D wireframe), and an XP panel (XP count + tier/progress label + `computeTierProgress`-driven bar, reusing the same helpers `renderStatRegion` already uses).
-- [ ] 3.4 Move the whole-card `onClick` handler (open `https://adsb.win/dashboard/aircraft/{TYPE}`, skipping `form, input, button, a` targets) onto a container that wraps both faces (e.g. `.cardInner` or `.cardFrame`) so it applies regardless of which face is currently visible.
-- [ ] 3.5 Confirm the click handler still no-ops when `typeDesignator` is falsy (`cursor: pointer` and the `onClick` stay conditional on `typeDesignator`, as today).
-- [ ] 3.6 Update `AircraftOverlay.tsx`'s `<PlaneCard ... />` call to pass `showBack={true}` explicitly, so the enabled-by-default flag is visible at the (currently only) view mounting the card, not left implicit.
+- [x] 3.0 Added `showBack?: boolean` to `PlaneCardProps` (default `true` in the destructure); set `data-show-back={showBack}` on `.aircraftRarityFrame`.
+- [x] 3.1 Wrapped content in `.aircraftRarityFrame > .cardInner > (.cardFaceBack, .cardFaceFront)`; `.cardScaleWrap`/`ResizeObserver` logic (targeting the outer frame ref) unchanged.
+- [x] 3.2 Moved the identity header + `renderStatRegion(cardStats)` onto `.cardFaceBack`, unchanged in content/logic.
+- [x] 3.3 Added `.cardFaceFront`: same identity header (extracted into a shared `identityHeader` JSX value used by both faces) plus a new `.frontXpPanel` driven by a new shared `renderXpSummary(cardStats)` helper (factored out of `renderStatRegion`'s previous inline XP block so both faces stay in sync). Reuses the existing silhouette `<svg>`, no 3D wireframe. Rarity/tier pills come from the existing shared `.badgeRow`, not new front-face-only pills (see 2.5's deviation note).
+- [x] 3.4 Moved the whole-card `onClick` (adsb.win dashboard URL, skipping `form, input, button, a`) onto `.cardInner`, the shared ancestor of both faces.
+- [x] 3.5 Confirmed: `cursor: pointer` and the `onClick` on `.cardInner` remain conditional on `typeDesignator` truthiness, unchanged from before.
+- [x] 3.6 `AircraftOverlay.tsx`'s `<PlaneCard ... />` now passes `showBack={true}` explicitly.
 
 ## 4. Verify against specs
 
@@ -30,4 +30,4 @@
 - [ ] 4.3 Manually verify all five `cardStats` states (empty, not-configured, invalid-token, error, ok+progress bar) still render correctly on the back face, and the front-face XP panel reflects the same `cardStats` value consistently.
 - [ ] 4.4 Manually verify the `mythic`/`apex` tier gradient/sheen and all nine rarity-tier frame styles still render correctly on both faces.
 - [ ] 4.5 Manually verify the existing `ResizeObserver` contain-fit scaling still works with the new nested flip structure (frame's natural `scrollWidth`/`scrollHeight` unaffected by the added 3D-transform layers).
-- [ ] 4.6 Run the existing test suite (`test/aircraftModelCard.test.ts` and any `PlaneCard`-related tests) and fix any breakage caused by the DOM restructuring.
+- [x] 4.6 Ran the existing test suite (`npm test`): 173/173 pass, no failures introduced. No `PlaneCard`-specific unit tests exist in this repo (its correctness is manually/visually verified per the tasks above, consistent with how it was tested before this change). Also ran `npx tsc --noEmit`: no type errors.

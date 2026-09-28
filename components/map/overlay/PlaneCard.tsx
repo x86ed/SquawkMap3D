@@ -26,6 +26,14 @@ export interface PlaneCardProps {
    * `typeDesignator` itself is unknown. See design.md Decision 5.
    */
   cardStats?: AircraftModelCardResult;
+  /**
+   * Which face rests forward without hover — `true` (the default) rests
+   * the back face (identity + stat region) forward; hovering flips to the
+   * front face (identity + silhouette + XP panel). See design.md
+   * Decision 2. Every current call site (`AircraftOverlay`) passes `true`
+   * explicitly rather than relying silently on the default.
+   */
+  showBack?: boolean;
 }
 
 /** `HH:MM` from a seconds count, for the stat grid's "observed flight time" cell. */
@@ -108,6 +116,53 @@ function materialTierAttr(cardStats: AircraftModelCardResult | undefined): strin
 }
 
 /**
+ * XP count / tier / progress-bar block — shared by the back face's stat
+ * region (only for a successful `cardStats` result) and the front face's
+ * always-present XP panel (design.md Decision 4), so the two faces never
+ * drift out of sync on how this is computed/rendered. Renders a plain "—"
+ * placeholder for every non-`"ok"` outcome rather than fabricating a value.
+ */
+function renderXpSummary(cardStats: AircraftModelCardResult | undefined) {
+  if (cardStats?.status !== "ok") {
+    return (
+      <div className={styles.xpBlock}>
+        <div className={styles.xpLabelRow}>
+          <span className={styles.xpValue}>{UNKNOWN}</span>
+        </div>
+      </div>
+    );
+  }
+
+  const { attributes } = cardStats;
+  const progress = computeTierProgress(attributes.tier, attributes.xp);
+
+  return (
+    <div className={styles.xpBlock}>
+      <div className={styles.xpLabelRow}>
+        <span className={styles.xpValue}>{attributes.xp.toLocaleString()} XP</span>
+        <span className={styles.progressLabel}>
+          {attributes.tier}
+          {progress && progress.nextTierName && ` — ${progress.percentToNext}% to ${progress.nextTierName}`}
+          {progress && !progress.nextTierName && " — Maximum tier"}
+        </span>
+      </div>
+      {progress && (
+        <div className={styles.progressTrack}>
+          <div
+            className={
+              progress.nextTierName === null
+                ? `${styles.progressFill} ${styles.progressFillMax}`
+                : styles.progressFill
+            }
+            style={{ width: `${progress.percentToNext}%` }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * Renders `PlaneCard`'s stat region for every real `cardStats` outcome
  * (`adsb-win-aircraft-stats` capability, design.md Decision 5). `undefined`
  * and `"not_found"` are treated identically — both mean "nothing to show,
@@ -141,7 +196,6 @@ function renderStatRegion(cardStats: AircraftModelCardResult | undefined) {
   }
 
   const { attributes } = cardStats;
-  const progress = computeTierProgress(attributes.tier, attributes.xp);
 
   return (
     <>
@@ -167,28 +221,7 @@ function renderStatRegion(cardStats: AircraftModelCardResult | undefined) {
           </dd>
         </div>
       </dl>
-      <div className={styles.xpBlock}>
-        <div className={styles.xpLabelRow}>
-          <span className={styles.xpValue}>{attributes.xp.toLocaleString()} XP</span>
-          <span className={styles.progressLabel}>
-            {attributes.tier}
-            {progress && progress.nextTierName && ` — ${progress.percentToNext}% to ${progress.nextTierName}`}
-            {progress && !progress.nextTierName && " — Maximum tier"}
-          </span>
-        </div>
-        {progress && (
-          <div className={styles.progressTrack}>
-            <div
-              className={
-                progress.nextTierName === null
-                  ? `${styles.progressFill} ${styles.progressFillMax}`
-                  : styles.progressFill
-              }
-              style={{ width: `${progress.percentToNext}%` }}
-            />
-          </div>
-        )}
-      </div>
+      {renderXpSummary(cardStats)}
     </>
   );
 }
@@ -221,6 +254,7 @@ export function PlaneCard({
   manufacturerModel,
   rarityTier,
   cardStats,
+  showBack = true,
 }: PlaneCardProps) {
   const shape = getAircraftShape(typeDesignator, category);
   const viewBox = useTightAircraftShapeViewBox(shape);
@@ -274,17 +308,46 @@ export function PlaneCard({
     return () => observer.disconnect();
   }, [cardStats, rarityTier, typeDesignator, manufacturerModel]);
 
+  const identityHeader = (
+    <div className={styles.headerRow}>
+      <div className={styles.identity}>
+        {/* ICAO type designator, not the rarity tier — that's shown on
+         * `.rarityBadge` at the card's bottom edge already. */}
+        <span className={styles.typeBadge}>{typeDesignator?.toUpperCase() ?? UNKNOWN}</span>
+        <p className={styles.manufacturerLabel}>{manufacturer ?? UNKNOWN}</p>
+        <h3 className={styles.modelName}>{model ?? manufacturerModel ?? UNKNOWN}</h3>
+      </div>
+      <svg
+        className={styles.shapeIcon}
+        viewBox={viewBox}
+        aria-hidden="true"
+        // shape.markup is sourced only from the vendored, license-attributed SVG files at build time (scripts/generate-aircraft-shapes-manifest.mjs), never from user/network input
+        dangerouslySetInnerHTML={{ __html: shape.markup }}
+      />
+    </div>
+  );
+
   return (
     <div className={styles.cardScaleWrap} ref={wrapRef}>
       <div
         className={styles.aircraftRarityFrame}
         ref={frameRef}
         data-tier={rarityTier}
+        data-show-back={showBack}
         style={scale !== 1 ? { transform: `scale(${scale})` } : undefined}
       >
+        {/*
+         * Two-face flip card (design.md Decision 2, ported from
+         * `iconizer/3D-modeler/src/card.ts`/`style.css`): `.cardInner` is the
+         * shared click target (both faces navigate identically) and the
+         * element `PlaneCard.module.css`'s `data-show-back`-driven CSS
+         * rotates on hover; `.cardFaceBack` (in normal flow) still gives the
+         * card its real intrinsic size, `.cardFaceFront` sits absolutely atop
+         * it, matching whichever face `backface-visibility: hidden` leaves
+         * facing the viewer.
+         */}
         <div
-          className={styles.aircraftTierCard}
-          data-material-tier={materialTierAttr(cardStats)}
+          className={styles.cardInner}
           style={typeDesignator ? { cursor: "pointer" } : undefined}
           onClick={(event) => {
             if (!typeDesignator) return;
@@ -297,25 +360,25 @@ export function PlaneCard({
             );
           }}
         >
-          <div className={styles.glowOrb} aria-hidden="true" />
-          <div className={styles.scaledContent}>
-            <div className={styles.headerRow}>
-              <div className={styles.identity}>
-                {/* ICAO type designator, not the rarity tier — that's shown on
-                 * `.rarityBadge` at the card's bottom edge already. */}
-                <span className={styles.typeBadge}>{typeDesignator?.toUpperCase() ?? UNKNOWN}</span>
-                <p className={styles.manufacturerLabel}>{manufacturer ?? UNKNOWN}</p>
-                <h3 className={styles.modelName}>{model ?? manufacturerModel ?? UNKNOWN}</h3>
-              </div>
-              <svg
-                className={styles.shapeIcon}
-                viewBox={viewBox}
-                aria-hidden="true"
-                // shape.markup is sourced only from the vendored, license-attributed SVG files at build time (scripts/generate-aircraft-shapes-manifest.mjs), never from user/network input
-                dangerouslySetInnerHTML={{ __html: shape.markup }}
-              />
+          <div
+            className={`${styles.aircraftTierCard} ${styles.cardFaceBack}`}
+            data-material-tier={materialTierAttr(cardStats)}
+          >
+            <div className={styles.glowOrb} aria-hidden="true" />
+            <div className={styles.scaledContent}>
+              {identityHeader}
+              {renderStatRegion(cardStats)}
             </div>
-            {renderStatRegion(cardStats)}
+          </div>
+          <div
+            className={`${styles.aircraftTierCard} ${styles.cardFaceFront}`}
+            data-material-tier={materialTierAttr(cardStats)}
+          >
+            <div className={styles.glowOrb} aria-hidden="true" />
+            <div className={styles.scaledContent}>
+              {identityHeader}
+              <div className={styles.frontXpPanel}>{renderXpSummary(cardStats)}</div>
+            </div>
           </div>
         </div>
         <div className={styles.badgeRow}>

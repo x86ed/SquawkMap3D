@@ -98,6 +98,7 @@ export function AircraftOverlay({
                     manufacturerModel={info.manufacturerModel}
                     rarityTier={info.rarityTier}
                     cardStats={info.cardStats}
+                    showBack={true}
                   />
                 </div>
                 <div className={styles.flightInfo}>

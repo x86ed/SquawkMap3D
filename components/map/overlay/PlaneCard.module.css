@@ -59,6 +59,10 @@
   transition: transform 0.16s ease-out, box-shadow 0.2s;
   width: 320px;
   flex-shrink: 0;
+  /* Flip-card depth for `.cardInner`'s 3D `rotateY` transform (design.md
+     Decision 2, ported from `iconizer/3D-modeler/src/style.css`'s
+     `.card-frame`). */
+  perspective: 1200px;
   /* Must match `.cardScaleWrap`'s own alignment (`justify-content: flex-start`,
      `align-items: center`): the default `center center` transform-origin
      shrinks a scaled-down frame in from all four sides at once, which
@@ -92,6 +96,49 @@
   padding: 20px;
   overflow: hidden;
   background: linear-gradient(145deg, rgb(16, 23, 32), rgb(8, 11, 16) 62%, rgb(17, 24, 39));
+}
+
+/* Two-face flip card (design.md Decision 2, ported from
+   `iconizer/3D-modeler/src/style.css`'s `.card-inner`/`.card-face-*`).
+   `.cardFaceBack` stays in normal flow (its content — identity header +
+   stat region — is what gives the card its real intrinsic height, same as
+   before this change); `.cardFaceFront` is absolutely positioned over it,
+   sharing that same box. Both carry `.aircraftTierCard` for the shared
+   background/padding/material-tier decoration. */
+.cardInner {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+
+.cardFaceBack {
+  backface-visibility: hidden;
+  transform: rotateY(0deg);
+}
+
+.cardFaceFront {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  transform: rotateY(180deg);
+}
+
+/* `showBack` (default `true`, see `PlaneCardProps`) selects which face rests
+   forward without hover — mirrored via `data-show-back` on the frame rather
+   than a hardcoded default, so a future caller can opt into front-by-default
+   instead (design.md Decision 2). `showBack === true`'s rest state needs no
+   rule: `.cardInner`'s un-rotated `rotateY(0deg)` already faces the back
+   face (itself authored at `rotateY(0deg)`) forward. */
+.aircraftRarityFrame[data-show-back="true"]:hover .cardInner {
+  transform: rotateY(180deg);
+}
+
+.aircraftRarityFrame[data-show-back="false"] .cardInner {
+  transform: rotateY(180deg);
+}
+
+.aircraftRarityFrame[data-show-back="false"]:hover .cardInner {
+  transform: rotateY(0deg);
 }
 
 .scaledContent {
@@ -664,6 +711,17 @@
   background: var(--tier-highlight);
 }
 
+/* Front face's XP summary (design.md Decision 4) — reuses `.xpBlock`'s
+   family of classes (label row, value, progress track/fill) so it stays
+   visually consistent with the back face's own XP block; this wrapper only
+   adds the spacing needed since the front face has no preceding stat grid
+   to sit below. */
+.frontXpPanel {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid oklab(0.999994 0.0000455678 0.0000200868 / 0.1);
+}
+
 .statsEmpty {
   margin-top: 32px;
   padding-top: 20px;
@@ -849,5 +907,9 @@
   .aircraftTierCard[data-material-tier]:before,
   .aircraftTierCard[data-material-tier]:after {
     animation: none !important;
+  }
+
+  .cardInner {
+    transition: none;
   }
 }
