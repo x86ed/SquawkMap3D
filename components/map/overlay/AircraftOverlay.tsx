@@ -45,6 +45,19 @@ export function AircraftOverlay({
     if (!viewport || !grid) return;
 
     const recompute = () => {
+      // `.card`'s grid column width (desktop layout only — see
+      // AircraftOverlay.module.css's `--card-col-width` doc comment): CSS
+      // grid `auto` track sizing doesn't account for a stretched item's
+      // `aspect-ratio`-derived width, so this computes it directly from row
+      // 1's own known height (the grid's total content-box height, minus
+      // the fixed 44px marquee row and their 16px row gap) and hands it to
+      // `PlaneCard`'s column as a pixel value, capped at the card's own
+      // 320px max-width. Set before the scale measurement below so that
+      // measurement reflects the corrected column width, not a stale one.
+      const row1Height = grid.clientHeight - 44 - 16;
+      const cardColWidth = Math.max(0, Math.min(320, (row1Height * 5) / 7));
+      grid.style.setProperty("--card-col-width", `${cardColWidth}px`);
+
       const availableWidth = viewport.clientWidth;
       const availableHeight = viewport.clientHeight;
       const contentWidth = grid.scrollWidth;

@@ -1,20 +1,17 @@
 /* `.card` (AircraftOverlay.module.css) hands this a grid cell whose own
    width:height ratio is dictated by the drawer's layout, not by this card's
-   own content — a wide/short cell would otherwise force `.aircraftRarityFrame`
-   into a squashed, un-portrait shape (real observed bug: content readable but
-   the card itself rendered wide-and-short instead of adsb.win's tall
-   trading-card proportions). `.cardScaleWrap` fills that cell and centers a
-   fixed-width, auto-height (i.e. genuinely intrinsic, content-driven) frame
-   inside it, uniformly scaled down (`PlaneCard.tsx`'s ResizeObserver,
-   comparing the frame's own `scrollWidth`/`scrollHeight` against this wrap's
-   `clientWidth`/`clientHeight`) whenever the cell is smaller than the frame's
-   natural size — the same contain-fit `transform: scale()` technique
-   `AircraftOverlay.tsx` already uses one level up for its whole grid. Because
-   both axes scale together, the frame's real aspect ratio (a product of its
-   fixed 320px width plus this content's real, byte-for-byte-ported padding/
-   gap/font-size values — not a guessed `aspect-ratio` number) is preserved
-   at every size, satisfying "keep the scale consistent with the aspect ratio
-   ... regardless of scale" directly rather than approximating it. */
+   own content. `.cardScaleWrap` fills that cell; `.aircraftRarityFrame`
+   fills it vertically (`height: 100%`) and derives its own width from that
+   height via `aspect-ratio` (capped at `max-width`, its natural size at
+   generous heights) — so the card is exactly as tall as its row actually is
+   and never leaves blank space above/below or (via the column-sizing note
+   below) beside it, rather than rendering at a fixed 320px width regardless
+   of how short the row is and then needing a second, separate shrink pass.
+   A ResizeObserver-driven `transform: scale()` (`PlaneCard.tsx`) remains as
+   a safety net for browsers/edge cases where the row's cross-axis stretch
+   doesn't resolve as expected, but in the normal case now computes to 1 (a
+   no-op) since the frame's CSS-computed size already fits `.cardScaleWrap`
+   exactly. */
 .cardScaleWrap {
   width: 100%;
   height: 100%;
@@ -22,11 +19,6 @@
   min-height: 0;
   display: flex;
   align-items: center;
-  /* Left-aligned, not centered: `.card`'s grid track (AircraftOverlay.module.css)
-     is deliberately sized wider than the frame's own 320px so the card has
-     room to breathe/shrink, but any width past what the card actually uses
-     should read as "the card sits at the drawer's left edge," not as
-     symmetric side gutters. */
   justify-content: flex-start;
   overflow: hidden;
 }
@@ -40,20 +32,25 @@
    gets no `[data-tier="unidentified"]` rule at all — it inherits this base
    rule's own defaults verbatim, exactly like adsb.win's own CSS.
 
-   `width: 320px` plus `aspect-ratio: 5 / 7` (design.md's flip-card revision)
-   is what produces the reference's portrait proportions now that both faces
-   are absolutely positioned inside `.cardInner` (a flip card's two faces
-   must share one fixed-size box — neither face can be "the" element whose
-   natural content height defines the box, the way the single pre-flip face
-   used to). `320px`/`5:7` were chosen to stay close to this card's
-   pre-flip natural proportions at its default content. */
+   `height: 100%` + `aspect-ratio: 5 / 7` (rather than a fixed `width: 320px`
+   — see design.md's flip-card-layout revision) is what lets
+   `AircraftOverlay.module.css`'s `.card` grid column auto-size to the
+   card's real rendered width instead of always reserving a fixed 320px
+   whether or not the row is tall enough to use it — a fixed-width card in a
+   short drawer row was getting shrunk (both axes, to preserve the ratio) far
+   below 320px to fit the row's actual height, leaving a large, empty gap
+   between the card and `.hero` where the unused reserved column width used
+   to be. `max-width: 320px` caps it at this card's original size on a
+   generously tall row instead of growing without bound. */
 .aircraftRarityFrame {
   --rarity-color: #64748b;
   --rarity-highlight: #cbd5e1;
   --rarity-glow: #64748b33;
   border-radius: 1.65rem; /* 26.4px */
   position: relative;
-  width: 320px;
+  height: 100%;
+  width: auto;
+  max-width: 320px;
   aspect-ratio: 5 / 7;
   flex-shrink: 0;
   /* Flip-card depth for `.cardInner`'s 3D `rotateY` transform — ported
@@ -1109,6 +1106,22 @@
 .rarityBadge::before {
   content: "◆";
   margin-right: 6.4px;
+}
+
+/* `AircraftOverlay.module.css`'s narrow/portrait breakpoint (same 760px
+   cutoff) gives `.card` a fixed-*width* column (shared `1fr` with
+   `flightInfo`) rather than a fixed-*height* row — the opposite of the
+   desktop layout's constraint. `height: 100%` there would stretch the card
+   to match `flightInfo`'s own (unrelated) intrinsic height instead of
+   deriving a sensible size from the column's actual width, so this flips
+   which dimension is authoritative: full column width, height derived from
+   it via the same `aspect-ratio`. */
+@media (max-width: 760px) {
+  .aircraftRarityFrame {
+    height: auto;
+    width: 100%;
+    max-width: none;
+  }
 }
 
 /* Matches the reference's own `@media (prefers-reduced-motion: reduce)`
