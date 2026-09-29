@@ -31,7 +31,7 @@
 - **THEN** the image area shows the newly-selected aircraft's own default view (photo if it has one, otherwise compass card), not whichever view was left showing for the previous aircraft
 
 ### Requirement: Compass card renders the selected aircraft's live telemetry
-The compass-card view SHALL render `plens-win/Card`'s `compass-track` card kind (`@card/core`'s static shell plus `@card/compass-track-three`'s live Three.js scene), driven by the selected aircraft's live heading, an estimated pitch, altitude, position, and ground speed, updating continuously as new telemetry arrives for the selected aircraft — without requiring the overlay to be closed/reopened.
+The compass-card view SHALL render `plens-win/Card`'s `compass-track` card kind (`@card/core`'s static shell plus `@card/compass-track-three`'s live Three.js scene), driven by the selected aircraft's live heading, an estimated pitch, altitude, position, and ground speed, updating continuously as new telemetry arrives for the selected aircraft — without requiring the overlay to be closed/reopened, and without rebuilding or re-mounting the card's own DOM/3D scene on every telemetry update (updates SHALL flow through the mounted scene's own live-update mechanism only). The rendered heading SHALL be relative to the map's current rotation, not fixed to true north: rotating the map SHALL visibly rotate the compass card's rendered aircraft to match, immediately, not only on the next telemetry poll.
 
 #### Scenario: Compass card renders with live telemetry
 - **WHEN** the compass-card view is showing for a selected aircraft with known position and heading
@@ -40,6 +40,14 @@ The compass-card view SHALL render `plens-win/Card`'s `compass-track` card kind 
 #### Scenario: Compass card updates as telemetry changes
 - **WHEN** the compass-card view is showing and the selected aircraft's telemetry (e.g. heading, altitude) changes on a later poll
 - **THEN** the rendered card updates to reflect the new values without the overlay being closed/reopened or the compass card being remounted from scratch
+
+#### Scenario: Compass card's own DOM/3D scene is never rebuilt by a telemetry update
+- **WHEN** the compass-card view is showing and a telemetry update arrives (with no change to the selected aircraft, view mode, resolved type, or rarity tier)
+- **THEN** the update is applied via the mounted scene's own live-update mechanism, and the card's mount element, HUD elements, and credit link are not replaced or recreated
+
+#### Scenario: Rotating the map rotates the compass card's rendered aircraft to match
+- **WHEN** the compass-card view is showing for a selected aircraft, and the user rotates the map away from true north
+- **THEN** the compass card's rendered aircraft orientation updates immediately to reflect the map's new rotation, relative to the aircraft's own true-north heading
 
 #### Scenario: Compass card is disposed when no longer shown
 - **WHEN** the image area switches away from the compass-card view (toggled to photo, or the selected aircraft changes), or the overlay closes

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./RecordPanelHero.module.css";
 import { fetchAircraftPhoto, type PlanespottersPhoto } from "../planespottersPhoto";
 import { splitManufacturerModel } from "./manufacturerModel";
@@ -85,6 +85,7 @@ export function RecordPanelHero({
   groundSpeed,
   lat,
   lon,
+  mapBearing,
 }: {
   registration?: string;
   callsign?: string;
@@ -109,6 +110,12 @@ export function RecordPanelHero({
   groundSpeed?: number;
   lat?: number;
   lon?: number;
+  /** The map's current rotation (degrees, 0 = true north up) — subtracted
+   * from the aircraft's true-north heading before feeding the compass card,
+   * so rotating the map rotates the compass card's rendered aircraft the
+   * same way, matching the map's own current orientation instead of always
+   * pointing true-north-up regardless of how the map is rotated. */
+  mapBearing: number;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [landscape, setLandscape] = useState(true);
@@ -149,7 +156,35 @@ export function RecordPanelHero({
 
   const compassContainerRef = useRef<HTMLDivElement | null>(null);
   const compassHandleRef = useRef<CompassTrackCardHandle | null>(null);
-  const telemetry: CompassTrackTelemetryInput = { track, verticalRate, altitude, groundSpeed, lat, lon };
+  // Screen-relative heading: the aircraft's true-north track minus the
+  // map's own current rotation, so rotating the map rotates the compass
+  // card's rendered aircraft the same way the map itself just did, instead
+  // of the card always orienting to true north regardless of the map's
+  // current bearing.
+  const screenRelativeTrack = track === undefined ? undefined : ((track - mapBearing) % 360 + 360) % 360;
+  const telemetry: CompassTrackTelemetryInput = {
+    track: screenRelativeTrack,
+    verticalRate,
+    altitude,
+    groundSpeed,
+    lat,
+    lon,
+  };
+  // The telemetry snapshot to bake into the static HTML below as its
+  // *initial* state — frozen per mount-identity (hex/type/category/rarity)
+  // rather than tracking every render's `telemetry`, so it only captures
+  // whatever was current at the moment a new mount-identity appeared; every
+  // value after that flows through the mounted handle's own `update()` (the
+  // effect below), never by rebuilding markup. Adjusted during render
+  // (React's documented pattern for resetting state when inputs change,
+  // already used elsewhere in this file for `viewModeForHex`) rather than a
+  // ref, since reading a ref's value during render is unsound (`useMemo`'s
+  // factory runs as part of render).
+  const mountKey = `${hex}|${typeDesignator}|${category}|${rarityTier}`;
+  const [initialTelemetryForMount, setInitialTelemetryForMount] = useState({ mountKey, telemetry });
+  if (initialTelemetryForMount.mountKey !== mountKey) {
+    setInitialTelemetryForMount({ mountKey, telemetry });
+  }
 
   // Mounts the live compass-card scene whenever the compass view becomes
   // active for this hex; disposed on hex change, view-mode switch away from
@@ -177,14 +212,33 @@ export function RecordPanelHero({
 
   useEffect(() => {
     compassHandleRef.current?.update(buildCompassTrackState(telemetry));
+    // `mapBearing` included so rotating the map alone (with no new
+    // telemetry poll yet) still immediately re-orients the rendered
+    // aircraft to match.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [track, verticalRate, altitude, groundSpeed, lat, lon]);
+  }, [track, verticalRate, altitude, groundSpeed, lat, lon, mapBearing]);
 
-  const compassCardHtml = buildCompassTrackCard({
-    kind: "compass-track",
-    model: getCompassTrackModel(typeDesignator, category, undefined, rarityTier),
-    initialState: buildCompassTrackState(telemetry),
-  });
+  // Built exactly once per mount-identity (hex/type/category/rarity), NOT
+  // on every render — this is injected via `dangerouslySetInnerHTML` below,
+  // and rebuilding it on every telemetry-driven re-render (as an earlier
+  // version of this code did) replaces the whole DOM subtree every ~1s poll
+  // tick: React tears down the mounted `<canvas>` the compass scene draws
+  // into while the still-running Three.js renderer (whose own cleanup only
+  // fires when this effect's deps change, not on every render) keeps its
+  // WebGL context alive pointed at the now-detached canvas — leaking one
+  // WebGL context per tick. Browsers cap total contexts per page (~8-16);
+  // that leak exhausts the budget within seconds, which is what was
+  // actually causing the compass view, `PlaneCard`'s 3D model, and the
+  // map's own WebGL rendering to all start going blank.
+  const compassCardHtml = useMemo(
+    () =>
+      buildCompassTrackCard({
+        kind: "compass-track",
+        model: getCompassTrackModel(typeDesignator, category, undefined, rarityTier),
+        initialState: buildCompassTrackState(initialTelemetryForMount.telemetry),
+      }),
+    [typeDesignator, category, rarityTier, initialTelemetryForMount],
+  );
 
   const registryLookupHref = registryHref(registration);
   const { manufacturer, model } = splitManufacturerModel(manufacturerModel);

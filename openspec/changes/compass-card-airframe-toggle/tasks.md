@@ -70,3 +70,13 @@
 - [x] 10.4 Gate `PlaneCard.tsx`'s `frontArtAuthor` the same way for both branches: `isExactModelMatch(typeDesignator)` for the 3D case, `isExactShapeMatch(typeDesignator)` for the flat-SVG-fallback case
 - [x] 10.5 Add regression tests (`test/compassTrackModel.test.ts`) covering the exact real-world case that motivated this: `B738` is simultaneously an authored vendored model, `CATEGORY_FALLBACK_KEY["A3"]`'s target, and `DEFAULT_COMPASS_MODEL_KEY` — an aircraft of an unvendored type in category `A3` must render B738's model but NOT its author
 - [x] 10.6 Update design.md/specs to make the exact-match rule normative (`specs/airframe-compass-card/spec.md`, `specs/aircraft-info-overlay/spec.md`)
+
+## 11. Fix: WebGL context leak (blank credit/model/SVG) and map-relative compass heading
+
+- [x] 11.1 Memoize `RecordPanelHero`'s `compassCardHtml` (`useMemo`, keyed on mount-identity, not raw telemetry) — stop rebuilding/re-injecting the compass card's DOM on every ~1s telemetry render, which was leaking a WebGL context per tick and exhausting the page's context budget (collateral: compass view, `PlaneCard`'s 3D model, and reportedly the map itself all going blank)
+- [x] 11.2 Use the render-time state-reset pattern (not a ref) for the compass card's frozen "initial telemetry" snapshot, since reading a ref during a `useMemo` factory trips `react-hooks/refs`
+- [x] 11.3 Wrap `planeCardFrontArt.ts`'s `mountCardArt` WebGL-renderer creation in try/catch, falling back to the flat SVG on failure instead of leaving the slot blank
+- [x] 11.4 Track live map bearing in `MapView.tsx` (`map.on("rotate", ...)`) and thread it through `AircraftOverlay` to `RecordPanelHero` as `mapBearing`
+- [x] 11.5 Compute the compass card's heading as screen-relative (`track - mapBearing`, normalized to `[0, 360)`) rather than always true-north, and include `mapBearing` in the live-update effect's deps so rotating the map alone re-orients the rendered aircraft immediately
+- [x] 11.6 Fix the toggle control overlapping the "AIRFRAME" tab in portrait orientation (both anchor to the panel's top-right corner when the image area is full-width) — offset the toggle down by the tab's height in the portrait CSS variant
+- [x] 11.7 Update design.md/specs for the leak-fix pattern and the map-bearing-relative heading requirement (`specs/airframe-compass-card/spec.md`)

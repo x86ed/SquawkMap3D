@@ -152,9 +152,17 @@
 
 .viewToggle {
   position: absolute;
+  /* Landscape: the image area only spans the panel's left ~60% (see
+   * .photoBlock's own flex-basis), so the panel's top-right "AIRFRAME" tab
+   * (positioned relative to .panel, not .photoBlock) sits well clear of this
+   * corner — top:8px/right:8px is safe here. Portrait flips the image area
+   * to full-width-on-top (see .panel[data-orientation="portrait"]
+   * .photoBlock below), putting this same corner directly under the tab;
+   * the portrait override further down pushes the toggle below the tab's
+   * own height instead. */
   top: 8px;
   right: 8px;
-  z-index: 1;
+  z-index: 2;
   padding: 4px 10px;
   font-size: 10px;
   font-weight: 800;
@@ -172,6 +180,13 @@
 .viewToggle:focus-visible {
   color: var(--accent);
   border-color: var(--accent);
+}
+
+/* Portrait's full-width image area shares the panel's own top-right corner
+ * with the "AIRFRAME" tab (~20px tall: 3px+3px padding + 10px text) —
+ * clear it instead of overlapping. */
+.panel[data-orientation="portrait"] .viewToggle {
+  top: 24px;
 }
 
 .headingRow {

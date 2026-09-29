@@ -28,9 +28,15 @@ import { FlightInfoPane } from "./FlightInfoPane";
  */
 export function AircraftOverlay({
   info,
+  mapBearing,
   onClose,
 }: {
   info: SelectedAircraftInfo | null;
+  /** The map's current rotation (degrees, 0 = true north up) — passed
+   * through to `RecordPanelHero`'s compass card so its rendered heading
+   * stays relative to the map's current orientation rather than always
+   * true north (`airframe-compass-card` capability). */
+  mapBearing: number;
   onClose: () => void;
 }) {
   const open = info !== null;
@@ -111,6 +117,7 @@ export function AircraftOverlay({
                     groundSpeed={info.groundSpeed}
                     lat={info.lat}
                     lon={info.lon}
+                    mapBearing={mapBearing}
                   />
                 </div>
                 <div className={styles.card}>

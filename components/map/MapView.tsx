@@ -282,6 +282,13 @@ export default function MapView() {
   );
   const [followSelectedAircraft, setFollowSelectedAircraft] = useState(true);
   const [colorMode, setColorMode] = useState<ColorMode>("altitude");
+  /** The map's current rotation (degrees, 0 = true north up), kept live via
+   * the `rotate` event below — feeds the compass card's screen-relative
+   * heading (`airframe-compass-card` capability: rotating the map should
+   * visibly rotate the compass card's rendered aircraft the same way,
+   * matching what the map itself shows, rather than always orienting to
+   * true north regardless of how the map is currently rotated). */
+  const [mapBearing, setMapBearing] = useState(INITIAL_BEARING);
   // Hover tooltip state (design.md Decision 10) — deliberately separate from
   // selection state above; hovering never opens `AircraftOverlay`.
   const [hoveredAircraft, setHoveredAircraft] = useState<
@@ -666,6 +673,7 @@ export default function MapView() {
       }),
       "top-left",
     );
+    map.on("rotate", () => setMapBearing(map.getBearing()));
 
     // Unlike the style-owned custom layers below (re-added in
     // `setupStyleDependentState` on every `style.load`), this overlay is
@@ -1378,7 +1386,11 @@ export default function MapView() {
           }
         />
       </div>
-      <AircraftOverlay info={selectedAircraftInfo} onClose={() => handleAircraftClick(null)} />
+      <AircraftOverlay
+        info={selectedAircraftInfo}
+        mapBearing={mapBearing}
+        onClose={() => handleAircraftClick(null)}
+      />
       <AircraftColorDock
         ref={leftDockRef}
         colorMode={colorMode}
