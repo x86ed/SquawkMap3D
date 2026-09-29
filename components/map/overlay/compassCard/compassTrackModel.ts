@@ -4,6 +4,7 @@ import {
   modelAuthor,
   landingGearHideThresholdFeet,
   resolveModelKeyForTypeAndCategory,
+  isExactModelMatch,
 } from "../../aircraftModels";
 import type { RarityTier } from "./vendor/core";
 import type { CompassTrackModel } from "./vendor/core";
@@ -60,7 +61,12 @@ export function getCompassTrackModel(
   const gearDeploymentAltitudeMeters =
     hideAboveFeetAGL === undefined ? -Infinity : hideAboveFeetAGL * METERS_PER_FOOT;
 
-  const author = modelAuthor(modelKey);
+  // A category-fallback or default stand-in model can itself carry real
+  // author metadata (it's a real vendored model, just not *this* aircraft's
+  // — a wake-class/category placeholder standing in for an unmatched type
+  // must never inherit its stand-in's credit). Only trust `modelAuthor`
+  // when the resolved key is this aircraft's own exact type.
+  const author = isExactModelMatch(typeDesignator) ? modelAuthor(modelKey) : undefined;
   const modelerName = author ?? "";
   const modelerProfileUrl = author ? `https://adsb.win/operators/${encodeURIComponent(author)}` : "";
 

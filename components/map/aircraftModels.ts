@@ -146,6 +146,21 @@ export function resolveModelKeyForTypeAndCategory(
   return undefined;
 }
 
+/**
+ * Whether `typeDesignator` itself has a vendored model — i.e. whether
+ * `resolveModelKeyForTypeAndCategory` would resolve to `typeDesignator`'s
+ * own exact model rather than its emitter category's representative
+ * fallback (or, for the compass card, the pinned default stand-in). Callers
+ * crediting a model's embedded author (`modelAuthor`) MUST check this
+ * first: a category-fallback or default stand-in model can itself carry
+ * real author metadata (it's a real vendored model, just not *this*
+ * aircraft's), and crediting it here would misattribute someone else's
+ * model to an unrelated aircraft.
+ */
+export function isExactModelMatch(typeDesignator: string | undefined): boolean {
+  return !!typeDesignator && modelInfoByTypeDesignator.has(typeDesignator);
+}
+
 /** Model keys whose vendored .glb is a helicopter — their "Rotors" nodes
  * spin about a vertical/sideways axis rather than the fuselage axis. */
 const ROTORCRAFT_MODEL_KEYS = new Set(["R44", "H60", "AS35", "AS50"]);

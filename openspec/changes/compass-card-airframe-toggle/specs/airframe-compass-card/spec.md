@@ -60,15 +60,23 @@ The compass card's 3D model input SHALL resolve using this app's existing per-ty
 - **WHEN** the selected aircraft's ICAO type designator has no vendored model and its emitter category has no fallback modeled type either
 - **THEN** the compass card renders the shared default/generic stand-in model rather than a blank or broken scene
 
-### Requirement: Compass card's model author is resolved from the vendored model's own embedded metadata
-The compass card's model input's modeler name/profile URL SHALL be resolved from the selected type's vendored `.glb` model's own embedded author metadata when present, rather than always treated as unauthored. When present, the profile URL SHALL point to that author's `https://adsb.win/operators/{handle}` page.
+### Requirement: Compass card's model author is resolved from the vendored model's own embedded metadata, only for an exact type match
+The compass card's model input's modeler name/profile URL SHALL be resolved from the selected aircraft's own ICAO type designator's vendored `.glb` model's embedded author metadata, when present, rather than always treated as unauthored — but only when the resolved model is that exact type's own vendored model. When the resolved model is instead a category (wake-class) fallback or the default/generic stand-in — i.e. the selected aircraft's own type designator has no vendored model of its own — the model input's modeler name/profile URL SHALL be left unset regardless of whether the substitute model itself has embedded author metadata; crediting a fallback/stand-in model's real author to an unrelated aircraft it wasn't modeled for would be a misattribution. When present and applicable, the profile URL SHALL point to that author's `https://adsb.win/operators/{handle}` page.
 
-#### Scenario: Vendored model with embedded author metadata resolves a real credit
-- **WHEN** the compass card's resolved `.glb` model has embedded author metadata
+#### Scenario: Exact-type vendored model with embedded author metadata resolves a real credit
+- **WHEN** the compass card's resolved `.glb` model is the selected aircraft's own type designator's vendored model, and it has embedded author metadata
 - **THEN** the compass card's model input's modeler name is set to that author's handle and its profile URL is set to `https://adsb.win/operators/{handle}` for that handle
 
-#### Scenario: Vendored model with no embedded author metadata resolves as unauthored
-- **WHEN** the compass card's resolved `.glb` model has no embedded author metadata (including the default/generic stand-in model, which never has any)
+#### Scenario: Exact-type vendored model with no embedded author metadata resolves as unauthored
+- **WHEN** the compass card's resolved `.glb` model is the selected aircraft's own type designator's vendored model, and it has no embedded author metadata
+- **THEN** the compass card's model input's modeler name and profile URL are both left unset
+
+#### Scenario: Category-fallback model is never credited, even when it has its own embedded author
+- **WHEN** the selected aircraft's own ICAO type designator has no vendored model, its emitter category's fallback type does have one, and that fallback model has embedded author metadata
+- **THEN** the compass card's model input's modeler name and profile URL are both left unset — the fallback model's real author is not attributed to this aircraft
+
+#### Scenario: Default stand-in model is never credited
+- **WHEN** the compass card is rendering the default/generic stand-in model (no vendored model for the aircraft's own type or its category fallback)
 - **THEN** the compass card's model input's modeler name and profile URL are both left unset
 
 ### Requirement: Compass card's built-in credit HUD shows a "create a model" call-to-action for unauthored models

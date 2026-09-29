@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./PlaneCard.module.css";
 import { RARITY_TIER_STYLES, type RarityTier } from "../aircraftRarity";
-import { getAircraftShape, type AircraftShape } from "../aircraftShapes";
+import { getAircraftShape, isExactShapeMatch, type AircraftShape } from "../aircraftShapes";
 import { computeTightViewBox } from "../svgBBox";
 import type { AircraftModelCardResult } from "./aircraftModelCard";
 import { storeFeederUuid } from "./feederUuid";
 import { computeTierProgress } from "./tierProgress";
 import { splitManufacturerModel } from "./manufacturerModel";
 import { loadAircraftGltfScene, mountCardArt } from "./planeCardFrontArt";
-import { resolveModelKeyForTypeAndCategory, modelAuthor } from "../aircraftModels";
+import { resolveModelKeyForTypeAndCategory, modelAuthor, isExactModelMatch } from "../aircraftModels";
 import { getModelCrudUrl, getTypeCrudUrl, buildCrudUrl } from "../constants";
 import { creditLinkMarkup, WIREFRAME_CUBE_ICON } from "./compassCard/vendor/core";
 
@@ -374,13 +374,23 @@ export function PlaneCard({
    * back to the model-CRUD "create a model" CTA (reusing the same shared
    * `creditLinkMarkup` the compass card's credit HUD uses), and nothing
    * renders at all once neither an author nor a configured CTA endpoint
-   * exists. */
+   * exists.
+   *
+   * Only ever credits an *exact* match for `typeDesignator` — a category
+   * (wake-class) fallback or the "Unidentified" shape is a real vendored
+   * asset, just not this aircraft's, and can itself carry a real author;
+   * crediting it here would misattribute someone else's model/shape to an
+   * unrelated aircraft, so a fallback/placeholder asset is always treated
+   * as unauthored (driving the CTA) regardless of what it's actually
+   * credited to. */
   const frontArtAuthor =
     frontArtIsFlat === null
       ? undefined
       : frontArtIsFlat
-        ? shape.author
-        : modelAuthor(resolveModelKeyForTypeAndCategory(typeDesignator, category));
+        ? (isExactShapeMatch(typeDesignator) ? shape.author : undefined)
+        : (isExactModelMatch(typeDesignator)
+            ? modelAuthor(resolveModelKeyForTypeAndCategory(typeDesignator, category))
+            : undefined);
   const modelCrudUrlTemplate = getModelCrudUrl();
   const modelAddUrl =
     !frontArtAuthor && modelCrudUrlTemplate

@@ -61,3 +61,12 @@
 - [x] 9.1 Update `RecordPanelHero.module.css`/`PlaneCard.module.css` for the toggle control, edit buttons, and credit line/CTA to match existing hero/card visual language and both light/dark themes
 - [x] 9.2 Verify `RecordPanelHero`'s portrait/landscape reflow still holds with the toggle control and edit button present
 - [x] 9.3 Manually verify against each new scenario in `specs/airframe-compass-card/spec.md` and `specs/aircraft-record-edit-links/spec.md`, and the modified scenarios in `specs/aircraft-info-overlay/spec.md`
+
+## 10. Fix: never credit a category-fallback/default-stand-in asset, even when it has its own real author
+
+- [x] 10.1 Add `isExactModelMatch(typeDesignator)` to `components/map/aircraftModels.ts` (exact-type manifest membership, independent of `resolveModelKeyForTypeAndCategory`'s category-fallback resolution)
+- [x] 10.2 Add `isExactShapeMatch(typeDesignator)` to `components/map/aircraftShapes.ts` (same idea, for the SVG manifest)
+- [x] 10.3 Gate `compassTrackModel.ts`'s `modelAuthor(modelKey)` lookup on `isExactModelMatch(typeDesignator)` — a category-fallback or `DEFAULT_COMPASS_MODEL_KEY` resolution is always treated as unauthored, regardless of whether the substitute model itself has embedded author metadata
+- [x] 10.4 Gate `PlaneCard.tsx`'s `frontArtAuthor` the same way for both branches: `isExactModelMatch(typeDesignator)` for the 3D case, `isExactShapeMatch(typeDesignator)` for the flat-SVG-fallback case
+- [x] 10.5 Add regression tests (`test/compassTrackModel.test.ts`) covering the exact real-world case that motivated this: `B738` is simultaneously an authored vendored model, `CATEGORY_FALLBACK_KEY["A3"]`'s target, and `DEFAULT_COMPASS_MODEL_KEY` — an aircraft of an unvendored type in category `A3` must render B738's model but NOT its author
+- [x] 10.6 Update design.md/specs to make the exact-match rule normative (`specs/airframe-compass-card/spec.md`, `specs/aircraft-info-overlay/spec.md`)

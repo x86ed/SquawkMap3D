@@ -73,6 +73,20 @@ export const CATEGORY_FALLBACK_KEY: Record<string, string> = {
   B2: "BALL", // lighter-than-air
 };
 
+/**
+ * Whether `typeDesignator` itself has a vendored shape — i.e. whether
+ * `getAircraftShape` would resolve to `typeDesignator`'s own exact shape
+ * rather than its emitter category's representative fallback (or the
+ * "Unidentified" fallback). Callers crediting a shape's embedded author
+ * (`AircraftShape.author`) MUST check this first: a category-fallback or
+ * "Unidentified" shape can itself carry real author metadata (it's a real
+ * vendored shape, just not *this* aircraft's), and crediting it here would
+ * misattribute someone else's shape to an unrelated aircraft.
+ */
+export function isExactShapeMatch(typeDesignator: string | undefined): boolean {
+  return !!typeDesignator && typeDesignator.toUpperCase() in manifest;
+}
+
 /** The vendored silhouette for `typeDesignator`, its emitter-`category`'s
  * representative shape when the exact type isn't available, or the shape
  * set's own "Unidentified aircraft" fallback when neither is. */
