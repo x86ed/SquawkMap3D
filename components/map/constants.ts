@@ -273,3 +273,39 @@ export const AIRCRAFT_CATEGORY_FALLBACK_ICON: Record<string, string> = {
   C1: "/aircraft-silhouettes/C1.svg", // surface emergency vehicle
   C2: "/aircraft-silhouettes/C2.svg", // surface service vehicle
 };
+
+// Optional deep-link URL templates into three external CRUD UIs this app
+// doesn't own or build (see openspec/changes/compass-card-airframe-toggle):
+// editing an individual aircraft record, an aircraft type's info, and a
+// type's 3D model/SVG. Low-sensitivity URLs (not credentials), so —
+// mirroring NEXT_PUBLIC_FEEDER_URL/NEXT_PUBLIC_OPENAIP_API_KEY above —
+// build-time NEXT_PUBLIC_* env vars, not localStorage. Each is a template
+// containing `{icao}`/`{variant}`/`{hex}` placeholders; unset means the
+// corresponding "Edit"/"create a model" UI simply doesn't render.
+export function getModelCrudUrl(): string | undefined {
+  return process.env.NEXT_PUBLIC_MODEL_CRUD_URL;
+}
+
+export function getTypeCrudUrl(): string | undefined {
+  return process.env.NEXT_PUBLIC_TYPE_CRUD_URL;
+}
+
+export function getAircraftCrudUrl(): string | undefined {
+  return process.env.NEXT_PUBLIC_AIRCRAFT_CRUD_URL;
+}
+
+/**
+ * Substitutes `{icao}`/`{variant}`/`{hex}` placeholders in `template` with
+ * URI-encoded values from `params`, leaving any placeholder with no
+ * corresponding (or `undefined`) param untouched — callers only pass the
+ * params relevant to the endpoint they're building a URL for.
+ */
+export function buildCrudUrl(
+  template: string,
+  params: { icao?: string; variant?: string; hex?: string },
+): string {
+  return template.replace(/\{(icao|variant|hex)\}/g, (match, key: "icao" | "variant" | "hex") => {
+    const value = params[key];
+    return value === undefined ? match : encodeURIComponent(value);
+  });
+}

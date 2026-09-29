@@ -1,62 +1,31 @@
 [
   {
-    "type": "B744",
+    "type": "A20N",
     "landingGearHideAboveFeetAGL": 1000
   },
   {
-    "type": "B738",
-    "landingGearHideAboveFeetAGL": 1000
+    "type": "A21N"
   },
   {
-    "type": "PC12",
-    "landingGearHideAboveFeetAGL": 1000
+    "type": "A319"
   },
   {
-    "type": "C172"
+    "type": "A320"
   },
   {
-    "type": "FFLO"
+    "type": "A321"
   },
   {
-    "type": "H60"
+    "type": "A333"
   },
   {
-    "type": "R44"
+    "type": "A339"
   },
   {
-    "type": "SERV"
+    "type": "A359"
   },
   {
-    "type": "SHIP"
-  },
-  {
-    "type": "VFHC"
-  },
-  {
-    "type": "BALL"
-  },
-  {
-    "type": "F16",
-    "landingGearHideAboveFeetAGL": 1000
-  },
-  {
-    "type": "L101",
-    "landingGearHideAboveFeetAGL": 1000
-  },
-  {
-    "type": "B752",
-    "landingGearHideAboveFeetAGL": 1000
-  },
-  {
-    "type": "SF25"
-  },
-  {
-    "type": "A320",
-    "landingGearHideAboveFeetAGL": 1000
-  },
-  {
-    "type": "B38M",
-    "landingGearHideAboveFeetAGL": 1000
+    "type": "A388"
   },
   {
     "type": "AS35"
@@ -65,66 +34,79 @@
     "type": "AS50"
   },
   {
-    "type": "A21N",
-    "landingGearHideAboveFeetAGL": 1000
+    "type": "B38M"
   },
   {
-    "type": "A20N"
+    "type": "B738"
   },
   {
-    "type": "A321",
-    "landingGearHideAboveFeetAGL": 1000
+    "type": "B744"
+  },
+  {
+    "type": "B752"
+  },
+  {
+    "type": "B763"
+  },
+  {
+    "type": "B77L"
   },
   {
     "type": "B77W",
     "landingGearHideAboveFeetAGL": 1000
   },
   {
-    "type": "A388",
-    "landingGearHideAboveFeetAGL": 1000
+    "type": "B789"
   },
   {
-    "type": "B789",
-    "landingGearHideAboveFeetAGL": 1000
-  },
-  {
-    "type": "P28A"
-  },
-  {
-    "type": "A359",
-    "landingGearHideAboveFeetAGL": 1000
-  },
-  {
-    "type": "A333",
-    "landingGearHideAboveFeetAGL": 1000
+    "type": "BALL"
   },
   {
     "type": "C150"
   },
   {
-    "type": "SR22"
+    "type": "C172"
   },
   {
-    "type": "A319",
-    "landingGearHideAboveFeetAGL": 1000
+    "type": "E75L"
   },
   {
-    "type": "B77L",
-    "landingGearHideAboveFeetAGL": 1000
+    "type": "F16"
   },
   {
-    "type": "B763",
-    "landingGearHideAboveFeetAGL": 1000
-  },
-  {
-    "type": "E75L",
-    "landingGearHideAboveFeetAGL": 1000
-  },
-  {
-    "type": "A339",
-    "landingGearHideAboveFeetAGL": 1000
+    "type": "FFLO"
   },
   {
     "type": "FH11"
+  },
+  {
+    "type": "H60"
+  },
+  {
+    "type": "L101"
+  },
+  {
+    "type": "P28A"
+  },
+  {
+    "type": "PC12"
+  },
+  {
+    "type": "R44"
+  },
+  {
+    "type": "SERV"
+  },
+  {
+    "type": "SF25"
+  },
+  {
+    "type": "SHIP"
+  },
+  {
+    "type": "SR22"
+  },
+  {
+    "type": "VFHC"
   }
 ]

@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./PlaneCard.module.css";
 import { RARITY_TIER_STYLES, type RarityTier } from "../aircraftRarity";
-import { getAircraftShape, type AircraftShape } from "../aircraftShapes";
+import { getAircraftShape, fetchShapeAuthor, type AircraftShape } from "../aircraftShapes";
 import { computeTightViewBox } from "../svgBBox";
 import type { AircraftModelCardResult } from "./aircraftModelCard";
 import { storeFeederUuid } from "./feederUuid";
 import { computeTierProgress } from "./tierProgress";
 import { splitManufacturerModel } from "./manufacturerModel";
 import { loadAircraftGltfScene, mountCardArt } from "./planeCardFrontArt";
+import { resolveModelKeyForTypeAndCategory, modelAuthor, isExactModelMatch } from "../aircraftModels";
+import { getModelCrudUrl, getTypeCrudUrl, buildCrudUrl } from "../constants";
+import { creditLinkMarkup, WIREFRAME_CUBE_ICON } from "./compassCard/vendor/core";
 
 const UNKNOWN = "Unknown";
 
@@ -35,6 +38,33 @@ export interface PlaneCardProps {
    * explicitly rather than relying silently on the default.
    */
   showBack?: boolean;
+  /** Aircraft-variant key (e.g. `"FREIGHTER"`) — shown under the model name
+   * on both faces; omitted entirely when unset. Mirrors upstream
+   * `AircraftCardInput.variant`. */
+  variant?: string;
+  /** adsb.win operator handle credited on the back face's "Added by" line
+   * (who added this aircraft model). Blank renders an "UNKNOWN" placeholder
+   * — a "+ Add info" link to the type CRUD page when configured. */
+  addedBy?: string;
+  /** adsb.win operator handle credited as first spotter on the first-seen
+   * badge (both faces). Blank renders an "@unknown" placeholder. The date
+   * itself comes from `cardStats.attributes.firstSeenAt`. */
+  firstSeenBy?: string;
+}
+
+/** Static flag glyph for the first-seen badge — ported from
+ * `@card/core`'s `FIRST_SEEN_FLAG_ICON`. */
+const FIRST_SEEN_FLAG_ICON =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3v18M5 4h13l-3 4 3 4H5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+
+const operatorProfileUrl = (handle: string) =>
+  `https://adsb.win/operators/${encodeURIComponent(handle.trim())}`;
+
+/** `Jan 1, 2024` (UTC) for the first-seen tooltip, or `null` when unparseable. */
+function formatFirstSeenDate(iso: string): string | null {
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(date);
 }
 
 /** `HH:MM` from a seconds count, for the stat grid's "observed flight time" cell. */
@@ -256,6 +286,9 @@ export function PlaneCard({
   rarityTier,
   cardStats,
   showBack = true,
+  variant,
+  addedBy = "",
+  firstSeenBy = "",
 }: PlaneCardProps) {
   const shape = getAircraftShape(typeDesignator, category);
   const viewBox = useTightAircraftShapeViewBox(shape);
@@ -310,6 +343,12 @@ export function PlaneCard({
   }, [cardStats, rarityTier, typeDesignator, manufacturerModel]);
 
   const frontArtRef = useRef<HTMLDivElement | null>(null);
+  // `null` until the first mount resolves — which asset actually rendered
+  // (flat SVG fallback vs. 3D wireframe), read from `mountCardArt`'s own
+  // `slot.dataset.frontArtFlat` marker, so the credit line below (task 7 —
+  // see design.md's "PlaneCard gets its own credit line" decision) credits
+  // whichever asset is actually shown rather than guessing.
+  const [frontArtIsFlat, setFrontArtIsFlat] = useState<boolean | null>(null);
 
   /**
    * Front-face art (design.md Decision 4's "3D model" follow-up): mounts a
@@ -339,11 +378,123 @@ export function PlaneCard({
     loadAircraftGltfScene(typeDesignator, category).then((scene) => {
       if (cancelled) return;
       mountCardArt(slot, scene ?? undefined, color, fallbackSvg);
+      setFrontArtIsFlat(slot.dataset.frontArtFlat === "true");
     });
     return () => {
       cancelled = true;
     };
   }, [typeDesignator, category, rarityTier, shape, viewBox]);
+
+  // Reset once the selection itself changes (type/category), so a stale
+  // flat/3D verdict from the previous aircraft never briefly credits the
+  // wrong asset while the new one's art effect above is still resolving.
+  // Adjusted during render (React's documented pattern for resetting state
+  // when a prop changes), not in a effect, since an effect whose entire body
+  // is a single unconditional setState call is a lint-flagged anti-pattern.
+  const [frontArtKey, setFrontArtKey] = useState({ typeDesignator, category });
+  if (frontArtKey.typeDesignator !== typeDesignator || frontArtKey.category !== category) {
+    setFrontArtKey({ typeDesignator, category });
+    setFrontArtIsFlat(null);
+  }
+
+  /** Front-face credit line (task 7, design.md's "PlaneCard gets its own
+   * credit line" decision): the vendored `.glb`'s author when the 3D
+   * wireframe rendered, else the vendored SVG's own author when it fell
+   * back to the flat silhouette — either way, an unauthored asset falls
+   * back to the model-CRUD "create a model" CTA (reusing the same shared
+   * `creditLinkMarkup` the compass card's credit HUD uses), and nothing
+   * renders at all once neither an author nor a configured CTA endpoint
+   * exists.
+   *
+   * Only ever credits an *exact* match for `typeDesignator` — a category
+   * (wake-class) fallback or the "Unidentified" shape is a real vendored
+   * asset, just not this aircraft's, and can itself carry a real author;
+   * crediting it here would misattribute someone else's model/shape to an
+   * unrelated aircraft, so a fallback/placeholder asset is always treated
+   * as unauthored (driving the CTA) regardless of what it's actually
+   * credited to. */
+  // Silhouette author, read live from the served SVG asset (never the
+  // manifest) — keyed by type so a stale result never credits a new selection.
+  const [shapeAuthorResult, setShapeAuthorResult] = useState<{ type?: string; author?: string }>({});
+  useEffect(() => {
+    let cancelled = false;
+    fetchShapeAuthor(typeDesignator).then((author) => {
+      if (!cancelled) setShapeAuthorResult({ type: typeDesignator, author });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [typeDesignator]);
+  const silhouetteAuthor = shapeAuthorResult.type === typeDesignator ? (shapeAuthorResult.author ?? "") : "";
+
+  const frontArtAuthor =
+    frontArtIsFlat === null
+      ? undefined
+      : frontArtIsFlat
+        ? (silhouetteAuthor || undefined)
+        : (isExactModelMatch(typeDesignator)
+            ? modelAuthor(resolveModelKeyForTypeAndCategory(typeDesignator, category))
+            : undefined);
+  const modelCrudUrlTemplate = getModelCrudUrl();
+  const modelAddUrl =
+    !frontArtAuthor && modelCrudUrlTemplate
+      ? buildCrudUrl(modelCrudUrlTemplate, { icao: typeDesignator })
+      : undefined;
+  const showCreditLine = frontArtIsFlat !== null && (!!frontArtAuthor || !!modelAddUrl);
+  const creditLinkHtml = showCreditLine
+    ? creditLinkMarkup(
+        frontArtAuthor ?? "",
+        frontArtAuthor ? `https://adsb.win/operators/${encodeURIComponent(frontArtAuthor)}` : "",
+        styles.creditLink,
+        "",
+        "+ Add a model",
+        modelAddUrl,
+      )
+    : "";
+
+  const typeCrudUrlTemplate = getTypeCrudUrl();
+  const typeEditHref =
+    typeCrudUrlTemplate && typeDesignator ? buildCrudUrl(typeCrudUrlTemplate, { icao: typeDesignator }) : undefined;
+
+  // Upstream `aircraft` card's remaining user fields: added-by, silhouette
+  // (SVG) credit, first-seen. Same blank -> placeholder/CTA convention as
+  // the model credit above; CTAs link to the type CRUD page when configured.
+  const infoAddUrl = typeEditHref;
+  const firstSeenIso = cardStats?.status === "ok" ? cardStats.attributes.firstSeenAt : undefined;
+  const firstSeenDate = firstSeenIso ? formatFirstSeenDate(firstSeenIso) : null;
+  const firstSeenTooltip = firstSeenDate ? `First seen ${firstSeenDate}` : "First seen: Nobody";
+  const addedByHtml = creditLinkMarkup(
+    addedBy,
+    operatorProfileUrl(addedBy),
+    styles.creditLink,
+    "UNKNOWN",
+    "+ Add info",
+    infoAddUrl,
+  );
+  const silhouetteHtml = creditLinkMarkup(
+    silhouetteAuthor,
+    operatorProfileUrl(silhouetteAuthor),
+    styles.creditLink,
+    "@unknown",
+    "+ Create an icon",
+    infoAddUrl,
+  );
+  const firstSeenHtml = creditLinkMarkup(
+    firstSeenBy,
+    operatorProfileUrl(firstSeenBy),
+    styles.creditLink,
+    "@unknown",
+    "+ Add info",
+    infoAddUrl,
+  );
+  const firstSeenBadge = (
+    <span
+      className={`${styles.firstSeenIcon}${firstSeenDate ? "" : ` ${styles.creditUnknown}`}`}
+      title={firstSeenTooltip}
+      aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: FIRST_SEEN_FLAG_ICON }}
+    />
+  );
 
   return (
     <div className={styles.cardScaleWrap} ref={wrapRef}>
@@ -388,7 +539,21 @@ export function PlaneCard({
                      * shown on `.rarityBadge`/`.cardBadgeRow` below. */}
                     <span className={styles.typeBadge}>{typeDesignator?.toUpperCase() ?? UNKNOWN}</span>
                     <p className={styles.manufacturerLabel}>{manufacturer ?? UNKNOWN}</p>
-                    <h3 className={styles.modelName}>{model ?? manufacturerModel ?? UNKNOWN}</h3>
+                    <div className={styles.modelNameRow}>
+                      <h3 className={styles.modelName}>{model ?? manufacturerModel ?? UNKNOWN}</h3>
+                      {typeEditHref && (
+                        <a
+                          className={styles.editButton}
+                          href={typeEditHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Edit this aircraft type's info"
+                        >
+                          Edit
+                        </a>
+                      )}
+                    </div>
+                    {variant && <p className={styles.variant}>{variant}</p>}
                   </div>
                   <svg
                     className={styles.shapeIcon}
@@ -397,6 +562,27 @@ export function PlaneCard({
                     // shape.markup is sourced only from the vendored, license-attributed SVG files at build time (scripts/generate-aircraft-shapes-manifest.mjs), never from user/network input
                     dangerouslySetInnerHTML={{ __html: shape.markup }}
                   />
+                </div>
+                {/* Credit HTML below is built only from vendored asset metadata / configured CRUD URLs, escaped by the vendored creditLinkMarkup. */}
+                <div className={styles.credits}>
+                  <div className={styles.creditLine} title="Added by">
+                    <span className={styles.creditPlus} aria-hidden="true">+</span>
+                    <span dangerouslySetInnerHTML={{ __html: addedByHtml }} />
+                  </div>
+                  <div className={styles.creditLine} title="Silhouette credit">
+                    {/* Icon is the aircraft's own vendored silhouette (shape.markup is build-time vendored SVG, never user input). */}
+                    <svg
+                      className={styles.creditIcon}
+                      viewBox={viewBox}
+                      aria-hidden="true"
+                      dangerouslySetInnerHTML={{ __html: shape.markup }}
+                    />
+                    <span dangerouslySetInnerHTML={{ __html: silhouetteHtml }} />
+                  </div>
+                  <div className={styles.creditLine} title="First seen">
+                    {firstSeenBadge}
+                    <span dangerouslySetInnerHTML={{ __html: firstSeenHtml }} />
+                  </div>
                 </div>
                 {renderStatRegion(cardStats)}
               </div>
@@ -410,6 +596,19 @@ export function PlaneCard({
             <div className={styles.cardFrontContent} data-front-content>
               <div className={styles.cardFrontGrid} data-front-grid aria-hidden="true" />
               <div className={styles.cardFrontArt} ref={frontArtRef} aria-hidden="true" />
+              <div className={styles.creditRow}>
+                <div className={styles.creditLine} title="First seen">
+                  {firstSeenBadge}
+                  <span dangerouslySetInnerHTML={{ __html: firstSeenHtml }} />
+                </div>
+                {showCreditLine && (
+                  <div className={styles.creditLine}>
+                    <span className={styles.creditIcon} aria-hidden="true" dangerouslySetInnerHTML={{ __html: WIREFRAME_CUBE_ICON }} />
+                    {/* creditLinkHtml is built entirely from this app's own vendored asset metadata and configured CRUD URL — see the vendored creditLinkMarkup's own escaping. */}
+                    <span dangerouslySetInnerHTML={{ __html: creditLinkHtml }} />
+                  </div>
+                )}
+              </div>
               <div className={styles.cardFrontHeader}>
                 <div className={styles.cardFrontPills}>
                   <span className={styles.rarityBadge}>{rarityTier}</span>
@@ -418,6 +617,7 @@ export function PlaneCard({
                 <div className={styles.cardFrontIdentity}>
                   <p className={styles.manufacturerLabel}>{manufacturer ?? UNKNOWN}</p>
                   <h2 className={styles.cardFrontName}>{model ?? manufacturerModel ?? UNKNOWN}</h2>
+                  {variant && <p className={styles.variant}>{variant}</p>}
                 </div>
               </div>
             </div>

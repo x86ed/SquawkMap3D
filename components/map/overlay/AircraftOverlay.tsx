@@ -28,9 +28,15 @@ import { FlightInfoPane } from "./FlightInfoPane";
  */
 export function AircraftOverlay({
   info,
+  mapBearing,
   onClose,
 }: {
   info: SelectedAircraftInfo | null;
+  /** The map's current rotation (degrees, 0 = true north up) — passed
+   * through to `RecordPanelHero`'s compass card so its rendered heading
+   * stays relative to the map's current orientation rather than always
+   * true north (`airframe-compass-card` capability). */
+  mapBearing: number;
   onClose: () => void;
 }) {
   const open = info !== null;
@@ -45,19 +51,6 @@ export function AircraftOverlay({
     if (!viewport || !grid) return;
 
     const recompute = () => {
-      // `.card`'s grid column width (desktop layout only — see
-      // AircraftOverlay.module.css's `--card-col-width` doc comment): CSS
-      // grid `auto` track sizing doesn't account for a stretched item's
-      // `aspect-ratio`-derived width, so this computes it directly from row
-      // 1's own known height (the grid's total content-box height, minus
-      // the fixed 44px marquee row and their 16px row gap) and hands it to
-      // `PlaneCard`'s column as a pixel value, capped at the card's own
-      // 320px max-width. Set before the scale measurement below so that
-      // measurement reflects the corrected column width, not a stale one.
-      const row1Height = grid.clientHeight - 44 - 16;
-      const cardColWidth = Math.max(0, Math.min(320, (row1Height * 5) / 7));
-      grid.style.setProperty("--card-col-width", `${cardColWidth}px`);
-
       const availableWidth = viewport.clientWidth;
       const availableHeight = viewport.clientHeight;
       const contentWidth = grid.scrollWidth;
@@ -102,6 +95,16 @@ export function AircraftOverlay({
                     manufacturerModel={info.manufacturerModel}
                     operator={info.operator}
                     year={info.year}
+                    typeDesignator={info.typeDesignator}
+                    category={info.category}
+                    rarityTier={info.rarityTier}
+                    track={info.track}
+                    verticalRate={info.verticalRate}
+                    altitude={info.altitude}
+                    groundSpeed={info.groundSpeed}
+                    lat={info.lat}
+                    lon={info.lon}
+                    mapBearing={mapBearing}
                   />
                 </div>
                 <div className={styles.card}>
