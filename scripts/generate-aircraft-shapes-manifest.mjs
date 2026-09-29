@@ -81,11 +81,26 @@ function extractShape(filePath) {
     .map((g) => g.replace(/fill:#ffffff/g, "fill:currentColor"))
     .join("");
 
+  // Newer, user-submitted shapes are plain SVGs with no Inkscape layer
+  // groups: the drawing is the root `<svg>`'s direct children, styled by
+  // presentation attributes on the root itself (fill, stroke, ...). Keep the
+  // inner content and re-apply those root attributes on a wrapping `<g>`, since
+  // the root tag is dropped when this is rendered inside the card's own `<svg>`.
+  let markup = layerMarkup;
+  if (!markup) {
+    const rootMatch = raw.match(/<svg\b([^>]*)>([\s\S]*)<\/svg>\s*$/);
+    if (!rootMatch) throw new Error(`No drawing content found in ${filePath}`);
+    const presentation = [...rootMatch[1].matchAll(/\s(fill|fill-rule|clip-rule|stroke|stroke-width|stroke-linejoin|stroke-linecap|stroke-miterlimit|opacity)="([^"]*)"/g)]
+      .map((m) => ` ${m[1]}="${m[2]}"`)
+      .join("");
+    markup = `<g${presentation}>${rootMatch[2]}</g>`;
+  }
+
   // `data-author` is deliberately NOT extracted here: authorship is read
   // live from the served .svg asset at runtime (`fetchShapeAuthor` in
   // components/map/aircraftShapes.ts), never baked into this manifest, so it
   // can't go stale relative to the asset.
-  return { viewBox: viewBoxMatch[1], markup: layerMarkup };
+  return { viewBox: viewBoxMatch[1], markup };
 }
 
 /** @type {Record<string, { viewBox: string, markup: string }>} */
