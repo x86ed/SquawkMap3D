@@ -38,6 +38,33 @@ export interface PlaneCardProps {
    * explicitly rather than relying silently on the default.
    */
   showBack?: boolean;
+  /** Aircraft-variant key (e.g. `"FREIGHTER"`) — shown under the model name
+   * on both faces; omitted entirely when unset. Mirrors upstream
+   * `AircraftCardInput.variant`. */
+  variant?: string;
+  /** adsb.win operator handle credited on the back face's "Added by" line
+   * (who added this aircraft model). Blank renders an "UNKNOWN" placeholder
+   * — a "+ Add info" link to the type CRUD page when configured. */
+  addedBy?: string;
+  /** adsb.win operator handle credited as first spotter on the first-seen
+   * badge (both faces). Blank renders an "@unknown" placeholder. The date
+   * itself comes from `cardStats.attributes.firstSeenAt`. */
+  firstSeenBy?: string;
+}
+
+/** Static flag glyph for the first-seen badge — ported from
+ * `@card/core`'s `FIRST_SEEN_FLAG_ICON`. */
+const FIRST_SEEN_FLAG_ICON =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3v18M5 4h13l-3 4 3 4H5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+
+const operatorProfileUrl = (handle: string) =>
+  `https://adsb.win/operators/${encodeURIComponent(handle.trim())}`;
+
+/** `Jan 1, 2024` (UTC) for the first-seen tooltip, or `null` when unparseable. */
+function formatFirstSeenDate(iso: string): string | null {
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeZone: "UTC" }).format(date);
 }
 
 /** `HH:MM` from a seconds count, for the stat grid's "observed flight time" cell. */
@@ -259,6 +286,9 @@ export function PlaneCard({
   rarityTier,
   cardStats,
   showBack = true,
+  variant,
+  addedBy = "",
+  firstSeenBy = "",
 }: PlaneCardProps) {
   const shape = getAircraftShape(typeDesignator, category);
   const viewBox = useTightAircraftShapeViewBox(shape);
@@ -412,6 +442,47 @@ export function PlaneCard({
   const typeEditHref =
     typeCrudUrlTemplate && typeDesignator ? buildCrudUrl(typeCrudUrlTemplate, { icao: typeDesignator }) : undefined;
 
+  // Upstream `aircraft` card's remaining user fields: added-by, silhouette
+  // (SVG) credit, first-seen. Same blank -> placeholder/CTA convention as
+  // the model credit above; CTAs link to the type CRUD page when configured.
+  const silhouetteAuthor = isExactShapeMatch(typeDesignator) ? (shape.author ?? "") : "";
+  const infoAddUrl = typeEditHref;
+  const firstSeenIso = cardStats?.status === "ok" ? cardStats.attributes.firstSeenAt : undefined;
+  const firstSeenDate = firstSeenIso ? formatFirstSeenDate(firstSeenIso) : null;
+  const firstSeenTooltip = firstSeenDate ? `First seen ${firstSeenDate}` : "First seen: Nobody";
+  const addedByHtml = creditLinkMarkup(
+    addedBy,
+    operatorProfileUrl(addedBy),
+    styles.creditLink,
+    "UNKNOWN",
+    "+ Add info",
+    infoAddUrl,
+  );
+  const silhouetteHtml = creditLinkMarkup(
+    silhouetteAuthor,
+    operatorProfileUrl(silhouetteAuthor),
+    styles.creditLink,
+    "@unknown",
+    "+ Create an icon",
+    infoAddUrl,
+  );
+  const firstSeenHtml = creditLinkMarkup(
+    firstSeenBy,
+    operatorProfileUrl(firstSeenBy),
+    styles.creditLink,
+    "@unknown",
+    "+ Add info",
+    infoAddUrl,
+  );
+  const firstSeenBadge = (
+    <span
+      className={`${styles.firstSeenIcon}${firstSeenDate ? "" : ` ${styles.creditUnknown}`}`}
+      title={firstSeenTooltip}
+      aria-hidden="true"
+      dangerouslySetInnerHTML={{ __html: FIRST_SEEN_FLAG_ICON }}
+    />
+  );
+
   return (
     <div className={styles.cardScaleWrap} ref={wrapRef}>
       <div
@@ -469,6 +540,7 @@ export function PlaneCard({
                         </a>
                       )}
                     </div>
+                    {variant && <p className={styles.variant}>{variant}</p>}
                   </div>
                   <svg
                     className={styles.shapeIcon}
@@ -477,6 +549,21 @@ export function PlaneCard({
                     // shape.markup is sourced only from the vendored, license-attributed SVG files at build time (scripts/generate-aircraft-shapes-manifest.mjs), never from user/network input
                     dangerouslySetInnerHTML={{ __html: shape.markup }}
                   />
+                </div>
+                {/* Credit HTML below is built only from vendored asset metadata / configured CRUD URLs, escaped by the vendored creditLinkMarkup. */}
+                <div className={styles.credits}>
+                  <div className={styles.creditLine} title="Added by">
+                    <span className={styles.creditPlus} aria-hidden="true">+</span>
+                    <span dangerouslySetInnerHTML={{ __html: addedByHtml }} />
+                  </div>
+                  <div className={styles.creditLine} title="Silhouette credit">
+                    <span className={styles.creditIcon} aria-hidden="true" dangerouslySetInnerHTML={{ __html: WIREFRAME_CUBE_ICON }} />
+                    <span dangerouslySetInnerHTML={{ __html: silhouetteHtml }} />
+                  </div>
+                  <div className={styles.creditLine} title="First seen">
+                    {firstSeenBadge}
+                    <span dangerouslySetInnerHTML={{ __html: firstSeenHtml }} />
+                  </div>
                 </div>
                 {renderStatRegion(cardStats)}
               </div>
@@ -490,13 +577,19 @@ export function PlaneCard({
             <div className={styles.cardFrontContent} data-front-content>
               <div className={styles.cardFrontGrid} data-front-grid aria-hidden="true" />
               <div className={styles.cardFrontArt} ref={frontArtRef} aria-hidden="true" />
-              {showCreditLine && (
-                <div className={styles.creditRow}>
-                  <span className={styles.creditIcon} aria-hidden="true" dangerouslySetInnerHTML={{ __html: WIREFRAME_CUBE_ICON }} />
-                  {/* creditLinkHtml is built entirely from this app's own vendored asset metadata and configured CRUD URL — see the vendored creditLinkMarkup's own escaping. */}
-                  <span dangerouslySetInnerHTML={{ __html: creditLinkHtml }} />
+              <div className={styles.creditRow}>
+                <div className={styles.creditLine} title="First seen">
+                  {firstSeenBadge}
+                  <span dangerouslySetInnerHTML={{ __html: firstSeenHtml }} />
                 </div>
-              )}
+                {showCreditLine && (
+                  <div className={styles.creditLine}>
+                    <span className={styles.creditIcon} aria-hidden="true" dangerouslySetInnerHTML={{ __html: WIREFRAME_CUBE_ICON }} />
+                    {/* creditLinkHtml is built entirely from this app's own vendored asset metadata and configured CRUD URL — see the vendored creditLinkMarkup's own escaping. */}
+                    <span dangerouslySetInnerHTML={{ __html: creditLinkHtml }} />
+                  </div>
+                )}
+              </div>
               <div className={styles.cardFrontHeader}>
                 <div className={styles.cardFrontPills}>
                   <span className={styles.rarityBadge}>{rarityTier}</span>
@@ -505,6 +598,7 @@ export function PlaneCard({
                 <div className={styles.cardFrontIdentity}>
                   <p className={styles.manufacturerLabel}>{manufacturer ?? UNKNOWN}</p>
                   <h2 className={styles.cardFrontName}>{model ?? manufacturerModel ?? UNKNOWN}</h2>
+                  {variant && <p className={styles.variant}>{variant}</p>}
                 </div>
               </div>
             </div>
