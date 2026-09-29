@@ -261,36 +261,38 @@ export function RecordPanelHero({
     >
       <div className={styles.tab}>AIRFRAME</div>
       <div className={styles.body}>
-        {viewMode === "photo" && photo ? (
-          <a
-            className={styles.photoBlock}
-            href={photo.link}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element -- next/image's optimizer would proxy/resize this through our own server, which Planespotters' Photo API terms explicitly forbid ("must be loaded by the end user's browser from the thumbnail ... URLs we return"; "Proxying, rewriting ... is not permitted"). */}
-            <img className={styles.photoImg} src={photo.thumbnailLargeSrc} alt={`Aircraft photo by ${photo.photographer}`} />
-            <span className={styles.photoCaption}>
-              Photo by {photo.photographer} · Planespotters.net
-            </span>
-          </a>
-        ) : (
-          <div
-            className={styles.photoBlock}
-            ref={compassContainerRef}
-            dangerouslySetInnerHTML={{ __html: compassCardHtml }}
-          />
-        )}
-        {showToggle && (
-          <button
-            type="button"
-            className={styles.viewToggle}
-            onClick={() => setViewModeForHex({ hex, mode: viewMode === "photo" ? "compass" : "photo" })}
-            aria-label={viewMode === "photo" ? "Switch to compass view" : "Switch to photo view"}
-          >
-            {viewMode === "photo" ? "Compass" : "Photo"}
-          </button>
-        )}
+        <div className={styles.mediaWrap}>
+          {viewMode === "photo" && photo ? (
+            <a
+              className={styles.photoBlock}
+              href={photo.link}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- next/image's optimizer would proxy/resize this through our own server, which Planespotters' Photo API terms explicitly forbid ("must be loaded by the end user's browser from the thumbnail ... URLs we return"; "Proxying, rewriting ... is not permitted"). */}
+              <img className={styles.photoImg} src={photo.thumbnailLargeSrc} alt={`Aircraft photo by ${photo.photographer}`} />
+              <span className={styles.photoCaption}>
+                Photo by {photo.photographer} · Planespotters.net
+              </span>
+            </a>
+          ) : (
+            <div
+              className={styles.photoBlock}
+              ref={compassContainerRef}
+              dangerouslySetInnerHTML={{ __html: compassCardHtml }}
+            />
+          )}
+          {showToggle && (
+            <button
+              type="button"
+              className={styles.viewToggle}
+              onClick={() => setViewModeForHex({ hex, mode: viewMode === "photo" ? "compass" : "photo" })}
+              aria-label={viewMode === "photo" ? "Switch to compass view" : "Switch to photo view"}
+            >
+              {viewMode === "photo" ? "Compass" : "Photo"}
+            </button>
+          )}
+        </div>
         <div className={styles.identity}>
           <div className={styles.kicker}>Registration</div>
           <div className={styles.headingRow}>

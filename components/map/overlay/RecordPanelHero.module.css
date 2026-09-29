@@ -34,14 +34,24 @@
  * block fills the rest. Portrait: stacked, image on top at a fixed share of
  * the height instead of the width. Driven entirely by the
  * `data-orientation` attribute this component sets from its own
- * ResizeObserver measurement — not a viewport media query. */
-.photoBlock {
+ * ResizeObserver measurement — not a viewport media query.
+ *
+ * Sizing/positioning lives here rather than on `.photoBlock` so `.viewToggle`
+ * (an absolutely-positioned child of this element, not of `.photoBlock`
+ * itself — see the JSX) anchors to the image/compass module's own corner
+ * instead of the whole panel's. */
+.mediaWrap {
   flex: 0 0 60%;
   min-width: 0;
   border-right: 1px solid var(--border);
   position: relative;
-  display: block;
   overflow: hidden;
+}
+
+.photoBlock {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .photoImg {
@@ -152,14 +162,17 @@
 
 .viewToggle {
   position: absolute;
-  /* Landscape: the image area only spans the panel's left ~60% (see
-   * .photoBlock's own flex-basis), so the panel's top-right "AIRFRAME" tab
-   * (positioned relative to .panel, not .photoBlock) sits well clear of this
-   * corner — top:8px/right:8px is safe here. Portrait flips the image area
-   * to full-width-on-top (see .panel[data-orientation="portrait"]
-   * .photoBlock below), putting this same corner directly under the tab;
-   * the portrait override further down pushes the toggle below the tab's
-   * own height instead. */
+  /* Anchored to .mediaWrap (its positioned parent — see the JSX), i.e. the
+   * image/compass module's own corner, not the whole panel's.
+   *
+   * Landscape: .mediaWrap only spans the panel's left ~60% (its own
+   * flex-basis), so the panel's top-right "AIRFRAME" tab (positioned
+   * relative to .panel, not .mediaWrap) sits well clear of this corner —
+   * top:8px/right:8px is safe here. Portrait flips .mediaWrap to
+   * full-width-on-top (see .panel[data-orientation="portrait"] .mediaWrap
+   * below), putting this same corner directly under the tab; the portrait
+   * override further down pushes the toggle below the tab's own height
+   * instead. */
   top: 8px;
   right: 8px;
   z-index: 2;
@@ -217,7 +230,7 @@
   flex-direction: column;
 }
 
-.panel[data-orientation="portrait"] .photoBlock {
+.panel[data-orientation="portrait"] .mediaWrap {
   flex: 0 0 40%;
   border-right: none;
   border-bottom: 1px solid var(--border);
