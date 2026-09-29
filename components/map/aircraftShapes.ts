@@ -31,6 +31,11 @@ export interface AircraftShape {
    * Sourced from the vendored, license-attributed files at build time
    * (`generate-aircraft-shapes-manifest.mjs`), never from user input. */
   markup: string;
+  /** Modeler handle, read straight out of the vendored SVG's own root
+   * `data-author` attribute by `generate-aircraft-shapes-manifest.mjs` —
+   * only present on newer, user-submitted shapes (not the original
+   * RexKramer1/AircraftShapesSVG vendored set), so most shapes omit it. */
+  author?: string;
 }
 
 const UNIDENTIFIED_KEY = "UNIDENTIFIED";

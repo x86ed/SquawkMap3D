@@ -8,6 +8,9 @@ import { storeFeederUuid } from "./feederUuid";
 import { computeTierProgress } from "./tierProgress";
 import { splitManufacturerModel } from "./manufacturerModel";
 import { loadAircraftGltfScene, mountCardArt } from "./planeCardFrontArt";
+import { resolveModelKeyForTypeAndCategory, modelAuthor } from "../aircraftModels";
+import { getModelCrudUrl, getTypeCrudUrl, buildCrudUrl } from "../constants";
+import { creditLinkMarkup, WIREFRAME_CUBE_ICON } from "./compassCard/vendor/core";
 
 const UNKNOWN = "Unknown";
 
@@ -310,6 +313,12 @@ export function PlaneCard({
   }, [cardStats, rarityTier, typeDesignator, manufacturerModel]);
 
   const frontArtRef = useRef<HTMLDivElement | null>(null);
+  // `null` until the first mount resolves — which asset actually rendered
+  // (flat SVG fallback vs. 3D wireframe), read from `mountCardArt`'s own
+  // `slot.dataset.frontArtFlat` marker, so the credit line below (task 7 —
+  // see design.md's "PlaneCard gets its own credit line" decision) credits
+  // whichever asset is actually shown rather than guessing.
+  const [frontArtIsFlat, setFrontArtIsFlat] = useState<boolean | null>(null);
 
   /**
    * Front-face art (design.md Decision 4's "3D model" follow-up): mounts a
@@ -339,11 +348,59 @@ export function PlaneCard({
     loadAircraftGltfScene(typeDesignator, category).then((scene) => {
       if (cancelled) return;
       mountCardArt(slot, scene ?? undefined, color, fallbackSvg);
+      setFrontArtIsFlat(slot.dataset.frontArtFlat === "true");
     });
     return () => {
       cancelled = true;
     };
   }, [typeDesignator, category, rarityTier, shape, viewBox]);
+
+  // Reset once the selection itself changes (type/category), so a stale
+  // flat/3D verdict from the previous aircraft never briefly credits the
+  // wrong asset while the new one's art effect above is still resolving.
+  // Adjusted during render (React's documented pattern for resetting state
+  // when a prop changes), not in a effect, since an effect whose entire body
+  // is a single unconditional setState call is a lint-flagged anti-pattern.
+  const [frontArtKey, setFrontArtKey] = useState({ typeDesignator, category });
+  if (frontArtKey.typeDesignator !== typeDesignator || frontArtKey.category !== category) {
+    setFrontArtKey({ typeDesignator, category });
+    setFrontArtIsFlat(null);
+  }
+
+  /** Front-face credit line (task 7, design.md's "PlaneCard gets its own
+   * credit line" decision): the vendored `.glb`'s author when the 3D
+   * wireframe rendered, else the vendored SVG's own author when it fell
+   * back to the flat silhouette — either way, an unauthored asset falls
+   * back to the model-CRUD "create a model" CTA (reusing the same shared
+   * `creditLinkMarkup` the compass card's credit HUD uses), and nothing
+   * renders at all once neither an author nor a configured CTA endpoint
+   * exists. */
+  const frontArtAuthor =
+    frontArtIsFlat === null
+      ? undefined
+      : frontArtIsFlat
+        ? shape.author
+        : modelAuthor(resolveModelKeyForTypeAndCategory(typeDesignator, category));
+  const modelCrudUrlTemplate = getModelCrudUrl();
+  const modelAddUrl =
+    !frontArtAuthor && modelCrudUrlTemplate
+      ? buildCrudUrl(modelCrudUrlTemplate, { icao: typeDesignator })
+      : undefined;
+  const showCreditLine = frontArtIsFlat !== null && (!!frontArtAuthor || !!modelAddUrl);
+  const creditLinkHtml = showCreditLine
+    ? creditLinkMarkup(
+        frontArtAuthor ?? "",
+        frontArtAuthor ? `https://adsb.win/operators/${encodeURIComponent(frontArtAuthor)}` : "",
+        styles.creditLink,
+        "",
+        "+ Add a model",
+        modelAddUrl,
+      )
+    : "";
+
+  const typeCrudUrlTemplate = getTypeCrudUrl();
+  const typeEditHref =
+    typeCrudUrlTemplate && typeDesignator ? buildCrudUrl(typeCrudUrlTemplate, { icao: typeDesignator }) : undefined;
 
   return (
     <div className={styles.cardScaleWrap} ref={wrapRef}>
@@ -388,7 +445,20 @@ export function PlaneCard({
                      * shown on `.rarityBadge`/`.cardBadgeRow` below. */}
                     <span className={styles.typeBadge}>{typeDesignator?.toUpperCase() ?? UNKNOWN}</span>
                     <p className={styles.manufacturerLabel}>{manufacturer ?? UNKNOWN}</p>
-                    <h3 className={styles.modelName}>{model ?? manufacturerModel ?? UNKNOWN}</h3>
+                    <div className={styles.modelNameRow}>
+                      <h3 className={styles.modelName}>{model ?? manufacturerModel ?? UNKNOWN}</h3>
+                      {typeEditHref && (
+                        <a
+                          className={styles.editButton}
+                          href={typeEditHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Edit this aircraft type's info"
+                        >
+                          Edit
+                        </a>
+                      )}
+                    </div>
                   </div>
                   <svg
                     className={styles.shapeIcon}
@@ -410,6 +480,13 @@ export function PlaneCard({
             <div className={styles.cardFrontContent} data-front-content>
               <div className={styles.cardFrontGrid} data-front-grid aria-hidden="true" />
               <div className={styles.cardFrontArt} ref={frontArtRef} aria-hidden="true" />
+              {showCreditLine && (
+                <div className={styles.creditRow}>
+                  <span className={styles.creditIcon} aria-hidden="true" dangerouslySetInnerHTML={{ __html: WIREFRAME_CUBE_ICON }} />
+                  {/* creditLinkHtml is built entirely from this app's own vendored asset metadata and configured CRUD URL — see the vendored creditLinkMarkup's own escaping. */}
+                  <span dangerouslySetInnerHTML={{ __html: creditLinkHtml }} />
+                </div>
+              )}
               <div className={styles.cardFrontHeader}>
                 <div className={styles.cardFrontPills}>
                   <span className={styles.rarityBadge}>{rarityTier}</span>

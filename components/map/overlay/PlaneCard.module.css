@@ -614,6 +614,34 @@
   overflow-wrap: anywhere;
 }
 
+.modelNameRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* Edit control next to the type display (back face's .modelName, or
+ * front-face art's credit line below) — rarity-tier-driven, not
+ * theme-driven, matching this whole card's existing "PlaneCard does not
+ * [reflect theme]" rule. */
+.editButton {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgb(148, 163, 184);
+  text-decoration: none;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
+.editButton:hover,
+.editButton:focus-visible {
+  color: var(--rarity-color);
+}
+
 /* Top-view aircraft silhouette (vendored from RexKramer1/AircraftShapesSVG,
    GPL-3.0 — see public/aircraft-shapes/LICENSE), rendered as an inlined SVG
    (not `<img>`) so it can be colored with a plain CSS `color`, exactly
@@ -902,7 +930,57 @@
 
 .cardFrontArt[data-front-art-flat] svg {
   filter: drop-shadow(0 0 4px var(--rarity-glow));
+}
+
+/* Credit line for whichever asset the front-face art actually rendered
+ * (task 7, design.md's "PlaneCard gets its own credit line" decision) —
+ * sits at the art's bottom edge, above the art itself but below the header
+ * text, mirroring the compass card's own bottom-right credit HUD styling. */
+.creditRow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: rgb(148, 163, 184);
+  background: linear-gradient(to top, rgba(7, 11, 20, 0.65), transparent);
+}
+
+.creditIcon {
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+.creditIcon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.creditLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.creditLink:hover {
+  text-decoration: underline;
   opacity: 0.55;
+}
+
+/* `creditLinkMarkup` (vendored, shared with the compass card's credit HUD)
+ * adds this class to its own "+ Add a model" CTA state — not scoped to
+ * `.creditLink` alone since a raw HTML string's classes aren't CSS-module
+ * hashed. */
+.creditRow :global(.card-credit-add) {
+  color: var(--rarity-color);
 }
 
 /* Animated grid backdrop shown only behind the flat-SVG fallback (hidden by

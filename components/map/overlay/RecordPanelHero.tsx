@@ -2,6 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import styles from "./RecordPanelHero.module.css";
 import { fetchAircraftPhoto, type PlanespottersPhoto } from "../planespottersPhoto";
 import { splitManufacturerModel } from "./manufacturerModel";
+import { getAircraftCrudUrl, buildCrudUrl } from "../constants";
+import { buildCompassTrackCard, CARD_COMPASS_TRACK_SLOT_ID } from "./compassCard/vendor/core";
+import { mountCompassTrackCard, type CompassTrackCardHandle } from "./compassCard/vendor/compassTrackThree";
+import { getCompassTrackModel } from "./compassCard/compassTrackModel";
+import { buildCompassTrackState, type CompassTrackTelemetryInput } from "./compassCard/compassTrackState";
+import type { RarityTier } from "../aircraftRarity";
 
 const UNKNOWN = "Unknown";
 
@@ -44,19 +50,24 @@ function registryHref(registration: string | undefined): string | undefined {
 /**
  * Square-corner panel: top-right "AIRFRAME" tab, left image area, right
  * identity block (kicker, registration heading — clickable through to the
- * national civil registry for recognizable marks, see `registryHref` —
- * `CALL // {callsign}` / `ICAO // {hex}` sublines, bordered 2-col spec
- * grid). Reflows between portrait/landscape based on its own measured
- * container aspect ratio via `ResizeObserver` — not a viewport media query
+ * national civil registry for recognizable marks, see `registryHref`, with
+ * an adjacent "Edit" control per `aircraft-record-edit-links` — `CALL //
+ * {callsign}` / `ICAO // {hex}` sublines, bordered 2-col spec grid).
+ * Reflows between portrait/landscape based on its own measured container
+ * aspect ratio via `ResizeObserver` — not a viewport media query
  * (aircraft-info-overlay spec's "Layout reflows by measured container
  * aspect, not viewport" scenario).
  *
  * The image area loads a real aircraft photo from Planespotters.net's
  * public Photo API (`planespottersPhoto.ts`) keyed by hex, re-fetching
- * whenever the selected aircraft changes; falls back to the plane-icon
- * placeholder while loading or when no photo is found. Per Planespotters'
- * terms of use, the photographer credit and a plain link back to the
- * photo's page are always shown together with the image.
+ * whenever the selected aircraft changes. When a photo exists it's shown by
+ * default (per Planespotters' terms of use, the photographer credit and a
+ * plain link back to the photo's page are always shown together with it);
+ * when none exists, the live compass card (`airframe-compass-card`
+ * capability — `plens-win/Card`'s `compass-track` kind, vendored under
+ * `./compassCard/`) is shown instead of a bare placeholder. A toggle switches
+ * between the two once both are available for the current selection (see
+ * `showToggle` below).
  */
 export function RecordPanelHero({
   registration,
@@ -65,6 +76,15 @@ export function RecordPanelHero({
   manufacturerModel,
   operator,
   year,
+  typeDesignator,
+  category,
+  rarityTier,
+  track,
+  verticalRate,
+  altitude,
+  groundSpeed,
+  lat,
+  lon,
 }: {
   registration?: string;
   callsign?: string;
@@ -72,11 +92,37 @@ export function RecordPanelHero({
   manufacturerModel?: string;
   operator?: string;
   year?: string;
+  /** ICAO type designator — resolves the compass card's vendored `.glb`
+   * model (per `aircraftModels.ts`, see `airframe-compass-card` capability). */
+  typeDesignator?: string;
+  /** ADS-B emitter category — the compass card's model-resolution fallback
+   * when `typeDesignator` isn't available (same resolution `PlaneCard`'s
+   * front-face art and the map's own aircraft rendering already use). */
+  category?: string;
+  /** Drives the compass card's emissive tint (`RARITY_TIER_STYLES`). */
+  rarityTier: RarityTier;
+  /** Live telemetry — feeds the compass card's `CompassTrackState` via
+   * `buildCompassTrackState`. */
+  track?: number;
+  verticalRate?: number;
+  altitude?: number;
+  groundSpeed?: number;
+  lat?: number;
+  lon?: number;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [landscape, setLandscape] = useState(true);
   const [photoForHex, setPhotoForHex] = useState<{ hex: string; photo: PlanespottersPhoto | null } | null>(null);
   const photo = photoForHex?.hex === hex ? photoForHex.photo : null;
+  const photoResolved = photoForHex?.hex === hex;
+
+  // "photo" | "compass" — defaults per-hex to photo when one exists, else
+  // compass; resets on hex change rather than preserving a manual toggle
+  // across different aircraft (design.md's "RecordPanelHero owns view-mode
+  // state" decision).
+  const [viewModeForHex, setViewModeForHex] = useState<{ hex: string; mode: "photo" | "compass" } | null>(null);
+  const viewMode =
+    viewModeForHex?.hex === hex ? viewModeForHex.mode : photo ? "photo" : "compass";
 
   useEffect(() => {
     const element = containerRef.current;
@@ -101,8 +147,57 @@ export function RecordPanelHero({
     };
   }, [hex]);
 
+  const compassContainerRef = useRef<HTMLDivElement | null>(null);
+  const compassHandleRef = useRef<CompassTrackCardHandle | null>(null);
+  const telemetry: CompassTrackTelemetryInput = { track, verticalRate, altitude, groundSpeed, lat, lon };
+
+  // Mounts the live compass-card scene whenever the compass view becomes
+  // active for this hex; disposed on hex change, view-mode switch away from
+  // compass, or unmount (design.md: "mountCompassTrackCard's handle is
+  // disposed ... never left running invisibly"). The mount slot is found by
+  // its stable exported id within the just-rendered `buildCompassTrackCard`
+  // markup (dangerouslySetInnerHTML), rather than a direct React ref, since
+  // that markup is a raw HTML string this app doesn't own the DOM nodes of.
+  useEffect(() => {
+    if (viewMode !== "compass") return;
+    const slot = compassContainerRef.current?.querySelector<HTMLElement>(`#${CARD_COMPASS_TRACK_SLOT_ID}`);
+    if (!slot) return;
+    const model = getCompassTrackModel(typeDesignator, category, undefined, rarityTier);
+    const handle = mountCompassTrackCard(slot, model, buildCompassTrackState(telemetry));
+    compassHandleRef.current = handle;
+    return () => {
+      handle.dispose();
+      compassHandleRef.current = null;
+    };
+    // Telemetry updates are pushed via the effect below through the mounted
+    // handle's own `update()`, not by remounting — this effect only reacts
+    // to what should actually cause a remount (hex/view/type change).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hex, viewMode, typeDesignator, category, rarityTier]);
+
+  useEffect(() => {
+    compassHandleRef.current?.update(buildCompassTrackState(telemetry));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [track, verticalRate, altitude, groundSpeed, lat, lon]);
+
+  const compassCardHtml = buildCompassTrackCard({
+    kind: "compass-track",
+    model: getCompassTrackModel(typeDesignator, category, undefined, rarityTier),
+    initialState: buildCompassTrackState(telemetry),
+  });
+
   const registryLookupHref = registryHref(registration);
   const { manufacturer, model } = splitManufacturerModel(manufacturerModel);
+  const aircraftCrudUrlTemplate = getAircraftCrudUrl();
+  const aircraftEditHref = aircraftCrudUrlTemplate
+    ? buildCrudUrl(aircraftCrudUrlTemplate, { hex })
+    : undefined;
+
+  // The toggle only makes sense once there's something to switch *to* —
+  // with no photo, the compass card is the only view and there's nothing to
+  // toggle (design.md/spec: "Photo/compass toggle switches the image
+  // area's view").
+  const showToggle = photoResolved && photo !== null;
 
   return (
     <div
@@ -112,7 +207,7 @@ export function RecordPanelHero({
     >
       <div className={styles.tab}>AIRFRAME</div>
       <div className={styles.body}>
-        {photo ? (
+        {viewMode === "photo" && photo ? (
           <a
             className={styles.photoBlock}
             href={photo.link}
@@ -126,25 +221,50 @@ export function RecordPanelHero({
             </span>
           </a>
         ) : (
-          <div className={styles.iconBlock} aria-hidden="true">
-            ✈
-          </div>
+          <div
+            className={styles.photoBlock}
+            ref={compassContainerRef}
+            dangerouslySetInnerHTML={{ __html: compassCardHtml }}
+          />
+        )}
+        {showToggle && (
+          <button
+            type="button"
+            className={styles.viewToggle}
+            onClick={() => setViewModeForHex({ hex, mode: viewMode === "photo" ? "compass" : "photo" })}
+            aria-label={viewMode === "photo" ? "Switch to compass view" : "Switch to photo view"}
+          >
+            {viewMode === "photo" ? "Compass" : "Photo"}
+          </button>
         )}
         <div className={styles.identity}>
           <div className={styles.kicker}>Registration</div>
-          {registryLookupHref ? (
-            <a
-              className={styles.heading}
-              href={registryLookupHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Look up this tail number in the national civil aircraft registry"
-            >
-              {registration}
-            </a>
-          ) : (
-            <div className={styles.heading}>{registration ?? UNKNOWN}</div>
-          )}
+          <div className={styles.headingRow}>
+            {registryLookupHref ? (
+              <a
+                className={styles.heading}
+                href={registryLookupHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Look up this tail number in the national civil aircraft registry"
+              >
+                {registration}
+              </a>
+            ) : (
+              <div className={styles.heading}>{registration ?? UNKNOWN}</div>
+            )}
+            {aircraftEditHref && (
+              <a
+                className={styles.editButton}
+                href={aircraftEditHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Edit this aircraft's record"
+              >
+                Edit
+              </a>
+            )}
+          </div>
           <p className={styles.subline}>CALL // {callsign ?? UNKNOWN}</p>
           <p className={styles.subline}>
             ICAO //{" "}

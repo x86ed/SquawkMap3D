@@ -102,6 +102,15 @@ export function AircraftOverlay({
                     manufacturerModel={info.manufacturerModel}
                     operator={info.operator}
                     year={info.year}
+                    typeDesignator={info.typeDesignator}
+                    category={info.category}
+                    rarityTier={info.rarityTier}
+                    track={info.track}
+                    verticalRate={info.verticalRate}
+                    altitude={info.altitude}
+                    groundSpeed={info.groundSpeed}
+                    lat={info.lat}
+                    lon={info.lon}
                   />
                 </div>
                 <div className={styles.card}>

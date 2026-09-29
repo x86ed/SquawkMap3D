@@ -10,6 +10,12 @@ interface AircraftModelManifestEntry {
    * `scripts/generate-aircraft-models-manifest.mjs`. Omitted for models
    * with no "Landing gear" node. */
   landingGearHideAboveFeetAGL?: number;
+  /** Modeler handle, read straight out of the glTF's own `node.extras.
+   * authorship.author` by `scripts/generate-aircraft-models-manifest.mjs`
+   * (found on the root mesh node, e.g. "Aircraft visual hull" — not every
+   * vendored model has this yet). Omitted when the model has no embedded
+   * authorship metadata. */
+  author?: string;
 }
 
 /**
@@ -173,4 +179,15 @@ export function resolveModelScenegraph(modelKey: string, gearHidden: boolean): u
 export function landingGearHideThresholdFeet(modelKey: string | undefined): number | undefined {
   if (!modelKey) return undefined;
   return modelInfoByTypeDesignator.get(modelKey)?.landingGearHideAboveFeetAGL;
+}
+
+/**
+ * `modelKey`'s (see `resolveModelKey`) vendored model's embedded modeler
+ * handle, or `undefined` when it has no recorded authorship metadata (most
+ * vendored models today — see `AircraftModelManifestEntry`'s doc comment) or
+ * `modelKey` itself is unset.
+ */
+export function modelAuthor(modelKey: string | undefined): string | undefined {
+  if (!modelKey) return undefined;
+  return modelInfoByTypeDesignator.get(modelKey)?.author;
 }

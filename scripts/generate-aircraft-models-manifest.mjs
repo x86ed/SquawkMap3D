@@ -5,13 +5,17 @@
 // "no directory-listing API for Next's public/" reason
 // generate-aircraft-shapes-manifest.mjs writes one for the 2D SVG shapes.
 //
-// Each manifest entry is `{ type, landingGearHideAboveFeetAGL? }` rather
-// than a bare type string — `landingGearHideAboveFeetAGL` is read straight
-// out of the glTF's own "Landing gear" node (`node.extras.landingGear.
-// hideAboveFeetAGL`, e.g. B738.glb) when the model has one, so
+// Each manifest entry is `{ type, landingGearHideAboveFeetAGL?, author? }`
+// rather than a bare type string — `landingGearHideAboveFeetAGL` is read
+// straight out of the glTF's own "Landing gear" node (`node.extras.
+// landingGear.hideAboveFeetAGL`, e.g. B738.glb) when the model has one, so
 // aircraftLayer.ts knows which modeled types need their gear-visibility
 // split without loading/parsing the .glb itself. Omitted for models with no
-// "Landing gear" node.
+// "Landing gear" node. `author` is read from whichever node carries a
+// `node.extras.authorship.author` handle (observed on the root mesh node,
+// e.g. "Aircraft visual hull" — not necessarily the "Landing gear" node, so
+// every node is checked); only the handle is surfaced, not
+// `authorship.createdAt`/`modelVersion`, which have no consumer yet.
 //
 // Not part of `npm run build`/CI — re-run manually and re-commit the output
 // (both the copied .glb files and manifest.json) whenever aircraft/model/
@@ -51,9 +55,12 @@ const manifest = files
     const gltf = readGlbJsonChunk(path.join(sourceDir, file));
     const landingGearNode = gltf.nodes?.find((n) => n.name === "Landing gear");
     const hideAboveFeetAGL = landingGearNode?.extras?.landingGear?.hideAboveFeetAGL;
+    const authorNode = gltf.nodes?.find((n) => n.extras?.authorship?.author);
+    const author = authorNode?.extras?.authorship?.author;
     return {
       type: typeDesignator,
       ...(typeof hideAboveFeetAGL === "number" ? { landingGearHideAboveFeetAGL: hideAboveFeetAGL } : {}),
+      ...(typeof author === "string" && author.trim() ? { author: author.trim() } : {}),
     };
   })
   .sort((a, b) => a.type.localeCompare(b.type));
