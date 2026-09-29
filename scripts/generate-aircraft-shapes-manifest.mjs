@@ -81,35 +81,35 @@ function extractShape(filePath) {
     .map((g) => g.replace(/fill:#ffffff/g, "fill:currentColor"))
     .join("");
 
-  // Newer, user-submitted shapes are plain SVGs with no Inkscape layer
-  // groups: the drawing is the root `<svg>`'s direct children, styled by
-  // presentation attributes on the root itself (fill, stroke, ...). Keep the
-  // inner content and re-apply those root attributes on a wrapping `<g>`, since
-  // the root tag is dropped when this is rendered inside the card's own `<svg>`.
-  let markup = layerMarkup;
-  if (!markup) {
-    const rootMatch = raw.match(/<svg\b([^>]*)>([\s\S]*)<\/svg>\s*$/);
-    if (!rootMatch) throw new Error(`No drawing content found in ${filePath}`);
-    const presentation = [...rootMatch[1].matchAll(/\s(fill|fill-rule|clip-rule|stroke|stroke-width|stroke-linejoin|stroke-linecap|stroke-miterlimit|opacity)="([^"]*)"/g)]
-      .map((m) => ` ${m[1]}="${m[2]}"`)
-      .join("");
-    markup = `<g${presentation}>${rootMatch[2]}</g>`;
-  }
+  // Newer, user-submitted shapes are plain SVGs (no Inkscape layer groups).
+  // They are NOT dissected here: PlaneCard reads them live from the served
+  // asset (`fetchLiveShape` in components/map/aircraftShapes.ts). Returning
+  // null keeps whatever entry the manifest already has for them (needed by
+  // the map icons / exact-match check) instead of blanking it.
+  if (!layerMarkup) return null;
 
   // `data-author` is deliberately NOT extracted here: authorship is read
   // live from the served .svg asset at runtime (`fetchShapeAuthor` in
   // components/map/aircraftShapes.ts), never baked into this manifest, so it
   // can't go stale relative to the asset.
-  return { viewBox: viewBoxMatch[1], markup };
+  return { viewBox: viewBoxMatch[1], markup: layerMarkup };
 }
 
 /** @type {Record<string, { viewBox: string, markup: string }>} */
 const manifest = {};
+/** Existing manifest, so plain (live-served) SVGs keep their current entry. */
+let previous = {};
+try {
+  previous = JSON.parse(readFileSync(outputPath, "utf-8"));
+} catch {}
 for (const file of files) {
   const base = file.slice(0, -4); // strip ".svg"
   if (base.endsWith("-fast")) continue; // skip; "-slow" variant wins below (no live wing-sweep telemetry to pick between them)
   const key = (base.endsWith("-slow") ? base.slice(0, -5) : base).toUpperCase();
-  manifest[key] = extractShape(path.join(shapesDir, file));
+  const shape = extractShape(path.join(shapesDir, file));
+  if (shape) manifest[key] = shape;
+  else if (previous[key]) manifest[key] = previous[key];
+  else console.warn(`Skipping ${file}: plain SVG with no manifest entry (served live only)`);
 }
 
 const sorted = Object.fromEntries(Object.entries(manifest).sort(([a], [b]) => a.localeCompare(b)));

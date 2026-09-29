@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./PlaneCard.module.css";
 import { RARITY_TIER_STYLES, type RarityTier } from "../aircraftRarity";
-import { getAircraftShape, fetchShapeAuthor, type AircraftShape } from "../aircraftShapes";
+import { getAircraftShape, fetchLiveShape, type AircraftShape, type LiveShape } from "../aircraftShapes";
 import { computeTightViewBox } from "../svgBBox";
 import type { AircraftModelCardResult } from "./aircraftModelCard";
 import { storeFeederUuid } from "./feederUuid";
@@ -292,6 +292,34 @@ export function PlaneCard({
 }: PlaneCardProps) {
   const shape = getAircraftShape(typeDesignator, category);
   const viewBox = useTightAircraftShapeViewBox(shape);
+
+  // Silhouette drawing + author, read live from the served SVG asset (never
+  // the manifest) — keyed by type so a stale result never applies to a new
+  // selection.
+  const [liveResult, setLiveResult] = useState<{ type?: string; live?: LiveShape }>({});
+  useEffect(() => {
+    let cancelled = false;
+    fetchLiveShape(typeDesignator).then((live) => {
+      if (!cancelled) setLiveResult({ type: typeDesignator, live });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [typeDesignator]);
+  const live = liveResult.type === typeDesignator ? liveResult.live : undefined;
+  const silhouetteAuthor = live?.author ?? "";
+  const liveSvg = live?.raw;
+
+  /** The aircraft's silhouette: the live file inlined whole when it's a newer
+   * plain SVG, else the manifest's legacy markup in our own `<svg viewBox>`.
+   * Both are vendored/served from this app's own `public/`, never user input. */
+  const renderShape = (className: string) =>
+    liveSvg ? (
+      <span className={className} data-live aria-hidden="true" dangerouslySetInnerHTML={{ __html: liveSvg }} />
+    ) : (
+      <svg className={className} viewBox={viewBox} aria-hidden="true" dangerouslySetInnerHTML={{ __html: shape.markup }} />
+    );
+
   const { manufacturer, model } = splitManufacturerModel(manufacturerModel);
 
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -374,7 +402,7 @@ export function PlaneCard({
     // the browser's HTML parser never enters SVG foreign-content mode for
     // the bare `<g>`/`<path>` markup, so it rendered broken/tiny instead of
     // filling the front face like the 3D wireframe does.
-    const fallbackSvg = `<svg viewBox="${viewBox}">${shape.markup}</svg>`;
+    const fallbackSvg = liveSvg ?? `<svg viewBox="${viewBox}">${shape.markup}</svg>`;
     loadAircraftGltfScene(typeDesignator, category).then((scene) => {
       if (cancelled) return;
       mountCardArt(slot, scene ?? undefined, color, fallbackSvg);
@@ -383,7 +411,7 @@ export function PlaneCard({
     return () => {
       cancelled = true;
     };
-  }, [typeDesignator, category, rarityTier, shape, viewBox]);
+  }, [typeDesignator, category, rarityTier, shape, viewBox, liveSvg]);
 
   // Reset once the selection itself changes (type/category), so a stale
   // flat/3D verdict from the previous aircraft never briefly credits the
@@ -413,20 +441,6 @@ export function PlaneCard({
    * unrelated aircraft, so a fallback/placeholder asset is always treated
    * as unauthored (driving the CTA) regardless of what it's actually
    * credited to. */
-  // Silhouette author, read live from the served SVG asset (never the
-  // manifest) — keyed by type so a stale result never credits a new selection.
-  const [shapeAuthorResult, setShapeAuthorResult] = useState<{ type?: string; author?: string }>({});
-  useEffect(() => {
-    let cancelled = false;
-    fetchShapeAuthor(typeDesignator).then((author) => {
-      if (!cancelled) setShapeAuthorResult({ type: typeDesignator, author });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [typeDesignator]);
-  const silhouetteAuthor = shapeAuthorResult.type === typeDesignator ? (shapeAuthorResult.author ?? "") : "";
-
   const frontArtAuthor =
     frontArtIsFlat === null
       ? undefined
@@ -555,13 +569,7 @@ export function PlaneCard({
                     </div>
                     {variant && <p className={styles.variant}>{variant}</p>}
                   </div>
-                  <svg
-                    className={styles.shapeIcon}
-                    viewBox={viewBox}
-                    aria-hidden="true"
-                    // shape.markup is sourced only from the vendored, license-attributed SVG files at build time (scripts/generate-aircraft-shapes-manifest.mjs), never from user/network input
-                    dangerouslySetInnerHTML={{ __html: shape.markup }}
-                  />
+                  {renderShape(styles.shapeIcon)}
                 </div>
                 {/* Credit HTML below is built only from vendored asset metadata / configured CRUD URLs, escaped by the vendored creditLinkMarkup. */}
                 <div className={styles.credits}>
@@ -571,12 +579,7 @@ export function PlaneCard({
                   </div>
                   <div className={styles.creditLine} title="Silhouette credit">
                     {/* Icon is the aircraft's own vendored silhouette (shape.markup is build-time vendored SVG, never user input). */}
-                    <svg
-                      className={styles.creditIcon}
-                      viewBox={viewBox}
-                      aria-hidden="true"
-                      dangerouslySetInnerHTML={{ __html: shape.markup }}
-                    />
+                    {renderShape(styles.creditIcon)}
                     <span dangerouslySetInnerHTML={{ __html: silhouetteHtml }} />
                   </div>
                   <div className={styles.creditLine} title="First seen">

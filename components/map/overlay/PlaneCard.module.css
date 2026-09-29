@@ -672,7 +672,7 @@
    hairline even at this icon's full size. Force every path to a solid fill
    in the tier's own color instead of trusting each of the 179 vendored
    files' own styling to already have one. */
-.shapeIcon path {
+.shapeIcon:not([data-live]) path {
   vector-effect: non-scaling-stroke;
   stroke-width: 2.5px !important;
   fill: currentColor !important;
@@ -1292,4 +1292,12 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* A live-inlined SVG file (`data-live`) keeps its own styling; only size the
+ * root <svg> to the icon box. */
+.shapeIcon[data-live] svg,
+.creditIcon[data-live] svg {
+  width: 100%;
+  height: 100%;
 }
