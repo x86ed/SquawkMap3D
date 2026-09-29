@@ -6,7 +6,7 @@
 // public/aircraft-shapes/LICENSE and README.md's attribution — since joined
 // by newer, user-submitted shapes added directly alongside them, some
 // carrying their own `data-author` attribute) and writes a flat
-// { TYPE_CODE: { viewBox, markup, author? } } manifest, keyed by ICAO type
+// { TYPE_CODE: { viewBox, markup } } manifest, keyed by ICAO type
 // designator (the filename minus its extension, upper-cased — matches this
 // app's existing `Aircraft.typeDesignator` convention).
 //
@@ -81,19 +81,14 @@ function extractShape(filePath) {
     .map((g) => g.replace(/fill:#ffffff/g, "fill:currentColor"))
     .join("");
 
-  // Some newer, user-submitted shapes carry a `data-author`/`data-created-at`/
-  // `data-model-version` attribute set on the root `<svg>` element (the same
-  // authorship this app's vendored `.glb` models carry as glTF node extras —
-  // see generate-aircraft-models-manifest.mjs) — not present on the original
-  // RexKramer1/AircraftShapesSVG vendored set. Only `author` (the handle) is
-  // surfaced here; `createdAt`/`modelVersion` have no consumer yet.
-  const authorMatch = raw.match(/<svg[^>]*\sdata-author="([^"]*)"/);
-  const author = authorMatch?.[1]?.trim() || undefined;
-
-  return { viewBox: viewBoxMatch[1], markup: layerMarkup, ...(author ? { author } : {}) };
+  // `data-author` is deliberately NOT extracted here: authorship is read
+  // live from the served .svg asset at runtime (`fetchShapeAuthor` in
+  // components/map/aircraftShapes.ts), never baked into this manifest, so it
+  // can't go stale relative to the asset.
+  return { viewBox: viewBoxMatch[1], markup: layerMarkup };
 }
 
-/** @type {Record<string, { viewBox: string, markup: string, author?: string }>} */
+/** @type {Record<string, { viewBox: string, markup: string }>} */
 const manifest = {};
 for (const file of files) {
   const base = file.slice(0, -4); // strip ".svg"

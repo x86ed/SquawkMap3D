@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./PlaneCard.module.css";
 import { RARITY_TIER_STYLES, type RarityTier } from "../aircraftRarity";
-import { getAircraftShape, isExactShapeMatch, type AircraftShape } from "../aircraftShapes";
+import { getAircraftShape, fetchShapeAuthor, type AircraftShape } from "../aircraftShapes";
 import { computeTightViewBox } from "../svgBBox";
 import type { AircraftModelCardResult } from "./aircraftModelCard";
 import { storeFeederUuid } from "./feederUuid";
@@ -413,11 +413,25 @@ export function PlaneCard({
    * unrelated aircraft, so a fallback/placeholder asset is always treated
    * as unauthored (driving the CTA) regardless of what it's actually
    * credited to. */
+  // Silhouette author, read live from the served SVG asset (never the
+  // manifest) — keyed by type so a stale result never credits a new selection.
+  const [shapeAuthorResult, setShapeAuthorResult] = useState<{ type?: string; author?: string }>({});
+  useEffect(() => {
+    let cancelled = false;
+    fetchShapeAuthor(typeDesignator).then((author) => {
+      if (!cancelled) setShapeAuthorResult({ type: typeDesignator, author });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [typeDesignator]);
+  const silhouetteAuthor = shapeAuthorResult.type === typeDesignator ? (shapeAuthorResult.author ?? "") : "";
+
   const frontArtAuthor =
     frontArtIsFlat === null
       ? undefined
       : frontArtIsFlat
-        ? (isExactShapeMatch(typeDesignator) ? shape.author : undefined)
+        ? (silhouetteAuthor || undefined)
         : (isExactModelMatch(typeDesignator)
             ? modelAuthor(resolveModelKeyForTypeAndCategory(typeDesignator, category))
             : undefined);
@@ -445,7 +459,6 @@ export function PlaneCard({
   // Upstream `aircraft` card's remaining user fields: added-by, silhouette
   // (SVG) credit, first-seen. Same blank -> placeholder/CTA convention as
   // the model credit above; CTAs link to the type CRUD page when configured.
-  const silhouetteAuthor = isExactShapeMatch(typeDesignator) ? (shape.author ?? "") : "";
   const infoAddUrl = typeEditHref;
   const firstSeenIso = cardStats?.status === "ok" ? cardStats.attributes.firstSeenAt : undefined;
   const firstSeenDate = firstSeenIso ? formatFirstSeenDate(firstSeenIso) : null;

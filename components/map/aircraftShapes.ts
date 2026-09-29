@@ -31,11 +31,6 @@ export interface AircraftShape {
    * Sourced from the vendored, license-attributed files at build time
    * (`generate-aircraft-shapes-manifest.mjs`), never from user input. */
   markup: string;
-  /** Modeler handle, read straight out of the vendored SVG's own root
-   * `data-author` attribute by `generate-aircraft-shapes-manifest.mjs` —
-   * only present on newer, user-submitted shapes (not the original
-   * RexKramer1/AircraftShapesSVG vendored set), so most shapes omit it. */
-  author?: string;
 }
 
 const UNIDENTIFIED_KEY = "UNIDENTIFIED";
@@ -97,4 +92,31 @@ export function getAircraftShape(typeDesignator: string | undefined, category?: 
   const fallbackKey = category && CATEGORY_FALLBACK_KEY[category.toUpperCase()];
   const byCategory = fallbackKey && manifest[fallbackKey];
   return byCategory || manifest[UNIDENTIFIED_KEY];
+}
+
+/**
+ * The vendored silhouette's modeler handle, read live from the served
+ * `public/aircraft-shapes/<TYPE>.svg` asset's root `data-author` attribute —
+ * never cached or baked into the manifest, so an edited asset is reflected
+ * on the next call. Only `typeDesignator`'s own exact file is consulted (a
+ * category/"Unidentified" fallback shape is someone else's asset — see
+ * `isExactShapeMatch`). Resolves `undefined` when there is no exact shape,
+ * no `data-author`, or the fetch fails.
+ */
+export async function fetchShapeAuthor(typeDesignator: string | undefined): Promise<string | undefined> {
+  if (!isExactShapeMatch(typeDesignator)) return undefined;
+  const key = typeDesignator!.toUpperCase();
+  // Some shapes ship only as "<TYPE> slow.svg"/"<TYPE> fast.svg" variants.
+  for (const name of [key, `${key} slow`, `${key}-slow`]) {
+    try {
+      const response = await fetch(`/aircraft-shapes/${encodeURIComponent(name)}.svg`, { cache: "no-store" });
+      if (!response.ok) continue;
+      const raw = await response.text();
+      const match = raw.match(/<svg[^>]*\sdata-author="([^"]*)"/);
+      return match?.[1]?.trim() || undefined;
+    } catch {
+      continue;
+    }
+  }
+  return undefined;
 }
