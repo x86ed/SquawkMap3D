@@ -1,1 +1,144 @@
-[{"type":"A20N"},{"type":"A21N","landingGearHideAboveFeetAGL":1000},{"type":"A319","landingGearHideAboveFeetAGL":1000,"author":"squawk-7500"},{"type":"A320","landingGearHideAboveFeetAGL":1000},{"type":"A321","landingGearHideAboveFeetAGL":1000},{"type":"A333","landingGearHideAboveFeetAGL":1000,"author":"squawk-7500"},{"type":"A339","landingGearHideAboveFeetAGL":1000,"author":"squawk-7500"},{"type":"A359","landingGearHideAboveFeetAGL":1000},{"type":"A388","landingGearHideAboveFeetAGL":1000,"author":"squawk-7500"},{"type":"AS35"},{"type":"AS50","author":"squawk-7500"},{"type":"B38M","landingGearHideAboveFeetAGL":1000},{"type":"B738","landingGearHideAboveFeetAGL":1000,"author":"squawk-7500"},{"type":"B744","landingGearHideAboveFeetAGL":1000},{"type":"B752","landingGearHideAboveFeetAGL":1000},{"type":"B763","landingGearHideAboveFeetAGL":1000,"author":"squawk-7500"},{"type":"B77L","landingGearHideAboveFeetAGL":1000,"author":"squawk-7500"},{"type":"B77W","landingGearHideAboveFeetAGL":1000},{"type":"B789","landingGearHideAboveFeetAGL":1000},{"type":"BALL"},{"type":"C150","author":"squawk-7500"},{"type":"C172"},{"type":"E75L","landingGearHideAboveFeetAGL":1000,"author":"squawk-7500"},{"type":"F16","landingGearHideAboveFeetAGL":1000},{"type":"FFLO"},{"type":"FH11","author":"squawk-7500"},{"type":"H60"},{"type":"L101","landingGearHideAboveFeetAGL":1000,"author":"squawk-7500"},{"type":"P28A"},{"type":"PC12","landingGearHideAboveFeetAGL":1000},{"type":"R44"},{"type":"SERV"},{"type":"SF25"},{"type":"SHIP"},{"type":"SR22","author":"squawk-7500"},{"type":"VFHC"}]
+[
+  {
+    "type": "A20N"
+  },
+  {
+    "type": "A21N",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "A319",
+    "landingGearHideAboveFeetAGL": 1000,
+    "author": "squawk-7500"
+  },
+  {
+    "type": "A320",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "A321",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "A333",
+    "landingGearHideAboveFeetAGL": 1000,
+    "author": "squawk-7500"
+  },
+  {
+    "type": "A339",
+    "landingGearHideAboveFeetAGL": 1000,
+    "author": "squawk-7500"
+  },
+  {
+    "type": "A359",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "A388",
+    "landingGearHideAboveFeetAGL": 1000,
+    "author": "squawk-7500"
+  },
+  {
+    "type": "AS35"
+  },
+  {
+    "type": "AS50",
+    "author": "squawk-7500"
+  },
+  {
+    "type": "B38M",
+    "landingGearHideAboveFeetAGL": 1000,
+    "author": "squawk-7500"
+  },
+  {
+    "type": "B738",
+    "landingGearHideAboveFeetAGL": 1000,
+    "author": "squawk-7500"
+  },
+  {
+    "type": "B744",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "B752",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "B763",
+    "landingGearHideAboveFeetAGL": 1000,
+    "author": "squawk-7500"
+  },
+  {
+    "type": "B77L",
+    "landingGearHideAboveFeetAGL": 1000,
+    "author": "squawk-7500"
+  },
+  {
+    "type": "B77W",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "B789",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "BALL"
+  },
+  {
+    "type": "C150",
+    "author": "squawk-7500"
+  },
+  {
+    "type": "C172"
+  },
+  {
+    "type": "E75L",
+    "landingGearHideAboveFeetAGL": 1000,
+    "author": "squawk-7500"
+  },
+  {
+    "type": "F16",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "FFLO"
+  },
+  {
+    "type": "FH11",
+    "author": "squawk-7500"
+  },
+  {
+    "type": "H60"
+  },
+  {
+    "type": "L101",
+    "landingGearHideAboveFeetAGL": 1000,
+    "author": "squawk-7500"
+  },
+  {
+    "type": "P28A"
+  },
+  {
+    "type": "PC12",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "R44"
+  },
+  {
+    "type": "SERV"
+  },
+  {
+    "type": "SF25"
+  },
+  {
+    "type": "SHIP"
+  },
+  {
+    "type": "SR22",
+    "author": "squawk-7500"
+  },
+  {
+    "type": "VFHC"
+  }
+]
