@@ -28,7 +28,28 @@ interface AircraftModelExtras {
    * hull" — not every vendored model has this yet). Omitted when the model
    * has no embedded authorship metadata. */
   author?: string;
+  /** Per-node rotor spin specs from `node.extras.rotor`, keyed by node name
+   * (the same id the scenegraph exposes it under). Only nodes that carry a
+   * valid spec appear; the animated layer falls back to guessing a pivot
+   * from the mesh's bounding box for any rotor node missing here. */
+  rotors?: Record<string, RotorSpec>;
 }
+
+/** A rotor node's authored spin geometry, from `node.extras.rotor`.
+ * `pivot`/`axis` are in the node's local (mesh) space. `rpm` is the real
+ * rotor speed; the layer deliberately doesn't animate at it (see
+ * `ROTOR_DEG_PER_MS` in animatedAircraftScenegraphLayer.ts) — only
+ * `direction` is applied. */
+export interface RotorSpec {
+  axis: [number, number, number];
+  pivot: [number, number, number];
+  rpm?: number;
+  /** `1` or `-1`. */
+  direction: 1 | -1;
+}
+
+const isVec3 = (v: unknown): v is [number, number, number] =>
+  Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === "number" && Number.isFinite(n));
 
 /**
  * ICAO type designators known to have a vendored 3D model, loaded once from
@@ -66,7 +87,20 @@ function extractModelExtras(gltf: { json?: { nodes?: { name?: string; extras?: u
     (n) => typeof (n.extras as { authorship?: { author?: unknown } } | undefined)?.authorship?.author === "string",
   );
   const author = (authorNode?.extras as { authorship?: { author?: string } } | undefined)?.authorship?.author;
+  const rotors: Record<string, RotorSpec> = {};
+  for (const node of gltf.json?.nodes ?? []) {
+    const raw = (node.extras as { rotor?: { axis?: unknown; pivot?: unknown; rpm?: unknown; direction?: unknown } } | undefined)
+      ?.rotor;
+    if (!node.name || !raw || !isVec3(raw.axis) || !isVec3(raw.pivot)) continue;
+    rotors[node.name] = {
+      axis: raw.axis,
+      pivot: raw.pivot,
+      ...(typeof raw.rpm === "number" ? { rpm: raw.rpm } : {}),
+      direction: raw.direction === -1 ? -1 : 1,
+    };
+  }
   return {
+    ...(Object.keys(rotors).length ? { rotors } : {}),
     ...(typeof hideAboveFeetAGL === "number" ? { landingGearHideAboveFeetAGL: hideAboveFeetAGL } : {}),
     ...(typeof author === "string" && author.trim() ? { author: author.trim() } : {}),
   };
@@ -255,4 +289,11 @@ export function landingGearHideThresholdFeet(modelKey: string | undefined): numb
 export function modelAuthor(modelKey: string | undefined): string | undefined {
   if (!modelKey) return undefined;
   return modelExtrasByTypeDesignator.get(modelKey)?.author;
+}
+
+/** `modelKey`'s embedded per-node rotor spin specs (`node.extras.rotor`), or
+ * `undefined` when unset/not yet parsed — see `AircraftModelExtras.rotors`. */
+export function modelRotorSpecs(modelKey: string | undefined): Record<string, RotorSpec> | undefined {
+  if (!modelKey) return undefined;
+  return modelExtrasByTypeDesignator.get(modelKey)?.rotors;
 }

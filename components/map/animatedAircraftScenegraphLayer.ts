@@ -1,5 +1,6 @@
 import { ScenegraphLayer, type ScenegraphLayerProps } from "@deck.gl/mesh-layers";
 import { GroupNode, type ScenegraphNode } from "@luma.gl/engine";
+import type { RotorSpec } from "./aircraftModels";
 
 // Node names as authored in the vendored .glb files (see
 // scripts/generate-aircraft-models-manifest.mjs and aircraftModels.ts) — a
@@ -101,9 +102,20 @@ const FUSELAGE_AXIS: [number, number, number] = [1, 0, 0];
  */
 const rotorSpinInfoByNode = new WeakMap<ScenegraphNode, RotorSpinInfo>();
 
-function rotorSpinInfo(rotors: ScenegraphNode, rotorcraft: boolean): RotorSpinInfo {
+function rotorSpinInfo(rotors: ScenegraphNode, rotorcraft: boolean, spec?: RotorSpec): RotorSpinInfo {
   const cached = rotorSpinInfoByNode.get(rotors);
   if (cached) return cached;
+
+  // The model's own authored pivot/axis (`node.extras.rotor`) is the real
+  // hub. The bounding-box guess below is only a fallback for models without
+  // it: a rotor whose blades aren't symmetric about the hub (e.g. the AS50's
+  // main rotor, box center ~0.9m off the mast) otherwise spins about the
+  // wrong point and visibly wobbles.
+  if (spec) {
+    const info: RotorSpinInfo = { pivot: spec.pivot, axis: spec.axis };
+    rotorSpinInfoByNode.set(rotors, info);
+    return info;
+  }
 
   const bounds = rotors.getBounds();
   let info: RotorSpinInfo;
@@ -127,8 +139,9 @@ function rotorSpinInfo(rotors: ScenegraphNode, rotorcraft: boolean): RotorSpinIn
 
 /** Rotates `rotors` by `spinDeg` about its own geometric center and spin
  * axis (see `rotorSpinInfo`) rather than its raw node origin. */
-function spinRotors(rotors: ScenegraphNode, spinDeg: number, rotorcraft: boolean): void {
-  const { pivot, axis } = rotorSpinInfo(rotors, rotorcraft);
+function spinRotors(rotors: ScenegraphNode, spinDeg: number, rotorcraft: boolean, spec?: RotorSpec): void {
+  const { pivot, axis } = rotorSpinInfo(rotors, rotorcraft, spec);
+  if (spec?.direction === -1) spinDeg = -spinDeg;
   const negatedPivot: [number, number, number] = [-pivot[0], -pivot[1], -pivot[2]];
   rotors.matrix.identity().translate(pivot).rotateAxis(spinDeg * DEG_TO_RAD, axis).translate(negatedPivot);
 }
@@ -156,6 +169,12 @@ interface AnimatedAircraftExtraProps {
    * fans always spin about the fuselage axis.
    */
   rotorcraft?: boolean;
+  /**
+   * Authored per-node rotor pivot/axis/direction (`node.extras.rotor`, keyed
+   * by node name), when the model has them — see `RotorSpec`. Speed stays the
+   * fixed display rate (`ROTOR_DEG_PER_MS`), not the real `rpm`.
+   */
+  rotorSpecs?: Record<string, RotorSpec>;
 }
 
 /**
@@ -204,7 +223,7 @@ export class AnimatedAircraftScenegraphLayer<DataT> extends ScenegraphLayer<
     const scenegraph = this.state.scenegraph;
     if (!scenegraph) return;
 
-    const { gearHidden, rotorcraft = false } = this.props as ScenegraphLayerProps<DataT> & AnimatedAircraftExtraProps;
+    const { gearHidden, rotorcraft = false, rotorSpecs } = this.props as ScenegraphLayerProps<DataT> & AnimatedAircraftExtraProps;
 
     const allRotors = findAllNodesByPrefix(scenegraph, ROTOR_NODE_PREFIX);
     if (allRotors.length > 0) {
@@ -214,7 +233,7 @@ export class AnimatedAircraftScenegraphLayer<DataT> extends ScenegraphLayer<
       // actually changed, so the spin reads as continuous motion instead of
       // snapping ~143° at a time on a ~1s cadence.
       const spinDeg = (Date.now() * ROTOR_DEG_PER_MS) % 360;
-      for (const rotors of allRotors) spinRotors(rotors, spinDeg, rotorcraft);
+      for (const rotors of allRotors) spinRotors(rotors, spinDeg, rotorcraft, rotorSpecs?.[rotors.id]);
       this.setNeedsRedraw();
     }
 
