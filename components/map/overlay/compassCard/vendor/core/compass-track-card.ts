@@ -47,9 +47,10 @@ export const CARD_COMPASS_TRACK_CREDIT_LINK_CLASS = 'compass-track-credit-link';
  * sub-package, which mounts into these same ids/classes. Registered under
  * the `compass-track` kind by `packages/core/src/index.ts`. */
 export function buildCompassTrackCard({ model, initialState }: CompassTrackCardInput): string {
-  // Both fields must be present for a valid handle link — a blank profile
-  // URL with a set name would otherwise render a broken empty-href link.
-  const modelerBlank = !model.modelerName.trim() || !model.modelerProfileUrl.trim();
+  // Both fields must be blank to fall back to the "unknown" CTA — a set
+  // name with a blank profile URL (or vice versa) is still real author
+  // data and should render, not get hidden behind "+ Add a model".
+  const modelerBlank = !model.modelerName.trim() && !model.modelerProfileUrl.trim();
   // `unknownLabel` matches `ctaLabel` here (both "+ Add a model"): whether
   // or not `modelerAddUrl` is set, a blank modeler should read as an
   // invitation to contribute the model, not a dead "UNKNOWN"/"@" label.

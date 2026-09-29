@@ -5,6 +5,7 @@ import {
   landingGearHideThresholdFeet,
   resolveModelKeyForTypeAndCategory,
   isExactModelMatch,
+  isRotorcraftModel,
 } from "../../aircraftModels";
 import type { RarityTier } from "./vendor/core";
 import type { CompassTrackModel } from "./vendor/core";
@@ -84,5 +85,6 @@ export function getCompassTrackModel(
     modelerName,
     modelerProfileUrl,
     modelerAddUrl,
+    rotorcraft: isRotorcraftModel(modelKey),
   };
 }

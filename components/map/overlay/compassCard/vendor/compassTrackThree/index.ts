@@ -101,6 +101,87 @@ export function isGearVisible(altitudeMeters: number, gearDeploymentAltitudeMete
   return altitudeMeters <= gearDeploymentAltitudeMeters;
 }
 
+// Every node whose name starts with "Rotor" is an independently-spinning
+// rotor/prop assembly — same authoring convention (and same prefix match,
+// for the same split-rotor-export reason) as the map's own
+// `animatedAircraftScenegraphLayer.ts`.
+const ROTOR_NODE_PREFIX = 'Rotor';
+
+// Degrees/ms a rotor node spins about its own axis — matches
+// `animatedAircraftScenegraphLayer.ts`'s `ROTOR_DEG_PER_MS`, so a model
+// spins at the same rate on the map and in this card.
+const ROTOR_DEG_PER_MS = 1 / 7;
+
+const FUSELAGE_AXIS = new THREE.Vector3(1, 0, 0);
+
+interface RotorSpinInfo {
+  pivot: THREE.Vector3;
+  axis: THREE.Vector3;
+}
+
+/** All descendants of `root` whose name starts with `prefix`. */
+function findAllByPrefix(root: THREE.Object3D, prefix: string): THREE.Object3D[] {
+  const found: THREE.Object3D[] = [];
+  root.traverse(obj => {
+    if (obj.name.startsWith(prefix)) found.push(obj);
+  });
+  return found;
+}
+
+/** `node`'s own bounding box in its *local* space — i.e. relative to
+ * `node` itself, unaffected by `node`'s or any ancestor's current
+ * position/rotation/scale (which, for a rotor node hanging off the
+ * aircraft, keep changing every frame as heading/pitch tween). Built from
+ * each descendant mesh's geometry, transformed by that mesh's matrix
+ * relative to `node` rather than `node`'s live `matrixWorld`. */
+function localBoundingBox(node: THREE.Object3D): THREE.Box3 {
+  node.updateWorldMatrix(true, false);
+  const worldToLocal = new THREE.Matrix4().copy(node.matrixWorld).invert();
+  const box = new THREE.Box3();
+  const meshBox = new THREE.Box3();
+  node.traverse(child => {
+    if (!(child instanceof THREE.Mesh)) return;
+    if (!child.geometry.boundingBox) child.geometry.computeBoundingBox();
+    meshBox.copy(child.geometry.boundingBox!);
+    meshBox.applyMatrix4(new THREE.Matrix4().multiplyMatrices(worldToLocal, child.matrixWorld));
+    box.union(meshBox);
+  });
+  return box;
+}
+
+/** `rotorNode`'s own spin pivot (its geometric center) + axis: the
+ * fuselage (local X) axis for a fixed-wing prop/fan, or — for a
+ * rotorcraft's main/tail rotor, which is thin through its mast/shaft
+ * rather than through its blade span — the bounding box's shortest extent,
+ * so the disc spins in place instead of tumbling end over end. Same
+ * derivation as `animatedAircraftScenegraphLayer.ts`'s `rotorSpinInfo`. */
+function rotorSpinInfo(rotorNode: THREE.Object3D, rotorcraft: boolean): RotorSpinInfo {
+  const box = localBoundingBox(rotorNode);
+  if (box.isEmpty()) return { pivot: new THREE.Vector3(), axis: FUSELAGE_AXIS.clone() };
+  const pivot = box.getCenter(new THREE.Vector3());
+  if (!rotorcraft) return { pivot, axis: FUSELAGE_AXIS.clone() };
+  const size = box.getSize(new THREE.Vector3());
+  const extents = [size.x, size.y, size.z];
+  const shortest = extents.indexOf(Math.min(...extents));
+  const axis = new THREE.Vector3();
+  axis.setComponent(shortest, 1);
+  return { pivot, axis };
+}
+
+/** Spins `rotorNode` to `spinDeg` about its own pivot/axis (see
+ * `rotorSpinInfo`) by writing its local matrix directly — `matrixAutoUpdate`
+ * must be off for this node so THREE's own position/quaternion/scale
+ * update doesn't overwrite it. */
+function spinRotor(rotorNode: THREE.Object3D, spinDeg: number, rotorcraft: boolean): void {
+  const { pivot, axis } = rotorSpinInfo(rotorNode, rotorcraft);
+  rotorNode.matrixAutoUpdate = false;
+  rotorNode.matrix
+    .identity()
+    .makeTranslation(pivot.x, pivot.y, pivot.z)
+    .multiply(new THREE.Matrix4().makeRotationAxis(axis, THREE.MathUtils.degToRad(spinDeg)))
+    .multiply(new THREE.Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z));
+}
+
 /** Frames `camera` on `sphere` from `direction`, at the distance that makes
  * `sphere` the largest that fits the camera's field of view — same framing
  * math family as `@card/wireframe-three`'s single-frame wireframe render,
@@ -170,12 +251,13 @@ export function mountCompassTrackCard(
   const creditLinkEl = container?.querySelector<HTMLAnchorElement>(`.${CARD_COMPASS_TRACK_CREDIT_LINK_CLASS}`) ?? null;
 
   // Static per-model metadata, set once at mount — never touched by update().
-  // Only overwrites when both fields are non-blank; otherwise the "+ Add a
-  // model" CTA (or unknown placeholder) `buildCompassTrackCard` already
-  // rendered via `creditLinkMarkup` is left untouched.
-  if (creditLinkEl && model.modelerName.trim() && model.modelerProfileUrl.trim()) {
+  // Only overwrites when a name is present — otherwise the "+ Add a model"
+  // CTA (or unknown placeholder) `buildCompassTrackCard` already rendered
+  // via `creditLinkMarkup` is left untouched. A blank `modelerProfileUrl`
+  // still leaves the `href` at whatever `creditLinkMarkup` gave it.
+  if (creditLinkEl && model.modelerName.trim()) {
     creditLinkEl.textContent = `@${model.modelerName}`;
-    creditLinkEl.href = model.modelerProfileUrl;
+    if (model.modelerProfileUrl.trim()) creditLinkEl.href = model.modelerProfileUrl;
   }
 
   const { renderer, canvas } = createRenderer();
@@ -214,6 +296,7 @@ export function mountCompassTrackCard(
   let lastSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1);
 
   let gearGroup: THREE.Object3D | null = null;
+  let rotorNodes: THREE.Object3D[] = [];
 
   new GLTFLoader().load(model.modelUrl, gltf => {
     aircraftGroup.add(gltf.scene);
@@ -227,6 +310,7 @@ export function mountCompassTrackCard(
         material.emissiveIntensity = 1.2;
       }
     });
+    rotorNodes = findAllByPrefix(gltf.scene, ROTOR_NODE_PREFIX);
     lastSphere = new THREE.Box3().setFromObject(gltf.scene).getBoundingSphere(new THREE.Sphere());
     fitCameraToSphere(camera, lastSphere, viewDirection, camera.aspect);
   });
@@ -295,11 +379,20 @@ export function mountCompassTrackCard(
     scrollX = advanceGroundScrollSquares(scrollX, lastKnownGroundSpeed * tailDirection.x, elapsedSeconds);
     scrollZ = advanceGroundScrollSquares(scrollZ, lastKnownGroundSpeed * tailDirection.z, elapsedSeconds);
 
-    grid.rotation.y = THREE.MathUtils.degToRad(-renderedHeading);
+    // The grid stays unrotated — it's the fixed reference frame a heading
+    // change turns the aircraft *against*. Rotating it by heading too (as
+    // an earlier version of this code did) rigidly locked the ground to the
+    // aircraft's own orientation, so a heading change span both together
+    // and never visibly turned the aircraft relative to its own view.
     grid.position.x = wrapGridOffset(scrollX) * METERS_PER_GRID_SQUARE;
     grid.position.z = wrapGridOffset(scrollZ) * METERS_PER_GRID_SQUARE;
 
     if (gearGroup) gearGroup.visible = isGearVisible(latestState.altitudeMeters, model.gearDeploymentAltitudeMeters);
+
+    if (rotorNodes.length > 0) {
+      const spinDeg = (now * ROTOR_DEG_PER_MS) % 360;
+      for (const rotorNode of rotorNodes) spinRotor(rotorNode, spinDeg, model.rotorcraft ?? false);
+    }
 
     renderer.render(scene, camera);
   }

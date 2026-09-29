@@ -32,6 +32,10 @@ export interface CompassTrackModel {
    * placeholder renders as unlinked text. Has no effect when both
    * `modelerName` and `modelerProfileUrl` are non-blank. */
   modelerAddUrl?: string;
+  /** True for helicopter models: `@card/compass-track-three` spins each
+   * "Rotor"-prefixed node about its own shortest-extent (vertical/sideways)
+   * axis instead of the fuselage axis fixed-wing props/fans spin about. */
+  rotorcraft?: boolean;
 }
 
 /** A single live telemetry snapshot for the `compass-track` card kind —
