@@ -52,7 +52,8 @@
     "type": "B77L"
   },
   {
-    "type": "B77W"
+    "type": "B77W",
+    "landingGearHideAboveFeetAGL": 1000
   },
   {
     "type": "B789"
