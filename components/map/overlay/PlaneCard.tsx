@@ -557,7 +557,13 @@ export function PlaneCard({
                     <span dangerouslySetInnerHTML={{ __html: addedByHtml }} />
                   </div>
                   <div className={styles.creditLine} title="Silhouette credit">
-                    <span className={styles.creditIcon} aria-hidden="true" dangerouslySetInnerHTML={{ __html: WIREFRAME_CUBE_ICON }} />
+                    {/* Icon is the aircraft's own vendored silhouette (shape.markup is build-time vendored SVG, never user input). */}
+                    <svg
+                      className={styles.creditIcon}
+                      viewBox={viewBox}
+                      aria-hidden="true"
+                      dangerouslySetInnerHTML={{ __html: shape.markup }}
+                    />
                     <span dangerouslySetInnerHTML={{ __html: silhouetteHtml }} />
                   </div>
                   <div className={styles.creditLine} title="First seen">
