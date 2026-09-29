@@ -60,19 +60,30 @@ The compass card's 3D model input SHALL resolve using this app's existing per-ty
 - **WHEN** the selected aircraft's ICAO type designator has no vendored model and its emitter category has no fallback modeled type either
 - **THEN** the compass card renders the shared default/generic stand-in model rather than a blank or broken scene
 
+### Requirement: Compass card's model author is resolved from the vendored model's own embedded metadata
+The compass card's model input's modeler name/profile URL SHALL be resolved from the selected type's vendored `.glb` model's own embedded author metadata when present, rather than always treated as unauthored. When present, the profile URL SHALL point to that author's `https://adsb.win/operators/{handle}` page.
+
+#### Scenario: Vendored model with embedded author metadata resolves a real credit
+- **WHEN** the compass card's resolved `.glb` model has embedded author metadata
+- **THEN** the compass card's model input's modeler name is set to that author's handle and its profile URL is set to `https://adsb.win/operators/{handle}` for that handle
+
+#### Scenario: Vendored model with no embedded author metadata resolves as unauthored
+- **WHEN** the compass card's resolved `.glb` model has no embedded author metadata (including the default/generic stand-in model, which never has any)
+- **THEN** the compass card's model input's modeler name and profile URL are both left unset
+
 ### Requirement: Compass card's built-in credit HUD shows a "create a model" call-to-action for unauthored models
-The compass card kind's own built-in bottom-right credit HUD SHALL show a "+ Add a model"-style call-to-action linking to the configured model CRUD endpoint (per the `aircraft-record-edit-links` capability) whenever the resolved model — the default/generic stand-in, or a registered model with no recorded modeler credit — has no modeler name/profile URL, by supplying that CRUD URL as the model input's call-to-action URL rather than by modifying the card's rendered output after the fact. When the resolved model has a recorded modeler credit, the card's built-in credit HUD SHALL show that credit (modeler name/profile link) instead.
+The compass card kind's own built-in bottom-right credit HUD SHALL show a "+ Add a model"-style call-to-action linking to the configured model CRUD endpoint (per the `aircraft-record-edit-links` capability) whenever the resolved model — the default/generic stand-in, or a vendored model with no embedded author metadata — has no modeler name/profile URL, by supplying that CRUD URL as the model input's call-to-action URL rather than by modifying the card's rendered output after the fact. When the resolved model has a recorded modeler credit, the card's built-in credit HUD SHALL show that credit (modeler name/profile link) instead.
 
 #### Scenario: Authored model shows its own credit
 - **WHEN** the compass card's resolved model has a recorded modeler name and profile URL
 - **THEN** the card's bottom-right HUD shows that modeler's credit link
 
 #### Scenario: Default stand-in model shows the create-a-model CTA
-- **WHEN** the compass card is rendering the default/generic stand-in model (no registry entry for the type) and the model CRUD endpoint is configured
+- **WHEN** the compass card is rendering the default/generic stand-in model (no vendored model for the type) and the model CRUD endpoint is configured
 - **THEN** the card's bottom-right HUD area shows a "create a model" call-to-action linking to the configured model CRUD endpoint, instead of a credit link
 
-#### Scenario: Registered model with no recorded credit shows the create-a-model CTA
-- **WHEN** the compass card's resolved model is a registry entry that has no recorded modeler name or profile URL, and the model CRUD endpoint is configured
+#### Scenario: Vendored model with no embedded author shows the create-a-model CTA
+- **WHEN** the compass card's resolved model is a vendored `.glb` with no embedded author metadata, and the model CRUD endpoint is configured
 - **THEN** the card's bottom-right HUD area shows the same "create a model" call-to-action, instead of a blank or broken credit link
 
 #### Scenario: CTA is omitted when the model CRUD endpoint is not configured

@@ -5,15 +5,15 @@ The app SHALL support three independently configurable external URL templates, e
 
 #### Scenario: All three endpoints configured
 - **WHEN** all three CRUD endpoint URLs are configured
-- **THEN** the registration "Edit" control, the type "Edit" control, and the compass card's "create a model" call-to-action (per the `airframe-compass-card` capability) all render and link to their respective configured endpoints
+- **THEN** the registration "Edit" control, the type "Edit" control, and both the compass card's and `PlaneCard`'s "create a model" call-to-actions (per the `airframe-compass-card` and `aircraft-info-overlay` capabilities) all render and link to their respective configured endpoints
 
 #### Scenario: An endpoint left unconfigured hides only its own control
 - **WHEN** the aircraft CRUD endpoint URL is not configured, while the type and model CRUD endpoint URLs are configured
-- **THEN** the registration "Edit" control does not render, while the type "Edit" control and the "create a model" call-to-action continue to render normally
+- **THEN** the registration "Edit" control does not render, while the type "Edit" control and both "create a model" call-to-actions continue to render normally
 
 #### Scenario: No endpoints configured
 - **WHEN** none of the three CRUD endpoint URLs are configured
-- **THEN** no "Edit" controls or "create a model" call-to-action render anywhere in the overlay, and the rest of the overlay renders normally
+- **THEN** no "Edit" controls or "create a model" call-to-actions render anywhere in the overlay, and the rest of the overlay renders normally
 
 ### Requirement: Registration "Edit" control links to the aircraft CRUD endpoint with the transponder hex
 `RecordPanelHero` SHALL show an "Edit" control adjacent to the registration heading, which, when the aircraft CRUD endpoint is configured, opens that endpoint with the selected aircraft's transponder hex code substituted into the URL template.
@@ -34,8 +34,19 @@ The app SHALL support three independently configurable external URL templates, e
 - **THEN** `PlaneCard`'s type display shows no "Edit" control, regardless of whether the type CRUD endpoint is configured
 
 ### Requirement: "Create a model" call-to-action links to the model CRUD endpoint with ICAO designator and variant
-The compass card's built-in "create a model" call-to-action (per the `airframe-compass-card` capability, shown by the card's own credit HUD for a default/unauthored model) SHALL, when the model CRUD endpoint is configured, open that endpoint with the selected aircraft's ICAO type designator and variant substituted into the URL template — supplied to the card as its model input's call-to-action URL, not activated via a separately-built control.
+Both the compass card's built-in "create a model" call-to-action (per the `airframe-compass-card` capability, shown by the card's own credit HUD for an unauthored model) and `PlaneCard`'s own front-face credit-line call-to-action (per the `aircraft-info-overlay` capability, shown for an unauthored rendered asset) SHALL, when the model CRUD endpoint is configured, open that endpoint with the selected aircraft's ICAO type designator and variant substituted into the URL template. The compass card's is supplied to the card as its model input's call-to-action URL, not activated via a separately-built control; `PlaneCard`'s is its own rendered link.
 
-#### Scenario: Activating the call-to-action opens the model CRUD page with ICAO and variant
+#### Scenario: Activating the compass card's call-to-action opens the model CRUD page with ICAO and variant
 - **WHEN** the model CRUD endpoint is configured, the compass card is showing the "create a model" call-to-action for a selected aircraft with a known ICAO type designator, and the user activates the call-to-action
 - **THEN** a new browser tab opens to the configured model CRUD URL with that aircraft's ICAO type designator (and variant, when known) substituted into the template
+
+#### Scenario: Activating PlaneCard's call-to-action opens the model CRUD page with ICAO and variant
+- **WHEN** the model CRUD endpoint is configured, `PlaneCard`'s front-face credit line is showing the "create a model" call-to-action for a selected aircraft with a known ICAO type designator, and the user activates it
+- **THEN** a new browser tab opens to the configured model CRUD URL with that aircraft's ICAO type designator (and variant, when known) substituted into the template
+
+### Requirement: Author credit links use adsb.win's operator profile URL
+Wherever this app renders a real author/modeler credit link (the compass card's built-in credit HUD, or `PlaneCard`'s front-face credit line), that link's `href` SHALL be `https://adsb.win/operators/{handle}` for that author's handle.
+
+#### Scenario: Credit link points to the author's adsb.win operator page
+- **WHEN** either the compass card's credit HUD or `PlaneCard`'s credit line shows a real author credit for a handle
+- **THEN** that credit's link points to `https://adsb.win/operators/{handle}` for that handle
