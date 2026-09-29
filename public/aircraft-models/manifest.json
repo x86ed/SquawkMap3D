@@ -1,1 +1,111 @@
-[{"type": "A20N"}, {"type": "A21N"}, {"type": "A319"}, {"type": "A320"}, {"type": "A321"}, {"type": "A333"}, {"type": "A339"}, {"type": "A359"}, {"type": "A388"}, {"type": "AS35"}, {"type": "AS50"}, {"type": "B38M"}, {"type": "B738"}, {"type": "B744"}, {"type": "B752"}, {"type": "B763"}, {"type": "B77L"}, {"type": "B77W"}, {"type": "B789"}, {"type": "BALL"}, {"type": "C150"}, {"type": "C172"}, {"type": "E75L"}, {"type": "F16"}, {"type": "FFLO"}, {"type": "FH11"}, {"type": "H60"}, {"type": "L101"}, {"type": "P28A"}, {"type": "PC12"}, {"type": "R44"}, {"type": "SERV"}, {"type": "SF25"}, {"type": "SHIP"}, {"type": "SR22"}, {"type": "VFHC"}]
+[
+  {
+    "type": "A20N",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "A21N"
+  },
+  {
+    "type": "A319"
+  },
+  {
+    "type": "A320"
+  },
+  {
+    "type": "A321"
+  },
+  {
+    "type": "A333"
+  },
+  {
+    "type": "A339"
+  },
+  {
+    "type": "A359"
+  },
+  {
+    "type": "A388"
+  },
+  {
+    "type": "AS35"
+  },
+  {
+    "type": "AS50"
+  },
+  {
+    "type": "B38M"
+  },
+  {
+    "type": "B738"
+  },
+  {
+    "type": "B744"
+  },
+  {
+    "type": "B752"
+  },
+  {
+    "type": "B763"
+  },
+  {
+    "type": "B77L"
+  },
+  {
+    "type": "B77W"
+  },
+  {
+    "type": "B789"
+  },
+  {
+    "type": "BALL"
+  },
+  {
+    "type": "C150"
+  },
+  {
+    "type": "C172"
+  },
+  {
+    "type": "E75L"
+  },
+  {
+    "type": "F16"
+  },
+  {
+    "type": "FFLO"
+  },
+  {
+    "type": "FH11"
+  },
+  {
+    "type": "H60"
+  },
+  {
+    "type": "L101"
+  },
+  {
+    "type": "P28A"
+  },
+  {
+    "type": "PC12"
+  },
+  {
+    "type": "R44"
+  },
+  {
+    "type": "SERV"
+  },
+  {
+    "type": "SF25"
+  },
+  {
+    "type": "SHIP"
+  },
+  {
+    "type": "SR22"
+  },
+  {
+    "type": "VFHC"
+  }
+]
