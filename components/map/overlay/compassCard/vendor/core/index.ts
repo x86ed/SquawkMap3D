@@ -1,5 +1,5 @@
 // Trimmed vendoring of https://github.com/plens-win/Card
-// packages/core/src/index.ts @ 39734839 (2026-09-28). Upstream's own index
+// packages/core/src/index.ts @ 2153af0d (2026-09-30). Upstream's own index
 // also registers/exports the `aircraft` card kind (`buildAircraftCard`);
 // this app doesn't consume that card kind (PlaneCard is its own hand-built
 // component that only reuses `credit-link.ts`'s pure render helper directly
@@ -12,6 +12,7 @@ import {
   CARD_COMPASS_TRACK_HEADING_HUD_ID,
   CARD_COMPASS_TRACK_LATLON_HUD_ID,
   CARD_COMPASS_TRACK_CREDIT_HUD_ID,
+  CARD_COMPASS_TRACK_CARDINAL_ID,
   CARD_COMPASS_TRACK_HEADING_VALUE_CLASS,
   CARD_COMPASS_TRACK_PITCH_VALUE_CLASS,
   CARD_COMPASS_TRACK_LAT_VALUE_CLASS,
@@ -29,6 +30,7 @@ export {
   CARD_COMPASS_TRACK_HEADING_HUD_ID,
   CARD_COMPASS_TRACK_LATLON_HUD_ID,
   CARD_COMPASS_TRACK_CREDIT_HUD_ID,
+  CARD_COMPASS_TRACK_CARDINAL_ID,
   CARD_COMPASS_TRACK_HEADING_VALUE_CLASS,
   CARD_COMPASS_TRACK_PITCH_VALUE_CLASS,
   CARD_COMPASS_TRACK_LAT_VALUE_CLASS,

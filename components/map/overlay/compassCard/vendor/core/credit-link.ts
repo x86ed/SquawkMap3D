@@ -1,9 +1,9 @@
 // Vendored from https://github.com/plens-win/Card
-// packages/core/src/credit-link.ts @ 39734839 (2026-09-28, PR #10 "change
-// how unknown author functions"). `"private": true` npm workspace, never
-// published — see compass-track-card.ts's doc comment for why this is
-// vendored rather than depended on. Re-run manually and re-commit if
-// upstream changes; not part of `npm run build`/CI.
+// packages/core/src/credit-link.ts @ 2153af0d (2026-09-30, branch "11-compass-card-needs-to-have-some-issues-fixed").
+// `"private": true` npm workspace, never published — vendored directly
+// (matching this app's existing vendoring pattern, see
+// components/map/aircraftShapes.ts's doc comment). Re-run manually and
+// re-commit if upstream changes; not part of `npm run build`/CI.
 
 export function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

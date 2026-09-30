@@ -123,6 +123,36 @@
 .photoBlock :global(.compass-track-hud-latlon) {
   bottom: 0;
   left: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Upper-left cardinal/intercardinal letter — also the click target that
+ * toggles the compass ring's orientation mode (true-north-locked <->
+ * map-view-locked) in the vendored compass-track-three, so unlike the other
+ * HUD elements it takes pointer events. Sits just under the heading HUD. */
+.photoBlock :global(.compass-track-hud-cardinal) {
+  top: 26px;
+  left: 0;
+  pointer-events: auto;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.photoBlock :global(.compass-track-hud-cardinal.compass-track-cardinal-map-view-locked) {
+  border: 1px solid currentColor;
+  border-radius: 0.25rem;
+}
+
+/* Screen-reader-only secondary pitch readout (the horizon-line mesh is the
+ * visible pitch indicator now). */
+.photoBlock :global(.compass-track-sr-only) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 .photoBlock :global(.compass-track-hud-credit) {

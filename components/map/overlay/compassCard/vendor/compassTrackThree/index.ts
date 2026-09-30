@@ -1,19 +1,22 @@
 // Vendored from https://github.com/plens-win/Card
-// packages/compass-track-three/src/index.ts @ 39734839 (2026-09-28).
+// packages/compass-track-three/src/index.ts @ 2153af0d (2026-09-30, branch "11-compass-card-needs-to-have-some-issues-fixed").
 // `"private": true` npm workspace, never published — vendored directly
-// (see ../core/compass-track-card.ts's doc comment for the same rationale).
-// Only needs `three`'s `GLTFLoader`, already a dependency of this app (see
-// components/map/overlay/planeCardFrontArt.ts, which imports the same
-// `three/examples/jsm/loaders/GLTFLoader.js` path). Re-run manually and
+// (matching this app's existing vendoring pattern, see
+// components/map/aircraftShapes.ts's doc comment). Re-run manually and
 // re-commit if upstream changes; not part of `npm run build`/CI.
+// LOCAL ADDITION: rotor/prop spin (see the marked block below).
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import {
   CARD_COMPASS_TRACK_SLOT_ID,
   CARD_COMPASS_TRACK_HEADING_HUD_ID,
   CARD_COMPASS_TRACK_LATLON_HUD_ID,
   CARD_COMPASS_TRACK_CREDIT_HUD_ID,
+  CARD_COMPASS_TRACK_CARDINAL_ID,
   CARD_COMPASS_TRACK_HEADING_VALUE_CLASS,
   CARD_COMPASS_TRACK_PITCH_VALUE_CLASS,
   CARD_COMPASS_TRACK_LAT_VALUE_CLASS,
@@ -28,7 +31,18 @@ export {
   CARD_COMPASS_TRACK_HEADING_HUD_ID,
   CARD_COMPASS_TRACK_LATLON_HUD_ID,
   CARD_COMPASS_TRACK_CREDIT_HUD_ID,
+  CARD_COMPASS_TRACK_CARDINAL_ID,
 };
+
+/** The compass ring's orientation mode — see the "Compass ring orientation
+ * mode toggle" requirement of `compass-track-render`. `'true-north-locked'`
+ * (default) keeps the ring fixed to true north (`rotation.y = 0`);
+ * `'map-view-locked'` keeps the ring fixed to the map's constant view
+ * azimuth ({@link DEFAULT_VIEW_AZIMUTH_DEGREES}) instead. In both modes the
+ * needle always rotates to track current heading relative to the ring's
+ * fixed reference — only the ring's fixed rotation differs between modes
+ * (design Decision 5, second amendment). */
+export type CompassMode = 'true-north-locked' | 'map-view-locked';
 
 /** The handle `mountCompassTrackCard` returns: `update` pushes a new
  * telemetry frame (never fetched/polled internally — see design Decision
@@ -42,6 +56,14 @@ export interface CompassTrackCardHandle {
    * disposes the renderer/geometries/materials — no further rendering
    * occurs after this returns. */
   dispose(): void;
+  /** Sets the compass ring's orientation mode (see {@link CompassMode}),
+   * updating the cardinal badge's visible mode cue immediately. Drives the
+   * exact same code path as clicking the cardinal badge itself, so both
+   * stay in sync. Never touches the camera, manual drag offset, or
+   * aircraft transform (design Decision 5, amended and second amendment). */
+  setCompassMode(mode: CompassMode): void;
+  /** The compass ring's current orientation mode. */
+  getCompassMode(): CompassMode;
 }
 
 /** Grid squares are 1 hectare each: a 100m x 100m square (10,000 m²) — per
@@ -101,15 +123,21 @@ export function isGearVisible(altitudeMeters: number, gearDeploymentAltitudeMete
   return altitudeMeters <= gearDeploymentAltitudeMeters;
 }
 
-// Every node whose name starts with "Rotor" is an independently-spinning
-// rotor/prop assembly — same authoring convention (and same prefix match,
-// for the same split-rotor-export reason) as the map's own
-// `animatedAircraftScenegraphLayer.ts`.
+// ---------------------------------------------------------------------------
+// LOCAL ADDITION (not upstream): rotor/prop spin, matching the map's own
+// `animatedAircraftScenegraphLayer.ts`. Every node whose name starts with
+// "Rotor" is an independently-spinning assembly (same prefix convention, for
+// the same split-rotor-export reason). Pivot/axis come from the model's own
+// authored `node.extras.rotor` (three's GLTFLoader copies extras into
+// `userData`) — the real hub/shaft — and only fall back to a mesh
+// bounding-box guess when a model has none, since that guess is off-hub for
+// asymmetric rotors (e.g. a 3-blade main rotor) and makes the disc orbit.
+// ---------------------------------------------------------------------------
 const ROTOR_NODE_PREFIX = 'Rotor';
 
-// Degrees/ms a rotor node spins about its own axis — matches
-// `animatedAircraftScenegraphLayer.ts`'s `ROTOR_DEG_PER_MS`, so a model
-// spins at the same rate on the map and in this card.
+// Degrees/ms a rotor node spins — matches the map layer's `ROTOR_DEG_PER_MS`,
+// so a model spins at the same (deliberately slow, alias-free) display rate
+// in both places; the authored `rpm` is intentionally not applied.
 const ROTOR_DEG_PER_MS = 1 / 7;
 
 const FUSELAGE_AXIS = new THREE.Vector3(1, 0, 0);
@@ -117,6 +145,7 @@ const FUSELAGE_AXIS = new THREE.Vector3(1, 0, 0);
 interface RotorSpinInfo {
   pivot: THREE.Vector3;
   axis: THREE.Vector3;
+  direction: 1 | -1;
 }
 
 /** All descendants of `root` whose name starts with `prefix`. */
@@ -128,12 +157,9 @@ function findAllByPrefix(root: THREE.Object3D, prefix: string): THREE.Object3D[]
   return found;
 }
 
-/** `node`'s own bounding box in its *local* space — i.e. relative to
- * `node` itself, unaffected by `node`'s or any ancestor's current
- * position/rotation/scale (which, for a rotor node hanging off the
- * aircraft, keep changing every frame as heading/pitch tween). Built from
- * each descendant mesh's geometry, transformed by that mesh's matrix
- * relative to `node` rather than `node`'s live `matrixWorld`. */
+/** `node`'s own bounding box in its *local* space (unaffected by `node`'s or
+ * any ancestor's current transform, which keep changing as heading/pitch
+ * tween). */
 function localBoundingBox(node: THREE.Object3D): THREE.Box3 {
   node.updateWorldMatrix(true, false);
   const worldToLocal = new THREE.Matrix4().copy(node.matrixWorld).invert();
@@ -149,37 +175,123 @@ function localBoundingBox(node: THREE.Object3D): THREE.Box3 {
   return box;
 }
 
-/** `rotorNode`'s own spin pivot (its geometric center) + axis: the
- * fuselage (local X) axis for a fixed-wing prop/fan, or — for a
- * rotorcraft's main/tail rotor, which is thin through its mast/shaft
- * rather than through its blade span — the bounding box's shortest extent,
- * so the disc spins in place instead of tumbling end over end. Same
- * derivation as `animatedAircraftScenegraphLayer.ts`'s `rotorSpinInfo`. */
+const isVec3 = (v: unknown): v is [number, number, number] =>
+  Array.isArray(v) && v.length === 3 && v.every(n => typeof n === 'number' && Number.isFinite(n));
+
+/** `rotorNode`'s spin pivot + axis: the model's authored `userData.rotor`
+ * when present; else its bounding-box center with the fuselage axis
+ * (fixed-wing) or shortest-extent axis (`rotorcraft`). */
 function rotorSpinInfo(rotorNode: THREE.Object3D, rotorcraft: boolean): RotorSpinInfo {
+  const authored = rotorNode.userData?.rotor as
+    | { pivot?: unknown; axis?: unknown; direction?: unknown }
+    | undefined;
+  if (authored && isVec3(authored.pivot) && isVec3(authored.axis)) {
+    return {
+      pivot: new THREE.Vector3(...authored.pivot),
+      axis: new THREE.Vector3(...authored.axis).normalize(),
+      direction: authored.direction === -1 ? -1 : 1,
+    };
+  }
   const box = localBoundingBox(rotorNode);
-  if (box.isEmpty()) return { pivot: new THREE.Vector3(), axis: FUSELAGE_AXIS.clone() };
+  if (box.isEmpty()) return { pivot: new THREE.Vector3(), axis: FUSELAGE_AXIS.clone(), direction: 1 };
   const pivot = box.getCenter(new THREE.Vector3());
-  if (!rotorcraft) return { pivot, axis: FUSELAGE_AXIS.clone() };
+  if (!rotorcraft) return { pivot, axis: FUSELAGE_AXIS.clone(), direction: 1 };
   const size = box.getSize(new THREE.Vector3());
   const extents = [size.x, size.y, size.z];
-  const shortest = extents.indexOf(Math.min(...extents));
   const axis = new THREE.Vector3();
-  axis.setComponent(shortest, 1);
-  return { pivot, axis };
+  axis.setComponent(extents.indexOf(Math.min(...extents)), 1);
+  return { pivot, axis, direction: 1 };
 }
 
-/** Spins `rotorNode` to `spinDeg` about its own pivot/axis (see
- * `rotorSpinInfo`) by writing its local matrix directly — `matrixAutoUpdate`
- * must be off for this node so THREE's own position/quaternion/scale
- * update doesn't overwrite it. */
-function spinRotor(rotorNode: THREE.Object3D, spinDeg: number, rotorcraft: boolean): void {
-  const { pivot, axis } = rotorSpinInfo(rotorNode, rotorcraft);
+/** Spins `rotorNode` to `spinDeg` about its pivot/axis by writing its local
+ * matrix directly (`matrixAutoUpdate` off so three doesn't overwrite it). */
+function spinRotor(rotorNode: THREE.Object3D, info: RotorSpinInfo, spinDeg: number): void {
   rotorNode.matrixAutoUpdate = false;
   rotorNode.matrix
-    .identity()
-    .makeTranslation(pivot.x, pivot.y, pivot.z)
-    .multiply(new THREE.Matrix4().makeRotationAxis(axis, THREE.MathUtils.degToRad(spinDeg)))
-    .multiply(new THREE.Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z));
+    .makeTranslation(info.pivot.x, info.pivot.y, info.pivot.z)
+    .multiply(new THREE.Matrix4().makeRotationAxis(info.axis, THREE.MathUtils.degToRad(spinDeg * info.direction)))
+    .multiply(new THREE.Matrix4().makeTranslation(-info.pivot.x, -info.pivot.y, -info.pivot.z));
+}
+
+/** Feet-to-meters conversion factor for the GLB-embedded gear-deployment
+ * extras value (`hideAboveFeetAGL` is authored in feet AGL; the rest of this
+ * module's altitude comparisons — `gearDeploymentAltitudeMeters`,
+ * `state.altitudeMeters` — are meters). */
+const FEET_TO_METERS = 0.3048;
+
+/** Minimal shape of the object three.js's `GLTFLoader` success-callback
+ * argument exposes for extras resolution — only the two `userData`-bearing
+ * fields this helper reads. */
+interface GltfUserDataSource {
+  userData?: { landingGear?: { hideAboveFeetAGL?: number } };
+  scene?: { userData?: { landingGear?: { hideAboveFeetAGL?: number } } };
+}
+
+/** Resolves the gear-deployment altitude threshold (in meters), preferring
+ * the loaded GLB's own embedded `extras.landingGear.hideAboveFeetAGL` value
+ * over the externally-supplied `fallbackMeters`
+ * (`model.gearDeploymentAltitudeMeters`) — design Decision 7. Three.js's
+ * `GLTFLoader` copies each glTF structural level's own `extras` into that
+ * level's `userData` independently (node, scene, and document root are
+ * populated separately), so this checks, in precedence order: the gear
+ * node's own `userData` (most likely authoring location for gear-specific
+ * metadata), then the glTF scene root's `userData`, then the glTF document
+ * root's `userData` (`gltf.userData`) — first match wins. When present, the
+ * value (feet AGL) is converted to meters (`* 0.3048`); when absent at all
+ * three levels, `fallbackMeters` is returned unchanged. */
+export function resolveGearDeploymentAltitudeMeters(
+  gearGroup: THREE.Object3D | null,
+  gltf: GltfUserDataSource,
+  fallbackMeters: number,
+): number {
+  const feetAgl =
+    gearGroup?.userData.landingGear?.hideAboveFeetAGL ??
+    gltf.scene?.userData?.landingGear?.hideAboveFeetAGL ??
+    gltf.userData?.landingGear?.hideAboveFeetAGL;
+  return feetAgl === undefined ? fallbackMeters : feetAgl * FEET_TO_METERS;
+}
+
+/** The 8 compass points, in clockwise order starting at north — index `i`
+ * covers headings in `[i * 45 - 22.5, i * 45 + 22.5)`. */
+const CARDINAL_LABELS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'] as const;
+
+/** Nearest of the 8 cardinal/intercardinal points (`N`/`NE`/`E`/`SE`/`S`/
+ * `SW`/`W`/`NW`) to `headingDegrees` — used both for the upper-left DOM
+ * badge and (indirectly) to keep it in sync with the same tweened heading
+ * driving the 3D compass ring's needle and the aircraft's own yaw. */
+export function nearestCardinal(headingDegrees: number): string {
+  const normalized = ((headingDegrees % 360) + 360) % 360;
+  const index = Math.round(normalized / 45) % 8;
+  return CARDINAL_LABELS[index];
+}
+
+/** Formats `decimalDegrees` as a `D°M′S.s″`-style DMS string, preserving
+ * sign via a leading `-` on the degrees component (one of the two
+ * sign-preserving forms `compass-track-hud`'s DMS requirement explicitly
+ * allows). Seconds are rounded to one decimal place; a rounding carry into
+ * the next minute/degree boundary is normalized away. */
+export function formatDms(decimalDegrees: number): string {
+  const sign = decimalDegrees < 0 ? '-' : '';
+  const abs = Math.abs(decimalDegrees);
+  let degrees = Math.floor(abs);
+  let minutes = Math.floor((abs - degrees) * 60);
+  let seconds = Math.round((((abs - degrees) * 60 - minutes) * 60) * 10) / 10;
+  if (seconds >= 60) {
+    seconds -= 60;
+    minutes += 1;
+  }
+  if (minutes >= 60) {
+    minutes -= 60;
+    degrees += 1;
+  }
+  return `${sign}${degrees}°${minutes}′${seconds.toFixed(1)}″`;
+}
+
+/** Formats a heading-in-degrees value for HUD text display, appending the
+ * degree symbol (e.g. `45` -> `"45°"`). Does not round/clamp — callers
+ * pass whatever numeric value (raw or tweened) they already have. */
+export function formatHeadingDegrees(headingDegrees: number): string {
+  return `${headingDegrees}°`;
 }
 
 /** Frames `camera` on `sphere` from `direction`, at the distance that makes
@@ -201,6 +313,161 @@ export function fitCameraToSphere(
   camera.updateProjectionMatrix();
 }
 
+/** The default 3/4, magnetic-north-oriented camera framing direction —
+ * reused both at mount time and whenever the compass indicator is clicked
+ * to recenter the camera (design Decision 4). World -Z is true north
+ * (matching the ground grid's fixed frame), so this direction reads as a
+ * 3/4 view "from the south-east, looking north-west". */
+const DEFAULT_VIEW_DIRECTION = new THREE.Vector3(1.4, 0.9, 1.6).normalize();
+
+/** The map's fixed view azimuth (degrees, rotation about world Y) that
+ * `DEFAULT_VIEW_DIRECTION` projects onto the ground (XZ) plane — computed
+ * once as a constant, never per-frame, since this app's camera is only
+ * ever repositioned (`fitCameraToSphere`/`recenterCamera`), never
+ * reoriented to a different azimuth (design Decision 5, second
+ * amendment). Used as the compass ring's fixed reference rotation in
+ * `'map-view-locked'` mode. The `atan2(x, -z)` argument order matches this
+ * file's existing heading↔world-direction convention (see
+ * `createCompassRing`'s tick placement), so `'true-north-locked'`'s fixed
+ * `rotation.y = 0` is the special case of the same formula. */
+const DEFAULT_VIEW_AZIMUTH_DEGREES = THREE.MathUtils.radToDeg(
+  Math.atan2(DEFAULT_VIEW_DIRECTION.x, -DEFAULT_VIEW_DIRECTION.z),
+);
+
+/** Positions/colors (in a `Float32Array`, `[x0,y0,z0, x1,y1,z1, ...]`) for a
+ * flat `size` x `size` ground grid with `divisions` squares per side,
+ * centered at the origin in the XZ plane — the same layout
+ * `THREE.GridHelper` produces, rebuilt here so the grid can be rendered via
+ * `LineSegments2`/`LineMaterial` (a "fat line" material whose width is
+ * respected on all platforms, unlike `GridHelper`'s default
+ * `LineBasicMaterial`). */
+export function buildGridLinePositions(size: number, divisions: number): Float32Array {
+  const half = size / 2;
+  const step = size / divisions;
+  const positions: number[] = [];
+  for (let i = 0; i <= divisions; i++) {
+    const coordinate = -half + i * step;
+    // Line parallel to X axis (varies along Z).
+    positions.push(-half, 0, coordinate, half, 0, coordinate);
+    // Line parallel to Z axis (varies along X).
+    positions.push(coordinate, 0, -half, coordinate, 0, half);
+  }
+  return new Float32Array(positions);
+}
+
+function createFatLineGrid(size: number, divisions: number, color: THREE.Color, resolution: THREE.Vector2): LineSegments2 {
+  const positions = buildGridLinePositions(size, divisions);
+  const colors = new Float32Array(positions.length);
+  for (let i = 0; i < colors.length; i += 3) {
+    colors[i] = color.r;
+    colors[i + 1] = color.g;
+    colors[i + 2] = color.b;
+  }
+
+  const geometry = new LineSegmentsGeometry();
+  geometry.setPositions(positions);
+  geometry.setColors(colors);
+
+  const material = new LineMaterial({
+    linewidth: 2.5,
+    vertexColors: true,
+    transparent: true,
+    opacity: 0.35,
+    resolution,
+  });
+
+  const grid = new LineSegments2(geometry, material);
+  grid.name = 'compass-track-grid';
+  grid.computeLineDistances();
+  return grid;
+}
+
+/** A flat annulus lying in the XZ plane (parallel to the ground grid), fixed
+ * to true north, with small tick marks at the 8 compass points — the fixed
+ * "compass card" ring a needle mesh (added separately, see
+ * {@link createCompassNeedle}) rotates against. */
+function createCompassRing(radius: number, color: THREE.Color): THREE.Group {
+  const ringGroup = new THREE.Group();
+  ringGroup.name = 'compass-track-ring';
+
+  const ringGeometry = new THREE.RingGeometry(radius * 0.85, radius, 48);
+  const ringMaterial = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: 0.55 });
+  const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
+  ringMesh.rotation.x = -Math.PI / 2;
+  ringGroup.add(ringMesh);
+
+  // 8 tick marks at the cardinal/intercardinal points, north (`0°`) aligned
+  // with world -Z — matching the ground grid's fixed true-north frame.
+  const tickGeometry = new THREE.BoxGeometry(radius * 0.04, radius * 0.02, radius * 0.16);
+  for (let i = 0; i < 8; i++) {
+    const angle = THREE.MathUtils.degToRad(i * 45);
+    const tick = new THREE.Mesh(tickGeometry, ringMaterial);
+    tick.position.set(radius * Math.sin(angle), 0.01, -radius * Math.cos(angle));
+    tick.rotation.y = angle;
+    ringGroup.add(tick);
+  }
+
+  return ringGroup;
+}
+
+/** The needle/pointer sub-mesh that rotates (about world Y) to indicate the
+ * current tweened heading relative to the fixed {@link createCompassRing}. */
+function createCompassNeedle(radius: number, color: THREE.Color): THREE.Group {
+  const needleGroup = new THREE.Group();
+  needleGroup.name = 'compass-track-needle';
+  const needleGeometry = new THREE.ConeGeometry(radius * 0.08, radius * 0.7, 8);
+  const needleMaterial = new THREE.MeshBasicMaterial({ color });
+  const needleMesh = new THREE.Mesh(needleGeometry, needleMaterial);
+  needleMesh.rotation.x = -Math.PI / 2;
+  needleMesh.position.z = -radius * 0.35;
+  needleGroup.add(needleMesh);
+  return needleGroup;
+}
+
+/** Positive/negative-pitch sign-cue colors for the horizon marker — a
+ * secondary visual differentiator beyond the marker's vertical position
+ * relative to the reference line (design Decision 6). Bright/high-contrast
+ * against the reference line's dimmer `color` so nose-up/nose-down reads
+ * unambiguously at a glance. */
+const HORIZON_MARKER_POSITIVE_COLOR = new THREE.Color(0x22ff8c);
+const HORIZON_MARKER_NEGATIVE_COLOR = new THREE.Color(0xff2ec4);
+
+/** A horizontal reference-line mesh plus a marker mesh whose vertical offset
+ * from the line tracks (tweened) pitch — positive pitch (nose up) above the
+ * line, negative below (design Decision 1). Both live directly under
+ * `scene` (not `aircraftGroup`) and are billboarded toward the camera each
+ * frame so they stay legible regardless of aircraft orientation. The
+ * reference line uses the same `LineSegments2`/`LineMaterial` fat-line
+ * technique as the ground grid (sharing its `resolution` uniform) instead of
+ * a bare 1px `THREE.LineBasicMaterial` line, and the marker is enlarged and
+ * given a positive/negative sign-cue color distinct from the line's color
+ * (design Decision 6). */
+function createHorizonIndicator(
+  width: number,
+  color: THREE.Color,
+  resolution: THREE.Vector2,
+): { group: THREE.Group; marker: THREE.Mesh } {
+  const group = new THREE.Group();
+  group.name = 'compass-track-horizon';
+
+  const lineGeometry = new LineSegmentsGeometry();
+  lineGeometry.setPositions([-width / 2, 0, 0, width / 2, 0, 0]);
+  const lineMaterial = new LineMaterial({ linewidth: 2.5, color: color.getHex(), transparent: true, opacity: 0.6, resolution });
+  const line = new LineSegments2(lineGeometry, lineMaterial);
+  line.name = 'compass-track-horizon-line';
+  line.computeLineDistances();
+  group.add(line);
+
+  const marker = new THREE.Mesh(
+    new THREE.SphereGeometry(width * 0.06, 16, 16),
+    new THREE.MeshBasicMaterial({ color: HORIZON_MARKER_POSITIVE_COLOR, transparent: false, opacity: 1 }),
+  );
+  marker.name = 'compass-track-horizon-marker';
+  group.add(marker);
+
+  return { group, marker };
+}
+
 function createRenderer(): { renderer: THREE.WebGLRenderer; canvas: HTMLCanvasElement } {
   const canvas = document.createElement('canvas');
   canvas.className = 'compass-track-canvas';
@@ -212,7 +479,7 @@ function createRenderer(): { renderer: THREE.WebGLRenderer; canvas: HTMLCanvasEl
 
 function disposeObject3D(object: THREE.Object3D): void {
   object.traverse(obj => {
-    if (!(obj instanceof THREE.Mesh)) return;
+    if (!(obj instanceof THREE.Mesh) && !(obj instanceof THREE.Line)) return;
     obj.geometry.dispose();
     const material = obj.material;
     if (Array.isArray(material)) material.forEach(m => m.dispose());
@@ -226,8 +493,11 @@ function disposeObject3D(object: THREE.Object3D): void {
  * aircraft model at `model.modelUrl` flying over a scrolling ground grid,
  * oriented by heading/pitch, with its landing-gear mesh group
  * (`model.gearMeshGroupName`) shown/hidden by altitude — and drives the
- * card's four HUD elements (heading/pitch, lat/lon, and the static modeler
- * credit) from the same `slot`'s enclosing `.compass-track-card` markup.
+ * card's HUD elements (heading/pitch, lat/lon, cardinal badge, and the
+ * static modeler credit) from the same `slot`'s enclosing
+ * `.compass-track-card` markup. Also renders a 3D compass ring + needle and
+ * a 3D horizon-line indicator inside the scene, and wires up drag-to-pan/
+ * roll on the aircraft plus click-to-recenter on the compass indicator.
  *
  * The returned handle's `update(state)` pushes a new telemetry frame (the
  * sub-package never fetches/polls on its own); the internal animation loop
@@ -249,15 +519,15 @@ export function mountCompassTrackCard(
   const latValueEl = container?.querySelector<HTMLElement>(`.${CARD_COMPASS_TRACK_LAT_VALUE_CLASS}`) ?? null;
   const lonValueEl = container?.querySelector<HTMLElement>(`.${CARD_COMPASS_TRACK_LON_VALUE_CLASS}`) ?? null;
   const creditLinkEl = container?.querySelector<HTMLAnchorElement>(`.${CARD_COMPASS_TRACK_CREDIT_LINK_CLASS}`) ?? null;
+  const cardinalEl = container?.querySelector<HTMLElement>(`#${CARD_COMPASS_TRACK_CARDINAL_ID}`) ?? null;
 
   // Static per-model metadata, set once at mount — never touched by update().
-  // Only overwrites when a name is present — otherwise the "+ Add a model"
-  // CTA (or unknown placeholder) `buildCompassTrackCard` already rendered
-  // via `creditLinkMarkup` is left untouched. A blank `modelerProfileUrl`
-  // still leaves the `href` at whatever `creditLinkMarkup` gave it.
-  if (creditLinkEl && model.modelerName.trim()) {
+  // Blank modeler name/profile is already rendered server-side as the
+  // "+ Add a model" CTA (or unknown placeholder) by `creditLinkMarkup`;
+  // overwriting it here unconditionally would replace that with a bare "@".
+  if (creditLinkEl && model.modelerName.trim() && model.modelerProfileUrl.trim()) {
     creditLinkEl.textContent = `@${model.modelerName}`;
-    if (model.modelerProfileUrl.trim()) creditLinkEl.href = model.modelerProfileUrl;
+    creditLinkEl.href = model.modelerProfileUrl;
   }
 
   const { renderer, canvas } = createRenderer();
@@ -286,20 +556,65 @@ export function mountCompassTrackCard(
   // grid lines far outside the camera's view frustum.
   const gridSquareCount = 20;
   const gridSize = gridSquareCount * METERS_PER_GRID_SQUARE;
-  const grid = new THREE.GridHelper(gridSize, gridSquareCount, glowColor, glowColor);
-  (grid.material as THREE.Material).transparent = true;
-  (grid.material as THREE.Material).opacity = 0.35;
+  const lineResolution = new THREE.Vector2(1, 1);
+  const grid = createFatLineGrid(gridSize, gridSquareCount, glowColor, lineResolution);
   scene.add(grid);
 
+  const compassRadius = 1.2;
+  const compassRing = createCompassRing(compassRadius, glowColor);
+  compassRing.position.set(0, 0.02, 0);
+  scene.add(compassRing);
+  const compassNeedle = createCompassNeedle(compassRadius, glowColor);
+  scene.add(compassNeedle);
+
+  const { group: horizonGroup, marker: horizonMarker } = createHorizonIndicator(compassRadius * 1.4, glowColor, lineResolution);
+  // Offset to the lower-right of the compass ring (not directly above it)
+  // so its on-screen projection, under `DEFAULT_VIEW_DIRECTION`'s framing,
+  // clears the upper-left corner where the cardinal badge/mode-toggle
+  // control renders (design Decision 6).
+  horizonGroup.position.set(compassRadius * 1.1, -compassRadius * 0.35, 0);
+  scene.add(horizonGroup);
+  // How far (world units) the horizon marker offsets per degree of pitch's
+  // sine — proportional to signed pitch, matching design Decision 1.
+  const HORIZON_MARKER_SCALE = compassRadius * 0.5;
+
+  // `compassRing`/`compassNeedle`/`horizonGroup` are static-geometry,
+  // static-position objects (only their per-frame `rotation.y`/billboard
+  // quaternion changes, which doesn't change a symmetric/anchored mesh's
+  // extent) added directly to `scene` rather than `aircraftGroup`, so their
+  // combined world-space extent is computed exactly once here, right after
+  // all three are added, rather than per frame. It is unioned into every
+  // `lastSphere` assignment below (design Decision 9) so the camera framing
+  // always encloses the compass HUD, not just the loaded aircraft model.
+  const compassHudBox = new THREE.Box3()
+    .expandByObject(compassRing)
+    .expandByObject(compassNeedle)
+    .expandByObject(horizonGroup);
+  const compassHudSphere = compassHudBox.getBoundingSphere(new THREE.Sphere());
+
   const camera = new THREE.PerspectiveCamera(38, 1, 0.01, 1000);
-  const viewDirection = new THREE.Vector3(1.4, 0.9, 1.6).normalize();
-  let lastSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1);
+  let lastSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1).union(compassHudSphere);
+
+  function recenterCamera(): void {
+    fitCameraToSphere(camera, lastSphere, DEFAULT_VIEW_DIRECTION, camera.aspect);
+  }
 
   let gearGroup: THREE.Object3D | null = null;
-  let rotorNodes: THREE.Object3D[] = [];
+  let rotorNodes: { node: THREE.Object3D; info: RotorSpinInfo }[] = [];
+  // Gear-deployment altitude threshold (meters) — defaults to
+  // `model.gearDeploymentAltitudeMeters` and is overwritten once per model
+  // load if the GLB's own embedded extras supply a value; see
+  // `resolveGearDeploymentAltitudeMeters` and design Decision 7. `gearGroup`
+  // stays `null` until the same load callback runs, so `isGearVisible`'s
+  // call site below is a no-op until then regardless of this value.
+  let gearDeploymentAltitudeMetersOverride = model.gearDeploymentAltitudeMeters;
 
   new GLTFLoader().load(model.modelUrl, gltf => {
     aircraftGroup.add(gltf.scene);
+    rotorNodes = findAllByPrefix(gltf.scene, ROTOR_NODE_PREFIX).map(node => ({
+      node,
+      info: rotorSpinInfo(node, model.rotorcraft ?? false),
+    }));
     gltf.scene.traverse(obj => {
       if (obj.name === model.gearMeshGroupName) gearGroup = obj;
       if (!(obj instanceof THREE.Mesh)) return;
@@ -310,16 +625,24 @@ export function mountCompassTrackCard(
         material.emissiveIntensity = 1.2;
       }
     });
-    rotorNodes = findAllByPrefix(gltf.scene, ROTOR_NODE_PREFIX);
-    lastSphere = new THREE.Box3().setFromObject(gltf.scene).getBoundingSphere(new THREE.Sphere());
-    fitCameraToSphere(camera, lastSphere, viewDirection, camera.aspect);
+    gearDeploymentAltitudeMetersOverride = resolveGearDeploymentAltitudeMeters(
+      gearGroup,
+      gltf,
+      model.gearDeploymentAltitudeMeters,
+    );
+    lastSphere = new THREE.Box3()
+      .setFromObject(gltf.scene)
+      .getBoundingSphere(new THREE.Sphere())
+      .union(compassHudSphere);
+    recenterCamera();
   });
 
   function resize(): void {
     const width = slot.clientWidth || 1;
     const height = slot.clientHeight || 1;
     renderer.setSize(width, height, false);
-    fitCameraToSphere(camera, lastSphere, viewDirection, width / height);
+    lineResolution.set(width, height);
+    fitCameraToSphere(camera, lastSphere, DEFAULT_VIEW_DIRECTION, width / height);
   }
 
   resize();
@@ -334,14 +657,111 @@ export function mountCompassTrackCard(
   let scrollZ = 0;
   const tailDirection = new THREE.Vector3();
 
+  // Manual pan/roll offset (radians) applied additively on top of the
+  // telemetry-tweened orientation — see design Decision 3. Cleared only by
+  // `recenterCamera`'s companion click handler (Decision 4), never by
+  // `update()`.
+  let manualYawOffset = 0;
+  let manualRollOffset = 0;
+  let isDragging = false;
+  let lastPointerX = 0;
+  let lastPointerY = 0;
+  const DRAG_SENSITIVITY = 0.01;
+
+  const raycaster = new THREE.Raycaster();
+  const pointerNdc = new THREE.Vector2();
+
+  function updatePointerNdc(event: PointerEvent | MouseEvent): void {
+    const rect = canvas.getBoundingClientRect();
+    const width = rect.width || 1;
+    const height = rect.height || 1;
+    pointerNdc.x = ((event.clientX - rect.left) / width) * 2 - 1;
+    pointerNdc.y = -((event.clientY - rect.top) / height) * 2 + 1;
+  }
+
+  function hitsAircraft(event: PointerEvent): boolean {
+    updatePointerNdc(event);
+    raycaster.setFromCamera(pointerNdc, camera);
+    return raycaster.intersectObject(aircraftGroup, true).length > 0;
+  }
+
+  function hitsCompassRing(event: MouseEvent): boolean {
+    updatePointerNdc(event);
+    raycaster.setFromCamera(pointerNdc, camera);
+    return raycaster.intersectObject(compassRing, true).length > 0;
+  }
+
+  function recenter(): void {
+    manualYawOffset = 0;
+    manualRollOffset = 0;
+    recenterCamera();
+  }
+
+  // Compass ring orientation mode — fully independent of the camera/manual
+  // drag offset state above (design Decision 5); toggling it never calls
+  // `recenterCamera()` nor touches `manualYawOffset`/`manualRollOffset`.
+  let compassMode: CompassMode = 'true-north-locked';
+
+  function setCompassMode(mode: CompassMode): void {
+    compassMode = mode;
+    // Mode cue lives on the cardinal badge itself as a CSS class, not
+    // replacing the badge's letter text (design Decision 5, amended) — the
+    // letter is load-bearing HUD content that must keep updating regardless
+    // of mode.
+    cardinalEl?.classList.toggle('compass-track-cardinal-map-view-locked', mode === 'map-view-locked');
+  }
+
+  function getCompassMode(): CompassMode {
+    return compassMode;
+  }
+
+  function onModeToggleClick(): void {
+    setCompassMode(compassMode === 'true-north-locked' ? 'map-view-locked' : 'true-north-locked');
+  }
+
+  function onPointerDown(event: PointerEvent): void {
+    if (!hitsAircraft(event)) return;
+    isDragging = true;
+    lastPointerX = event.clientX;
+    lastPointerY = event.clientY;
+  }
+
+  function onPointerMove(event: PointerEvent): void {
+    if (!isDragging) return;
+    const deltaX = event.clientX - lastPointerX;
+    const deltaY = event.clientY - lastPointerY;
+    lastPointerX = event.clientX;
+    lastPointerY = event.clientY;
+    manualYawOffset += deltaX * DRAG_SENSITIVITY;
+    manualRollOffset += deltaY * DRAG_SENSITIVITY;
+  }
+
+  function onPointerUp(): void {
+    isDragging = false;
+  }
+
+  function onCanvasClick(event: MouseEvent): void {
+    if (hitsCompassRing(event)) recenter();
+  }
+
+  canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('pointermove', onPointerMove);
+  canvas.addEventListener('pointerup', onPointerUp);
+  canvas.addEventListener('click', onCanvasClick);
+  // The cardinal badge exclusively toggles compass mode — it never
+  // recenters; recenter is exclusively triggered by clicking the 3D ring
+  // (`onCanvasClick` above), per design Decision 4/5 (amended).
+  cardinalEl?.addEventListener('click', onModeToggleClick);
+
   function applyHudText(state: CompassTrackState): void {
-    if (headingValueEl) headingValueEl.textContent = String(state.headingDegrees);
+    if (headingValueEl) headingValueEl.textContent = formatHeadingDegrees(state.headingDegrees);
     if (pitchValueEl) pitchValueEl.textContent = String(state.pitchDegrees);
-    if (latValueEl) latValueEl.textContent = String(state.latitude);
-    if (lonValueEl) lonValueEl.textContent = String(state.longitude);
+    if (latValueEl) latValueEl.textContent = formatDms(state.latitude);
+    if (lonValueEl) lonValueEl.textContent = formatDms(state.longitude);
   }
 
   applyHudText(initialState);
+  if (cardinalEl) cardinalEl.textContent = nearestCardinal(initialState.headingDegrees);
 
   function update(state: CompassTrackState): void {
     latestState = state;
@@ -363,8 +783,10 @@ export function mountCompassTrackCard(
     renderedHeading = tweenHeadingStep(renderedHeading, latestState.headingDegrees, elapsedSeconds);
     renderedPitch = tweenLinearStep(renderedPitch, latestState.pitchDegrees, elapsedSeconds);
 
-    aircraftGroup.rotation.y = THREE.MathUtils.degToRad(-renderedHeading);
-    aircraftGroup.rotation.x = THREE.MathUtils.degToRad(renderedPitch);
+    // Manual drag offset (Decision 3) composes additively on top of the
+    // telemetry-tweened base orientation — never overwritten by it.
+    aircraftGroup.rotation.y = THREE.MathUtils.degToRad(-renderedHeading) + manualYawOffset;
+    aircraftGroup.rotation.x = THREE.MathUtils.degToRad(renderedPitch) + manualRollOffset;
 
     // The ground streams past opposite the aircraft's *actual* current
     // world-space nose direction (not a hand-rederived sin/cos formula that
@@ -379,20 +801,40 @@ export function mountCompassTrackCard(
     scrollX = advanceGroundScrollSquares(scrollX, lastKnownGroundSpeed * tailDirection.x, elapsedSeconds);
     scrollZ = advanceGroundScrollSquares(scrollZ, lastKnownGroundSpeed * tailDirection.z, elapsedSeconds);
 
-    // The grid stays unrotated — it's the fixed reference frame a heading
-    // change turns the aircraft *against*. Rotating it by heading too (as
-    // an earlier version of this code did) rigidly locked the ground to the
-    // aircraft's own orientation, so a heading change span both together
-    // and never visibly turned the aircraft relative to its own view.
+    // Grid orientation stays fixed to true north (never rotates with
+    // heading) — only its scroll position moves.
     grid.position.x = wrapGridOffset(scrollX) * METERS_PER_GRID_SQUARE;
     grid.position.z = wrapGridOffset(scrollZ) * METERS_PER_GRID_SQUARE;
 
-    if (gearGroup) gearGroup.visible = isGearVisible(latestState.altitudeMeters, model.gearDeploymentAltitudeMeters);
+    // Only the ring's fixed reference rotation differs between modes:
+    // true-north-locked fixes it at 0 (true north); map-view-locked fixes
+    // it at the constant map-view azimuth. The needle always tracks
+    // current heading relative to that fixed reference in both modes — see
+    // design Decision 5, second amendment.
+    compassRing.rotation.y = THREE.MathUtils.degToRad(
+      compassMode === 'true-north-locked' ? 0 : -DEFAULT_VIEW_AZIMUTH_DEGREES,
+    );
+    compassNeedle.rotation.y = THREE.MathUtils.degToRad(-renderedHeading);
+    const nextCardinal = nearestCardinal(renderedHeading);
+    if (cardinalEl && cardinalEl.textContent !== nextCardinal) cardinalEl.textContent = nextCardinal;
+
+    // Horizon marker offsets above/below the reference line proportional to
+    // (tweened) signed pitch, and both stay camera-facing (billboarded). The
+    // marker's color is an explicit sign cue, beyond its position relative
+    // to the line (design Decision 6): distinct colors for positive vs.
+    // negative pitch, snapping at the sign boundary.
+    horizonMarker.position.y = Math.sin(THREE.MathUtils.degToRad(renderedPitch)) * HORIZON_MARKER_SCALE;
+    (horizonMarker.material as THREE.MeshBasicMaterial).color.copy(
+      renderedPitch < 0 ? HORIZON_MARKER_NEGATIVE_COLOR : HORIZON_MARKER_POSITIVE_COLOR,
+    );
+    horizonGroup.quaternion.copy(camera.quaternion);
 
     if (rotorNodes.length > 0) {
       const spinDeg = (now * ROTOR_DEG_PER_MS) % 360;
-      for (const rotorNode of rotorNodes) spinRotor(rotorNode, spinDeg, model.rotorcraft ?? false);
+      for (const { node, info } of rotorNodes) spinRotor(node, info, spinDeg);
     }
+
+    if (gearGroup) gearGroup.visible = isGearVisible(latestState.altitudeMeters, gearDeploymentAltitudeMetersOverride);
 
     renderer.render(scene, camera);
   }
@@ -413,12 +855,15 @@ export function mountCompassTrackCard(
     disposed = true;
     cancelAnimationFrame(rafHandle);
     resizeObserver.disconnect();
+    canvas.removeEventListener('pointerdown', onPointerDown);
+    canvas.removeEventListener('pointermove', onPointerMove);
+    canvas.removeEventListener('pointerup', onPointerUp);
+    canvas.removeEventListener('click', onCanvasClick);
+    cardinalEl?.removeEventListener('click', onModeToggleClick);
     disposeObject3D(scene);
-    grid.geometry.dispose();
-    (grid.material as THREE.Material).dispose();
     renderer.dispose();
     slot.innerHTML = '';
   }
 
-  return { update, dispose };
+  return { update, dispose, setCompassMode, getCompassMode };
 }

@@ -108,5 +108,12 @@
   },
   {
     "type": "VFHC"
+  },
+  {
+    "type": "C180"
+  },
+  {
+    "type": "C180",
+    "variant": "PONTOON"
   }
 ]

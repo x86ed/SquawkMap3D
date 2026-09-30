@@ -1,6 +1,10 @@
 // Vendored from https://github.com/plens-win/Card
-// packages/core/src/compass-track-card.types.ts @ 39734839 (2026-09-28).
-// See compass-track-card.ts's doc comment for vendoring rationale.
+// packages/core/src/compass-track-card.types.ts @ 2153af0d (2026-09-30, branch "11-compass-card-needs-to-have-some-issues-fixed").
+// `"private": true` npm workspace, never published — vendored directly
+// (matching this app's existing vendoring pattern, see
+// components/map/aircraftShapes.ts's doc comment). Re-run manually and
+// re-commit if upstream changes; not part of `npm run build`/CI.
+// LOCAL ADDITION: `CompassTrackModel.rotorcraft` (see below).
 
 import type { RarityTier } from './rarity';
 
@@ -32,9 +36,10 @@ export interface CompassTrackModel {
    * placeholder renders as unlinked text. Has no effect when both
    * `modelerName` and `modelerProfileUrl` are non-blank. */
   modelerAddUrl?: string;
-  /** True for helicopter models: `@card/compass-track-three` spins each
-   * "Rotor"-prefixed node about its own shortest-extent (vertical/sideways)
-   * axis instead of the fuselage axis fixed-wing props/fans spin about. */
+  /** LOCAL ADDITION (not upstream): true for helicopter models —
+   * `@card/compass-track-three`'s vendored copy spins each "Rotor"-prefixed
+   * node about its own shortest-extent axis when the model has no authored
+   * `extras.rotor` pivot/axis. */
   rotorcraft?: boolean;
 }
 
