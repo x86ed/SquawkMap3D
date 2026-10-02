@@ -1,5 +1,5 @@
 // Vendored from https://github.com/plens-win/Card
-// packages/compass-track-three/src/index.ts @ 2153af0d (2026-09-30, branch "11-compass-card-needs-to-have-some-issues-fixed").
+// packages/compass-track-three/src/index.ts @ 066e0e3 (2026-10-02, branch "11-compass-card-needs-to-have-some-issues-fixed").
 // `"private": true` npm workspace, never published — vendored directly
 // (matching this app's existing vendoring pattern, see
 // components/map/aircraftShapes.ts's doc comment). Re-run manually and
@@ -13,12 +13,16 @@ import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js';
 import {
   CARD_COMPASS_TRACK_SLOT_ID,
+  CARD_COMPASS_TRACK_ATTITUDE_SLOT_ID,
   CARD_COMPASS_TRACK_HEADING_HUD_ID,
+  CARD_COMPASS_TRACK_PITCH_HUD_ID,
+  CARD_COMPASS_TRACK_ROLL_HUD_ID,
   CARD_COMPASS_TRACK_LATLON_HUD_ID,
   CARD_COMPASS_TRACK_CREDIT_HUD_ID,
   CARD_COMPASS_TRACK_CARDINAL_ID,
   CARD_COMPASS_TRACK_HEADING_VALUE_CLASS,
   CARD_COMPASS_TRACK_PITCH_VALUE_CLASS,
+  CARD_COMPASS_TRACK_ROLL_VALUE_CLASS,
   CARD_COMPASS_TRACK_LAT_VALUE_CLASS,
   CARD_COMPASS_TRACK_LON_VALUE_CLASS,
   CARD_COMPASS_TRACK_CREDIT_LINK_CLASS,
@@ -28,7 +32,10 @@ import type { CompassTrackModel, CompassTrackState } from '../core';
 
 export {
   CARD_COMPASS_TRACK_SLOT_ID,
+  CARD_COMPASS_TRACK_ATTITUDE_SLOT_ID,
   CARD_COMPASS_TRACK_HEADING_HUD_ID,
+  CARD_COMPASS_TRACK_PITCH_HUD_ID,
+  CARD_COMPASS_TRACK_ROLL_HUD_ID,
   CARD_COMPASS_TRACK_LATLON_HUD_ID,
   CARD_COMPASS_TRACK_CREDIT_HUD_ID,
   CARD_COMPASS_TRACK_CARDINAL_ID,
@@ -287,11 +294,39 @@ export function formatDms(decimalDegrees: number): string {
   return `${sign}${degrees}°${minutes}′${seconds.toFixed(1)}″`;
 }
 
+/** Clamps `value`'s integer-part digit count to `maxDigits` (default `4`),
+ * preserving sign and leaving any decimal part untouched — e.g. `99999.5`
+ * with `maxDigits: 4` clamps to `9999.5`, not `9999` or `10000`. Duplicated
+ * (not imported) from `@card/core`'s identically-behaved `capIntegerDigits`
+ * (used by `formatHeadingDegreesLabel`) for the same dependency-free
+ * duplication convention as {@link nearestCardinal}/{@link formatDms}.
+ * Scoped to the plain-signed-degree formatter (heading/pitch/roll) only —
+ * {@link formatDms} (lat/lon) is unaffected (design Decision 12). */
+export function capIntegerDigits(value: number, maxDigits: number = 4): number {
+  const sign = value < 0 ? -1 : 1;
+  const abs = Math.abs(value);
+  if (Math.floor(abs).toString().length <= maxDigits) return value;
+  return sign * (10 ** maxDigits - 1);
+}
+
 /** Formats a heading-in-degrees value for HUD text display, appending the
- * degree symbol (e.g. `45` -> `"45°"`). Does not round/clamp — callers
- * pass whatever numeric value (raw or tweened) they already have. */
+ * degree symbol (e.g. `45` -> `"45°"`), after clamping its integer-part
+ * digit count via {@link capIntegerDigits}. Used for all three of
+ * heading/pitch/roll. */
 export function formatHeadingDegrees(headingDegrees: number): string {
-  return `${headingDegrees}°`;
+  const text = Math.abs(capIntegerDigits(headingDegrees)).toFixed(4);
+  let kept = '';
+  let digits = 0;
+  for (const ch of text) {
+    if (ch !== '.') {
+      if (digits === 4) break;
+      digits++;
+    }
+    kept += ch;
+  }
+  kept = kept.replace(/0+$/, '').replace(/\.$/, '');
+  const negative = headingDegrees < 0 && Number(kept) !== 0;
+  return `${negative ? '-' : ''}${kept}°`;
 }
 
 /** Frames `camera` on `sphere` from `direction`, at the distance that makes
@@ -312,6 +347,41 @@ export function fitCameraToSphere(
   camera.far = distance * 10;
   camera.updateProjectionMatrix();
 }
+
+/** Fraction of the mini viewport's half-width (from the canvas centerline)
+ * at which each instrument's center projects: 0.5 puts them on the
+ * centerlines of the left/right halves. */
+const ATTITUDE_CENTER_NDC_X = 0.5;
+
+/** Tilt of the mini viewport camera above the instruments' plane. */
+const ATTITUDE_VIEW_DIRECTION = new THREE.Vector3(0, 0.5, 1.6).normalize();
+
+/** Frames `camera` so objects at world x = ±`centerOffsetX` (on the
+ * look-at plane) project to NDC x = ±{@link ATTITUDE_CENTER_NDC_X}, i.e.
+ * the centerlines of the canvas's two halves, at any `aspect`. */
+export function fitAttitudeCamera(
+  camera: THREE.PerspectiveCamera,
+  centerOffsetX: number,
+  aspect: number,
+): void {
+  camera.aspect = aspect;
+  const halfHeightPerUnitDistance = Math.tan((camera.fov * Math.PI) / 360);
+  const distance = centerOffsetX / (ATTITUDE_CENTER_NDC_X * halfHeightPerUnitDistance * aspect);
+  camera.position.copy(ATTITUDE_VIEW_DIRECTION).multiplyScalar(distance);
+  camera.lookAt(0, 0, 0);
+  camera.near = distance / 100;
+  camera.far = distance * 10;
+  camera.updateProjectionMatrix();
+}
+
+/** Uniform scale of each instrument within the mini viewport; shrinking them
+ * (centers stay put on the half-width centerlines) widens the gap between
+ * the two instruments and between each and the canvas edge. */
+const ATTITUDE_INSTRUMENT_SCALE = 0.85;
+
+/** Horizontal offset of each instrument's center from the mini viewport's
+ * origin, in world units (compass radius 1.2 x 1.25). */
+const ATTITUDE_CENTER_OFFSET_X = 1.2 * 1.25;
 
 /** The default 3/4, magnetic-north-oriented camera framing direction —
  * reused both at mount time and whenever the compass indicator is clicked
@@ -424,56 +494,103 @@ function createCompassNeedle(radius: number, color: THREE.Color): THREE.Group {
   return needleGroup;
 }
 
-/** Positive/negative-pitch sign-cue colors for the horizon marker — a
- * secondary visual differentiator beyond the marker's vertical position
- * relative to the reference line (design Decision 6). Bright/high-contrast
- * against the reference line's dimmer `color` so nose-up/nose-down reads
- * unambiguously at a glance. */
-const HORIZON_MARKER_POSITIVE_COLOR = new THREE.Color(0x22ff8c);
-const HORIZON_MARKER_NEGATIVE_COLOR = new THREE.Color(0xff2ec4);
+/** Sky/ground hemisphere colors for the artificial-horizon ball (design
+ * Decision 7) — the coloring itself is the nose-up/nose-down cue (more sky
+ * visible above the seam = nose up or level, more ground visible = nose
+ * down), so no separate sign-color marker is needed, unlike the retired
+ * horizon-line-plus-marker design. Palette is an "outrun"/synthwave take
+ * (deep magenta-purple sky, sunset-orange ground, hot-pink horizon seam)
+ * rather than a literal sky-blue/ground-brown instrument face. Ground uses a
+ * warm orange instead of the originally-chosen cyan because cyan read as
+ * another "sky" color, undermining the sky/ground visual cue. */
+const HORIZON_BALL_SKY_COLOR = new THREE.Color(0x7c1fa0);
+const HORIZON_BALL_GROUND_COLOR = new THREE.Color(0xea580c);
+const HORIZON_BALL_SEAM_COLOR = new THREE.Color(0xf72585);
+const HORIZON_BALL_TICK_COLOR = new THREE.Color(0x5eead4);
 
-/** A horizontal reference-line mesh plus a marker mesh whose vertical offset
- * from the line tracks (tweened) pitch — positive pitch (nose up) above the
- * line, negative below (design Decision 1). Both live directly under
- * `scene` (not `aircraftGroup`) and are billboarded toward the camera each
- * frame so they stay legible regardless of aircraft orientation. The
- * reference line uses the same `LineSegments2`/`LineMaterial` fat-line
- * technique as the ground grid (sharing its `resolution` uniform) instead of
- * a bare 1px `THREE.LineBasicMaterial` line, and the marker is enlarged and
- * given a positive/negative sign-cue color distinct from the line's color
- * (design Decision 6). */
-function createHorizonIndicator(
-  width: number,
-  color: THREE.Color,
-  resolution: THREE.Vector2,
-): { group: THREE.Group; marker: THREE.Mesh } {
+/** Degrees between each pitch-ladder tick mark on the artificial-horizon
+ * ball's face (design Decision 7's "every 15-30 degrees" guidance). */
+const HORIZON_BALL_TICK_INTERVAL_DEGREES = 30;
+
+/** A classic cockpit artificial-horizon "ball" instrument: a sphere split
+ * into a sky-colored upper hemisphere and a ground-colored lower hemisphere
+ * sharing one center (a real geometric seam via `thetaStart`/`thetaLength`,
+ * not a UV-mapped texture), a thin equatorial ring as the horizon seam
+ * accent, and a handful of pitch-ladder tick marks (the same
+ * `LineSegments2`/`LineMaterial` fat-line technique used by the ground grid)
+ * — all parented under one rigid group whose local X rotation tracks
+ * (tweened, negated) pitch each frame (design Decision 7). Replaces the
+ * retired `createHorizonIndicator` fat-line-plus-billboarded-marker design.
+ * Not billboarded — a real 3D instrument viewed from a fixed camera
+ * vantage, and never a click-to-recenter raycast target. */
+function createArtificialHorizonBall(radius: number, resolution: THREE.Vector2): THREE.Group {
   const group = new THREE.Group();
-  group.name = 'compass-track-horizon';
+  group.name = 'compass-track-horizon-ball';
 
-  const lineGeometry = new LineSegmentsGeometry();
-  lineGeometry.setPositions([-width / 2, 0, 0, width / 2, 0, 0]);
-  const lineMaterial = new LineMaterial({ linewidth: 2.5, color: color.getHex(), transparent: true, opacity: 0.6, resolution });
-  const line = new LineSegments2(lineGeometry, lineMaterial);
-  line.name = 'compass-track-horizon-line';
-  line.computeLineDistances();
-  group.add(line);
+  const segments = 24;
+  const skyGeometry = new THREE.SphereGeometry(radius, segments, segments, 0, Math.PI * 2, 0, Math.PI / 2);
+  const skyMesh = new THREE.Mesh(skyGeometry, new THREE.MeshBasicMaterial({ color: HORIZON_BALL_SKY_COLOR }));
+  skyMesh.name = 'compass-track-horizon-ball-sky';
+  group.add(skyMesh);
 
-  const marker = new THREE.Mesh(
-    new THREE.SphereGeometry(width * 0.06, 16, 16),
-    new THREE.MeshBasicMaterial({ color: HORIZON_MARKER_POSITIVE_COLOR, transparent: false, opacity: 1 }),
+  const groundGeometry = new THREE.SphereGeometry(
+    radius,
+    segments,
+    segments,
+    0,
+    Math.PI * 2,
+    Math.PI / 2,
+    Math.PI / 2,
   );
-  marker.name = 'compass-track-horizon-marker';
-  group.add(marker);
+  const groundMesh = new THREE.Mesh(groundGeometry, new THREE.MeshBasicMaterial({ color: HORIZON_BALL_GROUND_COLOR }));
+  groundMesh.name = 'compass-track-horizon-ball-ground';
+  group.add(groundMesh);
 
-  return { group, marker };
+  // Crisp equatorial seam accent — a thin torus, not a texture boundary.
+  const seamMesh = new THREE.Mesh(
+    new THREE.TorusGeometry(radius, radius * 0.02, 8, 32),
+    new THREE.MeshBasicMaterial({ color: HORIZON_BALL_SEAM_COLOR }),
+  );
+  seamMesh.name = 'compass-track-horizon-ball-seam';
+  seamMesh.rotation.x = Math.PI / 2;
+  group.add(seamMesh);
+
+  // Pitch-ladder ticks: short fat-line segments at fixed angular intervals
+  // around the ball's surface, rigidly parented so they rotate together
+  // with the hemispheres/seam as one group (never independently).
+  const tickPositions: number[] = [];
+  for (let angle = -90; angle <= 90; angle += HORIZON_BALL_TICK_INTERVAL_DEGREES) {
+    if (angle === 0) continue;
+    const y = radius * Math.sin(THREE.MathUtils.degToRad(angle));
+    const z = radius * Math.cos(THREE.MathUtils.degToRad(angle));
+    tickPositions.push(-radius * 0.25, y, z, radius * 0.25, y, z);
+  }
+  const tickGeometry = new LineSegmentsGeometry();
+  tickGeometry.setPositions(tickPositions);
+  const tickMaterial = new LineMaterial({
+    linewidth: 2,
+    color: HORIZON_BALL_TICK_COLOR,
+    transparent: true,
+    opacity: 0.8,
+    resolution,
+  });
+  const ticks = new LineSegments2(tickGeometry, tickMaterial);
+  ticks.name = 'compass-track-horizon-ball-ticks';
+  ticks.computeLineDistances();
+  group.add(ticks);
+
+  return group;
 }
 
-function createRenderer(): { renderer: THREE.WebGLRenderer; canvas: HTMLCanvasElement } {
+function createRenderer(
+  clearColor: number = 0x0b1220,
+  clearAlpha: number = 1,
+): { renderer: THREE.WebGLRenderer; canvas: HTMLCanvasElement } {
   const canvas = document.createElement('canvas');
   canvas.className = 'compass-track-canvas';
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, canvas });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  renderer.setClearColor(0x0b1220, 1);
+  renderer.setClearColor(clearColor, clearAlpha);
   return { renderer, canvas };
 }
 
@@ -495,16 +612,25 @@ function disposeObject3D(object: THREE.Object3D): void {
  * (`model.gearMeshGroupName`) shown/hidden by altitude — and drives the
  * card's HUD elements (heading/pitch, lat/lon, cardinal badge, and the
  * static modeler credit) from the same `slot`'s enclosing
- * `.compass-track-card` markup. Also renders a 3D compass ring + needle and
- * a 3D horizon-line indicator inside the scene, and wires up drag-to-pan/
- * roll on the aircraft plus click-to-recenter on the compass indicator.
+ * `.compass-track-card` markup. Also mounts a second, fully independent
+ * renderer/canvas/scene/camera (the mini attitude viewport) into the
+ * sibling `CARD_COMPASS_TRACK_ATTITUDE_SLOT_ID` slot, fixed in the card's
+ * upper-left corner: it renders the 3D compass ring + needle and the 3D
+ * artificial-horizon-ball pitch indicator, fully decoupled from the main
+ * aircraft
+ * scene/camera's framing, resize, and dispose lifecycle (see
+ * `openspec/changes/compass-attitude-corner-viewport/design.md`). Wires up
+ * drag-to-pan/roll on the aircraft (main canvas) plus click-to-recenter via
+ * the compass ring (mini viewport's own canvas/camera raycast).
  *
  * The returned handle's `update(state)` pushes a new telemetry frame (the
  * sub-package never fetches/polls on its own); the internal animation loop
  * only tweens the *visual* heading/pitch/ground-scroll between whatever was
- * last pushed, taking the shortest arc across the 359°/0° heading wrap.
- * `dispose()` cancels that loop, disconnects the `ResizeObserver`, and frees
- * the renderer/geometries/materials.
+ * last pushed, taking the shortest arc across the 359°/0° heading wrap, and
+ * renders both the main scene and the mini attitude viewport scene each
+ * frame tick (design Decision 5 — one `requestAnimationFrame` loop, not
+ * two). `dispose()` cancels that loop, disconnects the `ResizeObserver`(s),
+ * and frees both renderers'/scenes' GPU resources.
  */
 export function mountCompassTrackCard(
   slot: HTMLElement,
@@ -514,8 +640,10 @@ export function mountCompassTrackCard(
   slot.innerHTML = '';
 
   const container = slot.closest<HTMLElement>('.compass-track-card');
+  const attitudeSlot = container?.querySelector<HTMLElement>(`#${CARD_COMPASS_TRACK_ATTITUDE_SLOT_ID}`) ?? null;
   const headingValueEl = container?.querySelector<HTMLElement>(`.${CARD_COMPASS_TRACK_HEADING_VALUE_CLASS}`) ?? null;
   const pitchValueEl = container?.querySelector<HTMLElement>(`.${CARD_COMPASS_TRACK_PITCH_VALUE_CLASS}`) ?? null;
+  const rollValueEl = container?.querySelector<HTMLElement>(`.${CARD_COMPASS_TRACK_ROLL_VALUE_CLASS}`) ?? null;
   const latValueEl = container?.querySelector<HTMLElement>(`.${CARD_COMPASS_TRACK_LAT_VALUE_CLASS}`) ?? null;
   const lonValueEl = container?.querySelector<HTMLElement>(`.${CARD_COMPASS_TRACK_LON_VALUE_CLASS}`) ?? null;
   const creditLinkEl = container?.querySelector<HTMLAnchorElement>(`.${CARD_COMPASS_TRACK_CREDIT_LINK_CLASS}`) ?? null;
@@ -532,6 +660,24 @@ export function mountCompassTrackCard(
 
   const { renderer, canvas } = createRenderer();
   slot.appendChild(canvas);
+
+  // The mini attitude viewport: a second, fully independent
+  // renderer/canvas/scene/camera, mounted into the upper-left
+  // `CARD_COMPASS_TRACK_ATTITUDE_SLOT_ID` slot — see design Decision 1. It
+  // contains the compass ring/needle and the artificial-horizon-ball pitch
+  // indicator, decoupled entirely from the main aircraft scene/camera's
+  // construction, resize, and dispose lifecycle. Transparent clear alpha
+  // (design Decision 6) so the card's own background shows through anywhere
+  // neither instrument paints.
+  const { renderer: attitudeRenderer, canvas: attitudeCanvas } = createRenderer(0x000000, 0);
+  attitudeSlot?.appendChild(attitudeCanvas);
+  const attitudeScene = new THREE.Scene();
+  const attitudeCamera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
+  // Sized to the mini viewport's own pixel dimensions (set in `resize()`),
+  // not the main canvas's — shared by the horizon ball's pitch-ladder tick
+  // `LineMaterial` so its fat-line width stays screen-space-consistent
+  // within its own small frame.
+  const attitudeLineResolution = new THREE.Vector2(1, 1);
 
   const scene = new THREE.Scene();
   const aircraftGroup = new THREE.Group();
@@ -561,39 +707,29 @@ export function mountCompassTrackCard(
   scene.add(grid);
 
   const compassRadius = 1.2;
+  // Ring on the left half, ball on the right half of the mini viewport's own
+  // frame — side by side, non-overlapping (design Decision 7).
   const compassRing = createCompassRing(compassRadius, glowColor);
-  compassRing.position.set(0, 0.02, 0);
-  scene.add(compassRing);
+  compassRing.position.set(-ATTITUDE_CENTER_OFFSET_X, 0.02, 0);
+  compassRing.scale.setScalar(ATTITUDE_INSTRUMENT_SCALE);
+  attitudeScene.add(compassRing);
   const compassNeedle = createCompassNeedle(compassRadius, glowColor);
-  scene.add(compassNeedle);
+  compassNeedle.position.set(-ATTITUDE_CENTER_OFFSET_X, 0, 0);
+  compassNeedle.scale.setScalar(ATTITUDE_INSTRUMENT_SCALE);
+  attitudeScene.add(compassNeedle);
 
-  const { group: horizonGroup, marker: horizonMarker } = createHorizonIndicator(compassRadius * 1.4, glowColor, lineResolution);
-  // Offset to the lower-right of the compass ring (not directly above it)
-  // so its on-screen projection, under `DEFAULT_VIEW_DIRECTION`'s framing,
-  // clears the upper-left corner where the cardinal badge/mode-toggle
-  // control renders (design Decision 6).
-  horizonGroup.position.set(compassRadius * 1.1, -compassRadius * 0.35, 0);
-  scene.add(horizonGroup);
-  // How far (world units) the horizon marker offsets per degree of pitch's
-  // sine — proportional to signed pitch, matching design Decision 1.
-  const HORIZON_MARKER_SCALE = compassRadius * 0.5;
+  const horizonBallGroup = createArtificialHorizonBall(compassRadius * 0.9, attitudeLineResolution);
+  horizonBallGroup.position.set(ATTITUDE_CENTER_OFFSET_X, 0, 0);
+  horizonBallGroup.scale.setScalar(ATTITUDE_INSTRUMENT_SCALE);
+  attitudeScene.add(horizonBallGroup);
 
-  // `compassRing`/`compassNeedle`/`horizonGroup` are static-geometry,
-  // static-position objects (only their per-frame `rotation.y`/billboard
-  // quaternion changes, which doesn't change a symmetric/anchored mesh's
-  // extent) added directly to `scene` rather than `aircraftGroup`, so their
-  // combined world-space extent is computed exactly once here, right after
-  // all three are added, rather than per frame. It is unioned into every
-  // `lastSphere` assignment below (design Decision 9) so the camera framing
-  // always encloses the compass HUD, not just the loaded aircraft model.
-  const compassHudBox = new THREE.Box3()
-    .expandByObject(compassRing)
-    .expandByObject(compassNeedle)
-    .expandByObject(horizonGroup);
-  const compassHudSphere = compassHudBox.getBoundingSphere(new THREE.Sphere());
+  // The mini viewport's camera is framed so the ring's and ball's centers
+  // project exactly onto the centerlines of the canvas's left and right
+  // halves — where the HUD text above/below each instrument is centered.
+  fitAttitudeCamera(attitudeCamera, ATTITUDE_CENTER_OFFSET_X, 1);
 
   const camera = new THREE.PerspectiveCamera(38, 1, 0.01, 1000);
-  let lastSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1).union(compassHudSphere);
+  let lastSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 1);
 
   function recenterCamera(): void {
     fitCameraToSphere(camera, lastSphere, DEFAULT_VIEW_DIRECTION, camera.aspect);
@@ -630,10 +766,7 @@ export function mountCompassTrackCard(
       gltf,
       model.gearDeploymentAltitudeMeters,
     );
-    lastSphere = new THREE.Box3()
-      .setFromObject(gltf.scene)
-      .getBoundingSphere(new THREE.Sphere())
-      .union(compassHudSphere);
+    lastSphere = new THREE.Box3().setFromObject(gltf.scene).getBoundingSphere(new THREE.Sphere());
     recenterCamera();
   });
 
@@ -643,15 +776,30 @@ export function mountCompassTrackCard(
     renderer.setSize(width, height, false);
     lineResolution.set(width, height);
     fitCameraToSphere(camera, lastSphere, DEFAULT_VIEW_DIRECTION, width / height);
+
+    // The mini viewport sizes itself from its own slot element's box, not
+    // `slot`'s — fully independent of the main canvas's size/aspect (design
+    // Decision 1/2).
+    const attitudeWidth = attitudeSlot?.clientWidth || 1;
+    const attitudeHeight = attitudeSlot?.clientHeight || 1;
+    attitudeRenderer.setSize(attitudeWidth, attitudeHeight, false);
+    attitudeLineResolution.set(attitudeWidth, attitudeHeight);
+    fitAttitudeCamera(attitudeCamera, ATTITUDE_CENTER_OFFSET_X, attitudeWidth / attitudeHeight);
   }
 
   resize();
   const resizeObserver = new ResizeObserver(() => resize());
   resizeObserver.observe(slot);
+  if (attitudeSlot) resizeObserver.observe(attitudeSlot);
 
   let latestState: CompassTrackState = initialState;
   let renderedHeading = initialState.headingDegrees;
   let renderedPitch = initialState.pitchDegrees;
+  // Tweened the same linear (non-wrapping) way as `renderedPitch`, not the
+  // wrapping `tweenHeadingStep` used for heading — bank angle has no 360°
+  // wrap (design Decision 9). Readout-only: never drives a rotation axis on
+  // the artificial-horizon ball's mesh group (explicitly out of scope).
+  let renderedRoll = initialState.rollDegrees;
   let lastKnownGroundSpeed = initialState.groundSpeedMetersPerSecond ?? 0;
   let scrollX = 0;
   let scrollZ = 0;
@@ -685,9 +833,20 @@ export function mountCompassTrackCard(
     return raycaster.intersectObject(aircraftGroup, true).length > 0;
   }
 
+  function updateAttitudePointerNdc(event: MouseEvent): void {
+    const rect = attitudeCanvas.getBoundingClientRect();
+    const width = rect.width || 1;
+    const height = rect.height || 1;
+    pointerNdc.x = ((event.clientX - rect.left) / width) * 2 - 1;
+    pointerNdc.y = -((event.clientY - rect.top) / height) * 2 + 1;
+  }
+
+  // The ring's raycast is read against the mini viewport's own canvas and
+  // camera — design Decision 1/`compass-track-render`'s click-to-recenter
+  // requirement — not the main aircraft canvas/camera.
   function hitsCompassRing(event: MouseEvent): boolean {
-    updatePointerNdc(event);
-    raycaster.setFromCamera(pointerNdc, camera);
+    updateAttitudePointerNdc(event);
+    raycaster.setFromCamera(pointerNdc, attitudeCamera);
     return raycaster.intersectObject(compassRing, true).length > 0;
   }
 
@@ -740,22 +899,26 @@ export function mountCompassTrackCard(
     isDragging = false;
   }
 
-  function onCanvasClick(event: MouseEvent): void {
+  // The ring click is now read from the mini viewport's own canvas, not the
+  // main canvas — see `hitsCompassRing`/design Decision 1.
+  function onAttitudeCanvasClick(event: MouseEvent): void {
     if (hitsCompassRing(event)) recenter();
   }
 
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerup', onPointerUp);
-  canvas.addEventListener('click', onCanvasClick);
+  attitudeCanvas.addEventListener('click', onAttitudeCanvasClick);
   // The cardinal badge exclusively toggles compass mode — it never
-  // recenters; recenter is exclusively triggered by clicking the 3D ring
-  // (`onCanvasClick` above), per design Decision 4/5 (amended).
+  // recenters; recenter is exclusively triggered by clicking the mini
+  // viewport's 3D ring (`onAttitudeCanvasClick` above), per design Decision
+  // 4/5 (amended).
   cardinalEl?.addEventListener('click', onModeToggleClick);
 
   function applyHudText(state: CompassTrackState): void {
     if (headingValueEl) headingValueEl.textContent = formatHeadingDegrees(state.headingDegrees);
-    if (pitchValueEl) pitchValueEl.textContent = String(state.pitchDegrees);
+    if (pitchValueEl) pitchValueEl.textContent = formatHeadingDegrees(state.pitchDegrees);
+    if (rollValueEl) rollValueEl.textContent = formatHeadingDegrees(state.rollDegrees);
     if (latValueEl) latValueEl.textContent = formatDms(state.latitude);
     if (lonValueEl) lonValueEl.textContent = formatDms(state.longitude);
   }
@@ -782,6 +945,7 @@ export function mountCompassTrackCard(
 
     renderedHeading = tweenHeadingStep(renderedHeading, latestState.headingDegrees, elapsedSeconds);
     renderedPitch = tweenLinearStep(renderedPitch, latestState.pitchDegrees, elapsedSeconds);
+    renderedRoll = tweenLinearStep(renderedRoll, latestState.rollDegrees, elapsedSeconds);
 
     // Manual drag offset (Decision 3) composes additively on top of the
     // telemetry-tweened base orientation — never overwritten by it.
@@ -818,16 +982,11 @@ export function mountCompassTrackCard(
     const nextCardinal = nearestCardinal(renderedHeading);
     if (cardinalEl && cardinalEl.textContent !== nextCardinal) cardinalEl.textContent = nextCardinal;
 
-    // Horizon marker offsets above/below the reference line proportional to
-    // (tweened) signed pitch, and both stay camera-facing (billboarded). The
-    // marker's color is an explicit sign cue, beyond its position relative
-    // to the line (design Decision 6): distinct colors for positive vs.
-    // negative pitch, snapping at the sign boundary.
-    horizonMarker.position.y = Math.sin(THREE.MathUtils.degToRad(renderedPitch)) * HORIZON_MARKER_SCALE;
-    (horizonMarker.material as THREE.MeshBasicMaterial).color.copy(
-      renderedPitch < 0 ? HORIZON_MARKER_NEGATIVE_COLOR : HORIZON_MARKER_POSITIVE_COLOR,
-    );
-    horizonGroup.quaternion.copy(camera.quaternion);
+    // The artificial-horizon ball's local X rotation tracks (tweened,
+    // negated) pitch each frame — nose-up tilts the sky/ground down
+    // relative to the fixed viewing reference, not the other way around
+    // (design Decision 7). It is a real 3D instrument, not billboarded.
+    horizonBallGroup.rotation.x = THREE.MathUtils.degToRad(-renderedPitch);
 
     if (rotorNodes.length > 0) {
       const spinDeg = (now * ROTOR_DEG_PER_MS) % 360;
@@ -837,6 +996,9 @@ export function mountCompassTrackCard(
     if (gearGroup) gearGroup.visible = isGearVisible(latestState.altitudeMeters, gearDeploymentAltitudeMetersOverride);
 
     renderer.render(scene, camera);
+    // Folded into the same per-frame tick as the main scene's render, not a
+    // second independent RAF loop (design Decision 5).
+    attitudeRenderer.render(attitudeScene, attitudeCamera);
   }
 
   function loop(now: number): void {
@@ -858,11 +1020,14 @@ export function mountCompassTrackCard(
     canvas.removeEventListener('pointerdown', onPointerDown);
     canvas.removeEventListener('pointermove', onPointerMove);
     canvas.removeEventListener('pointerup', onPointerUp);
-    canvas.removeEventListener('click', onCanvasClick);
+    attitudeCanvas.removeEventListener('click', onAttitudeCanvasClick);
     cardinalEl?.removeEventListener('click', onModeToggleClick);
     disposeObject3D(scene);
+    disposeObject3D(attitudeScene);
     renderer.dispose();
+    attitudeRenderer.dispose();
     slot.innerHTML = '';
+    if (attitudeSlot) attitudeSlot.innerHTML = '';
   }
 
   return { update, dispose, setCompassMode, getCompassMode };

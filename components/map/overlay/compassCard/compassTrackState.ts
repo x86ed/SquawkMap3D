@@ -9,6 +9,8 @@ import type { CompassTrackState } from "./vendor/core";
 export interface CompassTrackTelemetryInput {
   track?: number;
   verticalRate?: number;
+  /** Bank angle (degrees); ADS-B rarely carries it, so absent means level. */
+  roll?: number;
   altitude?: number;
   groundSpeed?: number;
   lat?: number;
@@ -62,6 +64,7 @@ export function buildCompassTrackState(info: CompassTrackTelemetryInput): Compas
   return {
     headingDegrees: info.track ?? 0,
     pitchDegrees: estimatePitchDegrees(info.verticalRate, info.groundSpeed),
+    rollDegrees: info.roll ?? 0,
     altitudeMeters: info.altitude === undefined ? 0 : info.altitude * METERS_PER_FOOT,
     latitude: info.lat ?? 0,
     longitude: info.lon ?? 0,

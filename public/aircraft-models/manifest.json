@@ -115,5 +115,25 @@
   {
     "type": "C180",
     "variant": "PONTOON"
+  },
+  {
+    "type": "PRTS",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "PRTS",
+    "variant": "POD",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "BE9L",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "MG17",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "ULAC"
   }
 ]

@@ -1,5 +1,5 @@
 // Vendored from https://github.com/plens-win/Card
-// packages/core/src/compass-track-card.types.ts @ 2153af0d (2026-09-30, branch "11-compass-card-needs-to-have-some-issues-fixed").
+// packages/core/src/compass-track-card.types.ts @ 066e0e3 (2026-10-02, branch "11-compass-card-needs-to-have-some-issues-fixed").
 // `"private": true` npm workspace, never published — vendored directly
 // (matching this app's existing vendoring pattern, see
 // components/map/aircraftShapes.ts's doc comment). Re-run manually and
@@ -49,6 +49,12 @@ export interface CompassTrackModel {
 export interface CompassTrackState {
   headingDegrees: number;
   pitchDegrees: number;
+  /** Signed bank angle in degrees — live telemetry, distinct from
+   * `packages/compass-track-three`'s `manualRollOffset` (a local
+   * drag-interaction offset applied only to the aircraft's own render
+   * transform, never part of this telemetry snapshot and reset to `0` by
+   * `recenter()`; see `design.md` Decision 9). */
+  rollDegrees: number;
   altitudeMeters: number;
   latitude: number;
   longitude: number;

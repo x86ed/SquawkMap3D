@@ -1,5 +1,5 @@
 // Vendored from https://github.com/plens-win/Card
-// packages/core/src/compass-track-card.ts @ 2153af0d (2026-09-30, branch "11-compass-card-needs-to-have-some-issues-fixed").
+// packages/core/src/compass-track-card.ts @ 066e0e3 (2026-10-02, branch "11-compass-card-needs-to-have-some-issues-fixed").
 // `"private": true` npm workspace, never published — vendored directly
 // (matching this app's existing vendoring pattern, see
 // components/map/aircraftShapes.ts's doc comment). Re-run manually and
@@ -13,8 +13,35 @@ import type { CompassTrackCardInput } from './compass-track-card.types';
  * `CARD_ART_SLOT_ID`. */
 export const CARD_COMPASS_TRACK_SLOT_ID = 'card-compass-track-slot';
 
-/** The stable DOM id of the top-left heading/pitch HUD element. */
+/** The stable DOM id `packages/compass-track-three`'s `mountCompassTrackCard`
+ * mounts its second, independent Three.js canvas into — the mini attitude
+ * viewport (compass ring, needle, and pitch/horizon indicator), fixed in
+ * the card's upper-left corner via CSS, underneath (lower `z-index` than)
+ * the existing heading-text/cardinal-badge HUD elements. See
+ * `compass-track-render`'s "3D heading compass ring and cardinal-letter
+ * badge renders in an independent corner viewport" requirement. */
+export const CARD_COMPASS_TRACK_ATTITUDE_SLOT_ID = 'card-compass-track-attitude-slot';
+
+/** The stable DOM id of the heading HUD element, paired with the compass
+ * ring's half of `.compass-track-attitude-mount` (see
+ * `compass-track-hud`'s heading requirement, amended). */
 export const CARD_COMPASS_TRACK_HEADING_HUD_ID = 'card-compass-track-heading-hud';
+
+/** The stable DOM id of the pitch HUD element, paired with the
+ * artificial-horizon ball's half of `.compass-track-attitude-mount` — a
+ * sibling of {@link CARD_COMPASS_TRACK_HEADING_HUD_ID}, not nested inside
+ * it (see `compass-track-hud`'s pitch requirement, amended per design
+ * Decision 8). Unlike the earlier screen-reader-only pitch text, this
+ * element renders its value visibly. */
+export const CARD_COMPASS_TRACK_PITCH_HUD_ID = 'card-compass-track-pitch-hud';
+
+/** The stable DOM id of the roll HUD element, paired with the
+ * artificial-horizon ball's half of `.compass-track-attitude-mount`,
+ * directly below it (mirroring the pitch readout's position above the
+ * ball — see `design.md` Decision 10). Populated from
+ * `initialState.rollDegrees`, distinct from the interactive
+ * `manualRollOffset` in `@card/compass-track-three` (design Decision 9). */
+export const CARD_COMPASS_TRACK_ROLL_HUD_ID = 'card-compass-track-roll-hud';
 
 /** The stable DOM id of the bottom-left lat/lon HUD element. */
 export const CARD_COMPASS_TRACK_LATLON_HUD_ID = 'card-compass-track-latlon-hud';
@@ -32,11 +59,16 @@ export const CARD_COMPASS_TRACK_CARDINAL_ID = 'card-compass-track-cardinal-hud';
 /** Class of the heading HUD's live heading-degrees text node. */
 export const CARD_COMPASS_TRACK_HEADING_VALUE_CLASS = 'compass-track-heading-value';
 
-/** Class of the heading HUD's live pitch-degrees text node (kept as a
- * screen-reader-only secondary readout now that pitch's primary indicator
- * is the 3D horizon-line mesh — see `compass-track-hud`'s modified pitch
- * requirement). */
+/** Class of the pitch HUD's live pitch-degrees text node — a visible,
+ * signed numeric readout (e.g. `5°`/`-5°`) paired with the
+ * artificial-horizon ball, no longer screen-reader-only (design Decision
+ * 8; see `compass-track-hud`'s amended pitch requirement). */
 export const CARD_COMPASS_TRACK_PITCH_VALUE_CLASS = 'compass-track-pitch-value';
+
+/** Class of the roll HUD's live roll-degrees text node — a visible, signed
+ * numeric readout (e.g. `5°`/`-5°`) paired with the artificial-horizon
+ * ball, directly below it (design Decision 10). */
+export const CARD_COMPASS_TRACK_ROLL_VALUE_CLASS = 'compass-track-roll-value';
 
 /** Class of the lat/lon HUD's live latitude text node. */
 export const CARD_COMPASS_TRACK_LAT_VALUE_CLASS = 'compass-track-lat-value';
@@ -82,12 +114,40 @@ function formatDmsCoordinate(decimalDegrees: number): string {
   return `${sign}${degrees}°${minutes}′${seconds.toFixed(1)}″`;
 }
 
+/** Clamps `value`'s integer-part digit count to `maxDigits` (default `4`),
+ * preserving sign and leaving any decimal part untouched — e.g. `99999.5`
+ * with `maxDigits: 4` clamps to `9999.5`, not `9999` or `10000`. Duplicated
+ * (not imported) from `@card/compass-track-three`'s identically-behaved
+ * `capIntegerDigits` for the same dependency-free reason as
+ * {@link nearestCardinalLabel}. Scoped to the plain-signed-degree
+ * formatters (heading/pitch/roll) only — `formatDmsCoordinate` (lat/lon) is
+ * unaffected (design Decision 12). */
+function capIntegerDigits(value: number, maxDigits: number = 4): number {
+  const sign = value < 0 ? -1 : 1;
+  const abs = Math.abs(value);
+  if (Math.floor(abs).toString().length <= maxDigits) return value;
+  return sign * (10 ** maxDigits - 1);
+}
+
 /** Formats a heading-in-degrees value for HUD text display, appending the
- * degree symbol (e.g. `45` -> `"45°"`). Duplicated (not imported) from
+ * degree symbol (e.g. `45` -> `"45°"`), after clamping its integer-part
+ * digit count via {@link capIntegerDigits}. Duplicated (not imported) from
  * `@card/compass-track-three`'s identically-behaved `formatHeadingDegrees`
  * for the same dependency-free reason as {@link nearestCardinalLabel}. */
 function formatHeadingDegreesLabel(headingDegrees: number): string {
-  return `${headingDegrees}°`;
+  const text = Math.abs(capIntegerDigits(headingDegrees)).toFixed(4);
+  let kept = '';
+  let digits = 0;
+  for (const ch of text) {
+    if (ch !== '.') {
+      if (digits === 4) break;
+      digits++;
+    }
+    kept += ch;
+  }
+  kept = kept.replace(/0+$/, '').replace(/\.$/, '');
+  const negative = headingDegrees < 0 && Number(kept) !== 0;
+  return `${negative ? '-' : ''}${kept}°`;
 }
 
 /** Builds the `compass-track` card variant's HTML: a static shell — a mount
@@ -115,11 +175,19 @@ export function buildCompassTrackCard({ model, initialState }: CompassTrackCardI
   );
   return `<div class="compass-track-card">
   <div class="compass-track-mount" id="${CARD_COMPASS_TRACK_SLOT_ID}"></div>
+  <div class="compass-track-instruments">
+  <div class="compass-track-hud compass-track-hud-cardinal" id="${CARD_COMPASS_TRACK_CARDINAL_ID}" role="button" tabindex="0" aria-label="Toggle compass orientation mode">${nearestCardinalLabel(initialState.headingDegrees)}</div>
+  <div class="compass-track-hud compass-track-hud-pitch" id="${CARD_COMPASS_TRACK_PITCH_HUD_ID}">
+    <span class="${CARD_COMPASS_TRACK_PITCH_VALUE_CLASS}">${formatHeadingDegreesLabel(initialState.pitchDegrees)}</span>
+  </div>
+  <div class="compass-track-attitude-mount" id="${CARD_COMPASS_TRACK_ATTITUDE_SLOT_ID}"></div>
   <div class="compass-track-hud compass-track-hud-heading" id="${CARD_COMPASS_TRACK_HEADING_HUD_ID}">
     <span class="${CARD_COMPASS_TRACK_HEADING_VALUE_CLASS}">${formatHeadingDegreesLabel(initialState.headingDegrees)}</span>
-    <span class="${CARD_COMPASS_TRACK_PITCH_VALUE_CLASS} compass-track-sr-only">${initialState.pitchDegrees}</span>
   </div>
-  <div class="compass-track-hud compass-track-hud-cardinal" id="${CARD_COMPASS_TRACK_CARDINAL_ID}" role="button" tabindex="0" aria-label="Toggle compass orientation mode">${nearestCardinalLabel(initialState.headingDegrees)}</div>
+  <div class="compass-track-hud compass-track-hud-roll" id="${CARD_COMPASS_TRACK_ROLL_HUD_ID}">
+    <span class="${CARD_COMPASS_TRACK_ROLL_VALUE_CLASS}">${formatHeadingDegreesLabel(initialState.rollDegrees)}</span>
+  </div>
+  </div>
   <div class="compass-track-hud compass-track-hud-latlon" id="${CARD_COMPASS_TRACK_LATLON_HUD_ID}">
     <div class="compass-track-latlon-line"><span class="compass-track-latlon-label">LAT //</span> <span class="${CARD_COMPASS_TRACK_LAT_VALUE_CLASS}">${formatDmsCoordinate(initialState.latitude)}</span></div>
     <div class="compass-track-latlon-line"><span class="compass-track-latlon-label">LON //</span> <span class="${CARD_COMPASS_TRACK_LON_VALUE_CLASS}">${formatDmsCoordinate(initialState.longitude)}</span></div>

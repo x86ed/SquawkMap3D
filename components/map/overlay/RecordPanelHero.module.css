@@ -115,9 +115,58 @@
   pointer-events: none;
 }
 
-.photoBlock :global(.compass-track-hud-heading) {
+/* Instrument cluster (upper-left): compass ring + artificial-horizon ball
+ * share one attitude canvas; HUD text sits in grid rows above/below it, so
+ * those HUD elements are static (not absolutely positioned) in here. */
+.photoBlock :global(.compass-track-instruments) {
+  position: absolute;
   top: 0;
   left: 0;
+  width: 27%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.photoBlock :global(.compass-track-attitude-mount) {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  aspect-ratio: 2 / 1;
+  pointer-events: auto;
+}
+
+.photoBlock :global(.compass-track-attitude-mount) :global(canvas) {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.photoBlock :global(.compass-track-instruments) :global(.compass-track-hud) {
+  position: static;
+  justify-self: center;
+  justify-content: center;
+  padding: 2px 0;
+  gap: 4px;
+  background: none;
+  backdrop-filter: none;
+  line-height: 1;
+}
+
+.photoBlock :global(.compass-track-hud-heading) {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.photoBlock :global(.compass-track-hud-pitch) {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.photoBlock :global(.compass-track-hud-roll) {
+  grid-column: 2;
+  grid-row: 3;
 }
 
 .photoBlock :global(.compass-track-hud-latlon) {
@@ -127,21 +176,22 @@
   gap: 2px;
 }
 
-/* Upper-left cardinal/intercardinal letter — also the click target that
- * toggles the compass ring's orientation mode (true-north-locked <->
+/* Cardinal/intercardinal letter above the compass ring — also the click
+ * target that toggles the ring's orientation mode (true-north-locked <->
  * map-view-locked) in the vendored compass-track-three, so unlike the other
- * HUD elements it takes pointer events. Sits just under the heading HUD. */
+ * HUD elements it takes pointer events. */
 .photoBlock :global(.compass-track-hud-cardinal) {
-  top: 26px;
-  left: 0;
+  grid-column: 1;
+  grid-row: 1;
   pointer-events: auto;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .photoBlock :global(.compass-track-hud-cardinal.compass-track-cardinal-map-view-locked) {
   border: 1px solid currentColor;
   border-radius: 0.25rem;
+  padding: 0 4px;
 }
 
 /* Screen-reader-only secondary pitch readout (the horizon-line mesh is the

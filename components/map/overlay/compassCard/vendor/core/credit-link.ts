@@ -1,5 +1,5 @@
 // Vendored from https://github.com/plens-win/Card
-// packages/core/src/credit-link.ts @ 2153af0d (2026-09-30, branch "11-compass-card-needs-to-have-some-issues-fixed").
+// packages/core/src/credit-link.ts @ 066e0e3 (2026-10-02, branch "11-compass-card-needs-to-have-some-issues-fixed").
 // `"private": true` npm workspace, never published — vendored directly
 // (matching this app's existing vendoring pattern, see
 // components/map/aircraftShapes.ts's doc comment). Re-run manually and
