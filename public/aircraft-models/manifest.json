@@ -143,5 +143,13 @@
   {
     "type": "VF35",
     "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "V22",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "A1",
+    "landingGearHideAboveFeetAGL": 1000
   }
 ]
