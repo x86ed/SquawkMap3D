@@ -68,6 +68,20 @@ export const CATEGORY_FALLBACK_KEY: Record<string, string> = {
   B2: "BALL", // lighter-than-air
 };
 
+/**
+ * Whether `typeDesignator` itself has a vendored shape — i.e. whether
+ * `getAircraftShape` would resolve to `typeDesignator`'s own exact shape
+ * rather than its emitter category's representative fallback (or the
+ * "Unidentified" fallback). Callers crediting a shape's embedded author
+ * (`AircraftShape.author`) MUST check this first: a category-fallback or
+ * "Unidentified" shape can itself carry real author metadata (it's a real
+ * vendored shape, just not *this* aircraft's), and crediting it here would
+ * misattribute someone else's shape to an unrelated aircraft.
+ */
+export function isExactShapeMatch(typeDesignator: string | undefined): boolean {
+  return !!typeDesignator && typeDesignator.toUpperCase() in manifest;
+}
+
 /** The vendored silhouette for `typeDesignator`, its emitter-`category`'s
  * representative shape when the exact type isn't available, or the shape
  * set's own "Unidentified aircraft" fallback when neither is. */
@@ -78,4 +92,42 @@ export function getAircraftShape(typeDesignator: string | undefined, category?: 
   const fallbackKey = category && CATEGORY_FALLBACK_KEY[category.toUpperCase()];
   const byCategory = fallbackKey && manifest[fallbackKey];
   return byCategory || manifest[UNIDENTIFIED_KEY];
+}
+
+/** A shape read live from its served `.svg` asset (never cached). */
+export interface LiveShape {
+  /** The whole file, unmodified — inline it as-is. Only set for the newer
+   * plain SVGs (already `currentColor`-styled); the legacy Inkscape-layer
+   * files still render from the manifest markup. */
+  raw?: string;
+  /** Root `data-author`, when present. */
+  author?: string;
+}
+
+/**
+ * Reads `typeDesignator`'s own `public/aircraft-shapes/<TYPE>.svg` live
+ * (`cache: "no-store"`) — the single source for both its drawing (newer
+ * plain SVGs) and `data-author`. Only the exact type's file is consulted (a
+ * category/"Unidentified" fallback is someone else's asset — see
+ * `isExactShapeMatch`). Deliberately not gated on the manifest, which lacks
+ * the newest plain SVGs: a 404 means "no shape file for this type". Resolves
+ * `undefined` when there is none or the fetch fails.
+ */
+export async function fetchLiveShape(typeDesignator: string | undefined): Promise<LiveShape | undefined> {
+  if (!typeDesignator) return undefined;
+  const key = typeDesignator.toUpperCase();
+  // Some shapes ship only as "<TYPE> slow.svg"/"<TYPE> fast.svg" variants.
+  for (const name of [key, `${key} slow`, `${key}-slow`]) {
+    try {
+      const response = await fetch(`/aircraft-shapes/${encodeURIComponent(name)}.svg`, { cache: "no-store" });
+      if (!response.ok) continue;
+      const raw = await response.text();
+      const author = raw.match(/<svg[^>]*\sdata-author="([^"]*)"/)?.[1]?.trim() || undefined;
+      const legacy = raw.includes("inkscape:groupmode");
+      return { ...(legacy ? {} : { raw }), ...(author ? { author } : {}) };
+    } catch {
+      continue;
+    }
+  }
+  return undefined;
 }

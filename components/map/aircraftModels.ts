@@ -4,13 +4,52 @@ import type { Aircraft } from "./aircraft";
 import { CATEGORY_FALLBACK_KEY } from "./aircraftShapes";
 
 interface AircraftModelManifestEntry {
+  /** Only tells us which ICAO type designators have a vendored `.glb` at all
+   * (i.e. whether to use the 3D model instead of the 2D icon) — nothing
+   * else. Per-model data that's actually embedded in the `.glb` itself
+   * (landing-gear threshold, author) is read straight out of the parsed
+   * glTF at load time (see `modelExtrasByTypeDesignator` below), never
+   * duplicated into this manifest, so it can't go stale relative to the
+   * binary. */
   type: string;
-  /** Feet AGL above which the model's "Landing gear" node should be hidden
-   * (retracted) — read straight out of the glTF's own node extras by
-   * `scripts/generate-aircraft-models-manifest.mjs`. Omitted for models
-   * with no "Landing gear" node. */
-  landingGearHideAboveFeetAGL?: number;
 }
+
+/** Per-model data read straight out of each vendored `.glb`'s own node
+ * extras once its glTF is parsed (`preloadModelScenegraphs` below) — never
+ * sourced from the manifest, so it can't drift out of sync with the binary
+ * `.glb` it describes. */
+interface AircraftModelExtras {
+  /** Feet AGL above which the model's "Landing gear" node should be hidden
+   * (retracted) — from `node.extras.landingGear.hideAboveFeetAGL`. Omitted
+   * for models with no "Landing gear" node. */
+  landingGearHideAboveFeetAGL?: number;
+  /** Modeler handle, from whichever node carries a `node.extras.
+   * authorship.author` (found on the root mesh node, e.g. "Aircraft visual
+   * hull" — not every vendored model has this yet). Omitted when the model
+   * has no embedded authorship metadata. */
+  author?: string;
+  /** Per-node rotor spin specs from `node.extras.rotor`, keyed by node name
+   * (the same id the scenegraph exposes it under). Only nodes that carry a
+   * valid spec appear; the animated layer falls back to guessing a pivot
+   * from the mesh's bounding box for any rotor node missing here. */
+  rotors?: Record<string, RotorSpec>;
+}
+
+/** A rotor node's authored spin geometry, from `node.extras.rotor`.
+ * `pivot`/`axis` are in the node's local (mesh) space. `rpm` is the real
+ * rotor speed; the layer deliberately doesn't animate at it (see
+ * `ROTOR_DEG_PER_MS` in animatedAircraftScenegraphLayer.ts) — only
+ * `direction` is applied. */
+export interface RotorSpec {
+  axis: [number, number, number];
+  pivot: [number, number, number];
+  rpm?: number;
+  /** `1` or `-1`. */
+  direction: 1 | -1;
+}
+
+const isVec3 = (v: unknown): v is [number, number, number] =>
+  Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === "number" && Number.isFinite(n));
 
 /**
  * ICAO type designators known to have a vendored 3D model, loaded once from
@@ -23,6 +62,49 @@ interface AircraftModelManifestEntry {
  * if called before that resolves.
  */
 let modelInfoByTypeDesignator = new Map<string, AircraftModelManifestEntry>();
+
+/**
+ * Per-type `AircraftModelExtras`, populated by `preloadModelScenegraphs` as
+ * each type's `.glb` finishes parsing — empty (all lookups `undefined`,
+ * degrading exactly like `resolveModelScenegraph` does) until that
+ * type's parse completes.
+ */
+const modelExtrasByTypeDesignator = new Map<string, AircraftModelExtras>();
+
+/** Extracts `AircraftModelExtras` straight out of an already-parsed glTF's
+ * node list — same fields, same node-matching rules
+ * (`scripts/generate-aircraft-models-manifest.mjs` extracted these
+ * identically from the raw `.glb` at build time). `load(url, GLTFLoader)`
+ * (no `postProcess` option passed, same as `preloadModelScenegraphs` below)
+ * returns the *raw* parsed glTF under `.json`, not a postprocessed
+ * top-level `.nodes` — `gltf.json.nodes[].extras` is the same untouched
+ * node-extras data the build-time script reads straight off the binary. */
+function extractModelExtras(gltf: { json?: { nodes?: { name?: string; extras?: unknown }[] } }): AircraftModelExtras {
+  const landingGearNode = gltf.json?.nodes?.find((n) => n.name === "Landing gear");
+  const hideAboveFeetAGL = (landingGearNode?.extras as { landingGear?: { hideAboveFeetAGL?: unknown } } | undefined)
+    ?.landingGear?.hideAboveFeetAGL;
+  const authorNode = gltf.json?.nodes?.find(
+    (n) => typeof (n.extras as { authorship?: { author?: unknown } } | undefined)?.authorship?.author === "string",
+  );
+  const author = (authorNode?.extras as { authorship?: { author?: string } } | undefined)?.authorship?.author;
+  const rotors: Record<string, RotorSpec> = {};
+  for (const node of gltf.json?.nodes ?? []) {
+    const raw = (node.extras as { rotor?: { axis?: unknown; pivot?: unknown; rpm?: unknown; direction?: unknown } } | undefined)
+      ?.rotor;
+    if (!node.name || !raw || !isVec3(raw.axis) || !isVec3(raw.pivot)) continue;
+    rotors[node.name] = {
+      axis: raw.axis,
+      pivot: raw.pivot,
+      ...(typeof raw.rpm === "number" ? { rpm: raw.rpm } : {}),
+      direction: raw.direction === -1 ? -1 : 1,
+    };
+  }
+  return {
+    ...(Object.keys(rotors).length ? { rotors } : {}),
+    ...(typeof hideAboveFeetAGL === "number" ? { landingGearHideAboveFeetAGL: hideAboveFeetAGL } : {}),
+    ...(typeof author === "string" && author.trim() ? { author: author.trim() } : {}),
+  };
+}
 
 /**
  * Parsed (but not GPU-uploaded — `ScenegraphLayer` does that per layer
@@ -70,18 +152,27 @@ function scenegraphGroupKey(typeDesignator: string, gearHidden: boolean): string
  * fine on demand). Pre-loading here and handing `buildAircraftLayers` an
  * already-resolved object every time sidesteps that race entirely.
  */
-async function preloadModelScenegraphs(entries: AircraftModelManifestEntry[]): Promise<void> {
-  const variants = entries.flatMap((entry) =>
-    [false, entry.landingGearHideAboveFeetAGL !== undefined].map((gearHidden) => ({
-      type: entry.type,
-      gearHidden,
-    })),
-  );
+export async function preloadModelScenegraphs(entries: AircraftModelManifestEntry[]): Promise<void> {
   await Promise.all(
-    variants.map(async ({ type, gearHidden }) => {
+    entries.map(async ({ type }) => {
       try {
-        const gltf = await load(modelUrl(type), GLTFLoader);
-        modelScenegraphByGroupKey.set(scenegraphGroupKey(type, gearHidden), gltf);
+        // Loaded once per type (not per gear-visibility variant, unlike
+        // before) — whether this type even has a "Landing gear" node isn't
+        // known until after this parse, so both variants are always built;
+        // for a type with no such node, the "hidden" variant is just an
+        // extra identical parse (postProcessGLTF mutates its input in
+        // place — see modelScenegraphByGroupKey's doc comment — so it still
+        // can't be the same object shared between the two keys).
+        const [shown, hidden] = await Promise.all([
+          load(modelUrl(type), GLTFLoader),
+          load(modelUrl(type), GLTFLoader),
+        ]);
+        modelScenegraphByGroupKey.set(scenegraphGroupKey(type, false), shown);
+        modelScenegraphByGroupKey.set(scenegraphGroupKey(type, true), hidden);
+        modelExtrasByTypeDesignator.set(
+          type,
+          extractModelExtras(shown as { json?: { nodes?: { name?: string; extras?: unknown }[] } }),
+        );
       } catch {
         // Leave unset — resolveModelScenegraph's null keeps this type on
         // the 2D icon layer instead.
@@ -140,6 +231,21 @@ export function resolveModelKeyForTypeAndCategory(
   return undefined;
 }
 
+/**
+ * Whether `typeDesignator` itself has a vendored model — i.e. whether
+ * `resolveModelKeyForTypeAndCategory` would resolve to `typeDesignator`'s
+ * own exact model rather than its emitter category's representative
+ * fallback (or, for the compass card, the pinned default stand-in). Callers
+ * crediting a model's embedded author (`modelAuthor`) MUST check this
+ * first: a category-fallback or default stand-in model can itself carry
+ * real author metadata (it's a real vendored model, just not *this*
+ * aircraft's), and crediting it here would misattribute someone else's
+ * model to an unrelated aircraft.
+ */
+export function isExactModelMatch(typeDesignator: string | undefined): boolean {
+  return !!typeDesignator && modelInfoByTypeDesignator.has(typeDesignator);
+}
+
 /** Model keys whose vendored .glb is a helicopter — their "Rotors" nodes
  * spin about a vertical/sideways axis rather than the fuselage axis. */
 const ROTORCRAFT_MODEL_KEYS = new Set(["R44", "H60", "AS35", "AS50"]);
@@ -167,10 +273,27 @@ export function resolveModelScenegraph(modelKey: string, gearHidden: boolean): u
  * Feet AGL above which `modelKey`'s (see `resolveModelKey`) vendored model
  * has retractable landing gear that should render hidden, or `undefined`
  * when that model has no "Landing gear" node (e.g. no vendored model at
- * all, or a fixed-gear type like C172) — see `AircraftModelManifestEntry`
- * above.
+ * all, or a fixed-gear type like C172) — see `AircraftModelExtras` above.
  */
 export function landingGearHideThresholdFeet(modelKey: string | undefined): number | undefined {
   if (!modelKey) return undefined;
-  return modelInfoByTypeDesignator.get(modelKey)?.landingGearHideAboveFeetAGL;
+  return modelExtrasByTypeDesignator.get(modelKey)?.landingGearHideAboveFeetAGL;
+}
+
+/**
+ * `modelKey`'s (see `resolveModelKey`) vendored model's embedded modeler
+ * handle, or `undefined` when it has no recorded authorship metadata (most
+ * vendored models today — see `AircraftModelExtras`'s doc comment) or
+ * `modelKey` itself is unset.
+ */
+export function modelAuthor(modelKey: string | undefined): string | undefined {
+  if (!modelKey) return undefined;
+  return modelExtrasByTypeDesignator.get(modelKey)?.author;
+}
+
+/** `modelKey`'s embedded per-node rotor spin specs (`node.extras.rotor`), or
+ * `undefined` when unset/not yet parsed — see `AircraftModelExtras.rotors`. */
+export function modelRotorSpecs(modelKey: string | undefined): Record<string, RotorSpec> | undefined {
+  if (!modelKey) return undefined;
+  return modelExtrasByTypeDesignator.get(modelKey)?.rotors;
 }

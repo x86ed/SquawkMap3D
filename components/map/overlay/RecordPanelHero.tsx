@@ -1,7 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./RecordPanelHero.module.css";
 import { fetchAircraftPhoto, type PlanespottersPhoto } from "../planespottersPhoto";
 import { splitManufacturerModel } from "./manufacturerModel";
+import { getAircraftCrudUrl, buildCrudUrl } from "../constants";
+import { buildCompassTrackCard, CARD_COMPASS_TRACK_SLOT_ID } from "./compassCard/vendor/core";
+import { mountCompassTrackCard, type CompassTrackCardHandle } from "./compassCard/vendor/compassTrackThree";
+import { getCompassTrackModel } from "./compassCard/compassTrackModel";
+import { buildCompassTrackState, type CompassTrackTelemetryInput } from "./compassCard/compassTrackState";
+import type { RarityTier } from "../aircraftRarity";
 
 const UNKNOWN = "Unknown";
 
@@ -44,19 +50,24 @@ function registryHref(registration: string | undefined): string | undefined {
 /**
  * Square-corner panel: top-right "AIRFRAME" tab, left image area, right
  * identity block (kicker, registration heading — clickable through to the
- * national civil registry for recognizable marks, see `registryHref` —
- * `CALL // {callsign}` / `ICAO // {hex}` sublines, bordered 2-col spec
- * grid). Reflows between portrait/landscape based on its own measured
- * container aspect ratio via `ResizeObserver` — not a viewport media query
+ * national civil registry for recognizable marks, see `registryHref`, with
+ * an adjacent "Edit" control per `aircraft-record-edit-links` — `CALL //
+ * {callsign}` / `ICAO // {hex}` sublines, bordered 2-col spec grid).
+ * Reflows between portrait/landscape based on its own measured container
+ * aspect ratio via `ResizeObserver` — not a viewport media query
  * (aircraft-info-overlay spec's "Layout reflows by measured container
  * aspect, not viewport" scenario).
  *
  * The image area loads a real aircraft photo from Planespotters.net's
  * public Photo API (`planespottersPhoto.ts`) keyed by hex, re-fetching
- * whenever the selected aircraft changes; falls back to the plane-icon
- * placeholder while loading or when no photo is found. Per Planespotters'
- * terms of use, the photographer credit and a plain link back to the
- * photo's page are always shown together with the image.
+ * whenever the selected aircraft changes. When a photo exists it's shown by
+ * default (per Planespotters' terms of use, the photographer credit and a
+ * plain link back to the photo's page are always shown together with it);
+ * when none exists, the live compass card (`airframe-compass-card`
+ * capability — `plens-win/Card`'s `compass-track` kind, vendored under
+ * `./compassCard/`) is shown instead of a bare placeholder. A toggle switches
+ * between the two once both are available for the current selection (see
+ * `showToggle` below).
  */
 export function RecordPanelHero({
   registration,
@@ -65,6 +76,16 @@ export function RecordPanelHero({
   manufacturerModel,
   operator,
   year,
+  typeDesignator,
+  category,
+  rarityTier,
+  track,
+  verticalRate,
+  altitude,
+  groundSpeed,
+  lat,
+  lon,
+  mapBearing,
 }: {
   registration?: string;
   callsign?: string;
@@ -72,11 +93,43 @@ export function RecordPanelHero({
   manufacturerModel?: string;
   operator?: string;
   year?: string;
+  /** ICAO type designator — resolves the compass card's vendored `.glb`
+   * model (per `aircraftModels.ts`, see `airframe-compass-card` capability). */
+  typeDesignator?: string;
+  /** ADS-B emitter category — the compass card's model-resolution fallback
+   * when `typeDesignator` isn't available (same resolution `PlaneCard`'s
+   * front-face art and the map's own aircraft rendering already use). */
+  category?: string;
+  /** Drives the compass card's emissive tint (`RARITY_TIER_STYLES`). */
+  rarityTier: RarityTier;
+  /** Live telemetry — feeds the compass card's `CompassTrackState` via
+   * `buildCompassTrackState`. */
+  track?: number;
+  verticalRate?: number;
+  altitude?: number;
+  groundSpeed?: number;
+  lat?: number;
+  lon?: number;
+  /** The map's current rotation (degrees, 0 = true north up) — subtracted
+   * from the aircraft's true-north heading before feeding the compass card,
+   * so rotating the map rotates the compass card's rendered aircraft the
+   * same way, matching the map's own current orientation instead of always
+   * pointing true-north-up regardless of how the map is rotated. */
+  mapBearing: number;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [landscape, setLandscape] = useState(true);
   const [photoForHex, setPhotoForHex] = useState<{ hex: string; photo: PlanespottersPhoto | null } | null>(null);
   const photo = photoForHex?.hex === hex ? photoForHex.photo : null;
+  const photoResolved = photoForHex?.hex === hex;
+
+  // "photo" | "compass" — defaults per-hex to photo when one exists, else
+  // compass; resets on hex change rather than preserving a manual toggle
+  // across different aircraft (design.md's "RecordPanelHero owns view-mode
+  // state" decision).
+  const [viewModeForHex, setViewModeForHex] = useState<{ hex: string; mode: "photo" | "compass" } | null>(null);
+  const viewMode =
+    viewModeForHex?.hex === hex ? viewModeForHex.mode : photo ? "photo" : "compass";
 
   useEffect(() => {
     const element = containerRef.current;
@@ -101,8 +154,104 @@ export function RecordPanelHero({
     };
   }, [hex]);
 
+  const compassContainerRef = useRef<HTMLDivElement | null>(null);
+  const compassHandleRef = useRef<CompassTrackCardHandle | null>(null);
+  // Screen-relative heading: the aircraft's true-north track minus the
+  // map's own current rotation, so rotating the map rotates the compass
+  // card's rendered aircraft the same way the map itself just did, instead
+  // of the card always orienting to true north regardless of the map's
+  // current bearing.
+  const screenRelativeTrack = track === undefined ? undefined : ((track - mapBearing) % 360 + 360) % 360;
+  const telemetry: CompassTrackTelemetryInput = {
+    track: screenRelativeTrack,
+    verticalRate,
+    altitude,
+    groundSpeed,
+    lat,
+    lon,
+  };
+  // The telemetry snapshot to bake into the static HTML below as its
+  // *initial* state — frozen per mount-identity (hex/type/category/rarity)
+  // rather than tracking every render's `telemetry`, so it only captures
+  // whatever was current at the moment a new mount-identity appeared; every
+  // value after that flows through the mounted handle's own `update()` (the
+  // effect below), never by rebuilding markup. Adjusted during render
+  // (React's documented pattern for resetting state when inputs change,
+  // already used elsewhere in this file for `viewModeForHex`) rather than a
+  // ref, since reading a ref's value during render is unsound (`useMemo`'s
+  // factory runs as part of render).
+  const mountKey = `${hex}|${typeDesignator}|${category}|${rarityTier}`;
+  const [initialTelemetryForMount, setInitialTelemetryForMount] = useState({ mountKey, telemetry });
+  if (initialTelemetryForMount.mountKey !== mountKey) {
+    setInitialTelemetryForMount({ mountKey, telemetry });
+  }
+
+  // Mounts the live compass-card scene whenever the compass view becomes
+  // active for this hex; disposed on hex change, view-mode switch away from
+  // compass, or unmount (design.md: "mountCompassTrackCard's handle is
+  // disposed ... never left running invisibly"). The mount slot is found by
+  // its stable exported id within the just-rendered `buildCompassTrackCard`
+  // markup (dangerouslySetInnerHTML), rather than a direct React ref, since
+  // that markup is a raw HTML string this app doesn't own the DOM nodes of.
+  useEffect(() => {
+    if (viewMode !== "compass") return;
+    const slot = compassContainerRef.current?.querySelector<HTMLElement>(`#${CARD_COMPASS_TRACK_SLOT_ID}`);
+    if (!slot) return;
+    const model = getCompassTrackModel(typeDesignator, category, undefined, rarityTier);
+    const handle = mountCompassTrackCard(slot, model, buildCompassTrackState(telemetry));
+    compassHandleRef.current = handle;
+    return () => {
+      handle.dispose();
+      compassHandleRef.current = null;
+    };
+    // Telemetry updates are pushed via the effect below through the mounted
+    // handle's own `update()`, not by remounting — this effect only reacts
+    // to what should actually cause a remount (hex/view/type change).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hex, viewMode, typeDesignator, category, rarityTier]);
+
+  useEffect(() => {
+    compassHandleRef.current?.update(buildCompassTrackState(telemetry));
+    // `mapBearing` included so rotating the map alone (with no new
+    // telemetry poll yet) still immediately re-orients the rendered
+    // aircraft to match.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [track, verticalRate, altitude, groundSpeed, lat, lon, mapBearing]);
+
+  // Built exactly once per mount-identity (hex/type/category/rarity), NOT
+  // on every render — this is injected via `dangerouslySetInnerHTML` below,
+  // and rebuilding it on every telemetry-driven re-render (as an earlier
+  // version of this code did) replaces the whole DOM subtree every ~1s poll
+  // tick: React tears down the mounted `<canvas>` the compass scene draws
+  // into while the still-running Three.js renderer (whose own cleanup only
+  // fires when this effect's deps change, not on every render) keeps its
+  // WebGL context alive pointed at the now-detached canvas — leaking one
+  // WebGL context per tick. Browsers cap total contexts per page (~8-16);
+  // that leak exhausts the budget within seconds, which is what was
+  // actually causing the compass view, `PlaneCard`'s 3D model, and the
+  // map's own WebGL rendering to all start going blank.
+  const compassCardHtml = useMemo(
+    () =>
+      buildCompassTrackCard({
+        kind: "compass-track",
+        model: getCompassTrackModel(typeDesignator, category, undefined, rarityTier),
+        initialState: buildCompassTrackState(initialTelemetryForMount.telemetry),
+      }),
+    [typeDesignator, category, rarityTier, initialTelemetryForMount],
+  );
+
   const registryLookupHref = registryHref(registration);
   const { manufacturer, model } = splitManufacturerModel(manufacturerModel);
+  const aircraftCrudUrlTemplate = getAircraftCrudUrl();
+  const aircraftEditHref = aircraftCrudUrlTemplate
+    ? buildCrudUrl(aircraftCrudUrlTemplate, { hex })
+    : undefined;
+
+  // The toggle only makes sense once there's something to switch *to* —
+  // with no photo, the compass card is the only view and there's nothing to
+  // toggle (design.md/spec: "Photo/compass toggle switches the image
+  // area's view").
+  const showToggle = photoResolved && photo !== null;
 
   return (
     <div
@@ -112,39 +261,66 @@ export function RecordPanelHero({
     >
       <div className={styles.tab}>AIRFRAME</div>
       <div className={styles.body}>
-        {photo ? (
-          <a
-            className={styles.photoBlock}
-            href={photo.link}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element -- next/image's optimizer would proxy/resize this through our own server, which Planespotters' Photo API terms explicitly forbid ("must be loaded by the end user's browser from the thumbnail ... URLs we return"; "Proxying, rewriting ... is not permitted"). */}
-            <img className={styles.photoImg} src={photo.thumbnailLargeSrc} alt={`Aircraft photo by ${photo.photographer}`} />
-            <span className={styles.photoCaption}>
-              Photo by {photo.photographer} · Planespotters.net
-            </span>
-          </a>
-        ) : (
-          <div className={styles.iconBlock} aria-hidden="true">
-            ✈
-          </div>
-        )}
-        <div className={styles.identity}>
-          <div className={styles.kicker}>Registration</div>
-          {registryLookupHref ? (
+        <div className={styles.mediaWrap}>
+          {viewMode === "photo" && photo ? (
             <a
-              className={styles.heading}
-              href={registryLookupHref}
+              className={styles.photoBlock}
+              href={photo.link}
               target="_blank"
               rel="noopener noreferrer"
-              title="Look up this tail number in the national civil aircraft registry"
             >
-              {registration}
+              {/* eslint-disable-next-line @next/next/no-img-element -- next/image's optimizer would proxy/resize this through our own server, which Planespotters' Photo API terms explicitly forbid ("must be loaded by the end user's browser from the thumbnail ... URLs we return"; "Proxying, rewriting ... is not permitted"). */}
+              <img className={styles.photoImg} src={photo.thumbnailLargeSrc} alt={`Aircraft photo by ${photo.photographer}`} />
+              <span className={styles.photoCaption}>
+                Photo by {photo.photographer} · Planespotters.net
+              </span>
             </a>
           ) : (
-            <div className={styles.heading}>{registration ?? UNKNOWN}</div>
+            <div
+              className={styles.photoBlock}
+              ref={compassContainerRef}
+              dangerouslySetInnerHTML={{ __html: compassCardHtml }}
+            />
           )}
+          {showToggle && (
+            <button
+              type="button"
+              className={styles.viewToggle}
+              onClick={() => setViewModeForHex({ hex, mode: viewMode === "photo" ? "compass" : "photo" })}
+              aria-label={viewMode === "photo" ? "Switch to compass view" : "Switch to photo view"}
+            >
+              {viewMode === "photo" ? "Compass" : "Photo"}
+            </button>
+          )}
+        </div>
+        <div className={styles.identity}>
+          <div className={styles.kicker}>Registration</div>
+          <div className={styles.headingRow}>
+            {registryLookupHref ? (
+              <a
+                className={styles.heading}
+                href={registryLookupHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Look up this tail number in the national civil aircraft registry"
+              >
+                {registration}
+              </a>
+            ) : (
+              <div className={styles.heading}>{registration ?? UNKNOWN}</div>
+            )}
+            {aircraftEditHref && (
+              <a
+                className={styles.editButton}
+                href={aircraftEditHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Edit this aircraft's record"
+              >
+                Edit
+              </a>
+            )}
+          </div>
           <p className={styles.subline}>CALL // {callsign ?? UNKNOWN}</p>
           <p className={styles.subline}>
             ICAO //{" "}

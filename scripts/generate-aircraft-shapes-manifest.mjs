@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 // One-time (or manually-re-run) generator for the aircraft-silhouette
 // manifest consumed by components/map/aircraftShapes.ts. Reads the vendored
-// SVGs at public/aircraft-shapes/shapes/ (a snapshot of
+// SVGs at public/aircraft-shapes/ (originally a snapshot of
 // https://github.com/RexKramer1/AircraftShapesSVG, GPL-3.0 — see
-// public/aircraft-shapes/LICENSE and README.md's attribution) and writes a
-// flat { TYPE_CODE: { viewBox, markup } } manifest, keyed by ICAO type
+// public/aircraft-shapes/LICENSE and README.md's attribution — since joined
+// by newer, user-submitted shapes added directly alongside them, some
+// carrying their own `data-author` attribute) and writes a flat
+// { TYPE_CODE: { viewBox, markup } } manifest, keyed by ICAO type
 // designator (the filename minus its extension, upper-cased — matches this
 // app's existing `Aircraft.typeDesignator` convention).
 //
@@ -52,7 +54,12 @@ import path from "node:path";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
 
-const shapesDir = path.join(ROOT, "public", "aircraft-shapes", "shapes");
+// Vendored files now live flat under public/aircraft-shapes/ (alongside
+// LICENSE/README.md/manifest.json, filtered out below by the ".svg"
+// extension check) — some newer, user-submitted shapes (see `data-author`
+// below) were added directly here rather than under a "shapes" subdirectory,
+// and this path was updated to match rather than left stale.
+const shapesDir = path.join(ROOT, "public", "aircraft-shapes");
 const outputPath = path.join(ROOT, "components", "map", "data", "aircraftShapes.json");
 
 const files = readdirSync(shapesDir).filter((f) => f.endsWith(".svg"));
@@ -74,16 +81,35 @@ function extractShape(filePath) {
     .map((g) => g.replace(/fill:#ffffff/g, "fill:currentColor"))
     .join("");
 
+  // Newer, user-submitted shapes are plain SVGs (no Inkscape layer groups).
+  // They are NOT dissected here: PlaneCard reads them live from the served
+  // asset (`fetchLiveShape` in components/map/aircraftShapes.ts). Returning
+  // null keeps whatever entry the manifest already has for them (needed by
+  // the map icons / exact-match check) instead of blanking it.
+  if (!layerMarkup) return null;
+
+  // `data-author` is deliberately NOT extracted here: authorship is read
+  // live from the served .svg asset at runtime (`fetchShapeAuthor` in
+  // components/map/aircraftShapes.ts), never baked into this manifest, so it
+  // can't go stale relative to the asset.
   return { viewBox: viewBoxMatch[1], markup: layerMarkup };
 }
 
 /** @type {Record<string, { viewBox: string, markup: string }>} */
 const manifest = {};
+/** Existing manifest, so plain (live-served) SVGs keep their current entry. */
+let previous = {};
+try {
+  previous = JSON.parse(readFileSync(outputPath, "utf-8"));
+} catch {}
 for (const file of files) {
   const base = file.slice(0, -4); // strip ".svg"
   if (base.endsWith("-fast")) continue; // skip; "-slow" variant wins below (no live wing-sweep telemetry to pick between them)
   const key = (base.endsWith("-slow") ? base.slice(0, -5) : base).toUpperCase();
-  manifest[key] = extractShape(path.join(shapesDir, file));
+  const shape = extractShape(path.join(shapesDir, file));
+  if (shape) manifest[key] = shape;
+  else if (previous[key]) manifest[key] = previous[key];
+  else console.warn(`Skipping ${file}: plain SVG with no manifest entry (served live only)`);
 }
 
 const sorted = Object.fromEntries(Object.entries(manifest).sort(([a], [b]) => a.localeCompare(b)));

@@ -38,6 +38,11 @@ export interface SelectedAircraftInfo {
   operator?: string;
   year?: string;
   rarityTier: RarityTier;
+  /** Current position, when known — same source `distanceNm` is already
+   * computed from internally; exposed directly here for the compass card's
+   * live telemetry (`airframe-compass-card` capability). */
+  lat?: number;
+  lon?: number;
   altitude?: number;
   groundSpeed?: number;
   track?: number;
@@ -97,6 +102,8 @@ export function buildSelectedAircraftInfo(
     operator: aircraft.operator,
     year: aircraft.year,
     rarityTier,
+    lat: aircraft.lat,
+    lon: aircraft.lon,
     altitude: aircraft.altitude,
     groundSpeed: aircraft.groundSpeed,
     track: aircraft.track,

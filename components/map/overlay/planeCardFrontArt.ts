@@ -56,64 +56,78 @@ export function mountCardArt(
     return;
   }
 
-  delete slot.dataset.frontArtFlat;
-  slot.style.color = "";
-  if (cssGrid) cssGrid.style.display = "none";
+  // Wrapped in try/catch (a deviation from the upstream verbatim port):
+  // `new THREE.WebGLRenderer()` throws if the browser can't grant a WebGL
+  // context (e.g. the page-wide context budget — commonly 8-16 — is
+  // already exhausted by other live contexts, such as the map's own or the
+  // compass card's). Falling back to the flat SVG on that failure keeps
+  // this card showing *something* instead of leaving `slot` blank (its
+  // `innerHTML` was already cleared above with nothing re-populated).
+  try {
+    delete slot.dataset.frontArtFlat;
+    slot.style.color = "";
+    if (cssGrid) cssGrid.style.display = "none";
 
-  const canvas = document.createElement("canvas");
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, canvas });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setClearColor(0x000000, 0);
+    const canvas = document.createElement("canvas");
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, canvas });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x000000, 0);
 
-  const width = slot.clientWidth || 280;
-  const height = slot.clientHeight || 360;
-  renderer.setSize(width, height, false);
+    const width = slot.clientWidth || 280;
+    const height = slot.clientHeight || 360;
+    renderer.setSize(width, height, false);
 
-  const wireScene = new THREE.Scene();
-  const material = new THREE.LineBasicMaterial({ color });
-  const disposables: { geometry: THREE.BufferGeometry }[] = [];
-  const bounds = new THREE.Box3();
+    const wireScene = new THREE.Scene();
+    const material = new THREE.LineBasicMaterial({ color });
+    const disposables: { geometry: THREE.BufferGeometry }[] = [];
+    const bounds = new THREE.Box3();
 
-  for (const mesh of meshes) {
-    mesh.updateWorldMatrix(true, false);
-    const edges = new THREE.EdgesGeometry(mesh.geometry);
-    const lines = new THREE.LineSegments(edges, material);
-    lines.matrix.copy(mesh.matrixWorld);
-    lines.matrixAutoUpdate = false;
-    wireScene.add(lines);
-    disposables.push({ geometry: edges });
-    bounds.union(new THREE.Box3().setFromObject(mesh));
+    for (const mesh of meshes) {
+      mesh.updateWorldMatrix(true, false);
+      const edges = new THREE.EdgesGeometry(mesh.geometry);
+      const lines = new THREE.LineSegments(edges, material);
+      lines.matrix.copy(mesh.matrixWorld);
+      lines.matrixAutoUpdate = false;
+      wireScene.add(lines);
+      disposables.push({ geometry: edges });
+      bounds.union(new THREE.Box3().setFromObject(mesh));
+    }
+
+    const sphere = bounds.getBoundingSphere(new THREE.Sphere());
+    const size =
+      Math.max(bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y, bounds.max.z - bounds.min.z) || 1;
+    const grid = new THREE.GridHelper(size * 2.5, 20, color, color);
+    grid.position.set(sphere.center.x, bounds.min.y - size * 0.025, sphere.center.z);
+    (grid.material as THREE.Material).transparent = true;
+    (grid.material as THREE.Material).opacity = 0.35;
+    wireScene.add(grid);
+
+    const camera = new THREE.PerspectiveCamera(38, width / height, 0.01, 1000);
+    const direction = new THREE.Vector3(1.55, 1.05, -1.75).normalize();
+    const distance = (sphere.radius || 1) * 2.4;
+    camera.position.copy(sphere.center).addScaledVector(direction, distance);
+    camera.lookAt(sphere.center);
+    camera.near = distance / 100;
+    camera.far = distance * 10;
+    camera.updateProjectionMatrix();
+
+    renderer.render(wireScene, camera);
+
+    for (const d of disposables) d.geometry.dispose();
+    material.dispose();
+    grid.geometry.dispose();
+    (grid.material as THREE.Material).dispose();
+
+    slot.appendChild(canvas);
+    // Single-frame render (no animation loop): safe to dispose the GL context
+    // immediately — the drawn pixels stay on the canvas.
+    renderer.dispose();
+  } catch {
+    slot.dataset.frontArtFlat = "true";
+    slot.style.color = color;
+    slot.innerHTML = fallbackSvg;
+    if (cssGrid) cssGrid.style.display = "";
   }
-
-  const sphere = bounds.getBoundingSphere(new THREE.Sphere());
-  const size =
-    Math.max(bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y, bounds.max.z - bounds.min.z) || 1;
-  const grid = new THREE.GridHelper(size * 2.5, 20, color, color);
-  grid.position.set(sphere.center.x, bounds.min.y - size * 0.025, sphere.center.z);
-  (grid.material as THREE.Material).transparent = true;
-  (grid.material as THREE.Material).opacity = 0.35;
-  wireScene.add(grid);
-
-  const camera = new THREE.PerspectiveCamera(38, width / height, 0.01, 1000);
-  const direction = new THREE.Vector3(1.55, 1.05, -1.75).normalize();
-  const distance = (sphere.radius || 1) * 2.4;
-  camera.position.copy(sphere.center).addScaledVector(direction, distance);
-  camera.lookAt(sphere.center);
-  camera.near = distance / 100;
-  camera.far = distance * 10;
-  camera.updateProjectionMatrix();
-
-  renderer.render(wireScene, camera);
-
-  for (const d of disposables) d.geometry.dispose();
-  material.dispose();
-  grid.geometry.dispose();
-  (grid.material as THREE.Material).dispose();
-
-  slot.appendChild(canvas);
-  // Single-frame render (no animation loop): safe to dispose the GL context
-  // immediately — the drawn pixels stay on the canvas.
-  renderer.dispose();
 }
 
 /**
