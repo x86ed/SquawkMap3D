@@ -135,5 +135,13 @@
   },
   {
     "type": "ULAC"
+  },
+  {
+    "type": "A37",
+    "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "VF35",
+    "landingGearHideAboveFeetAGL": 1000
   }
 ]
