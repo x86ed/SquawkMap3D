@@ -151,5 +151,8 @@
   {
     "type": "A1",
     "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "UH1"
   }
 ]
