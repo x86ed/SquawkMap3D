@@ -1,11 +1,11 @@
 import type { Aircraft } from "./aircraft";
 import { computeRarityTier, RARITY_TIER_STYLES } from "./aircraftRarity";
-import { CATEGORY_FALLBACK_KEY } from "./aircraftShapes";
-import { AIRCRAFT_CATEGORY_FALLBACK_ICON, MACH1_APPROX_KTS } from "./constants";
+import { CATEGORY_FALLBACK_KEY, UNKNOWN_FALLBACK_KEY } from "./aircraftShapes";
+import { MACH1_APPROX_KTS } from "./constants";
 import { AIRPORT_FILL_COLOR } from "./layers";
 import { computeTightViewBox } from "./svgBBox";
 
-export type IconSource = "type" | "category-type" | "category" | "generic";
+export type IconSource = "type" | "category-type" | "unknown" | "generic";
 
 export interface ResolvedIcon {
   source: IconSource;
@@ -31,29 +31,23 @@ const TYPE_SHAPE_URL = (typeDesignator: string) =>
   `/aircraft-shapes/${encodeURIComponent(typeDesignator)}.svg`;
 
 /**
- * Type designators known to have a vendored shape, loaded once from the
- * manifest `scripts/vendor-aircraft-icons.mjs` writes alongside the SVGs
+ * Type designators known to have a shape, loaded once from the manifest
+ * `scripts/generate-aircraft-silhouettes.mjs` writes alongside the SVGs
  * (there's no directory-listing API for Next.js's public/ dir). Populated by
- * `buildAircraftIconAtlas`; `resolveIconKey` degrades to the
- * category/generic fallback if called before that resolves (safe, just
- * skips the type-specific tier until the manifest is loaded).
+ * `buildAircraftIconAtlas`; `resolveIconKey` degrades to the generic marker
+ * if called before that resolves.
  */
 let knownTypeDesignators = new Set<string>();
 
 /**
  * Resolves which atlas entry an aircraft should render with, in order: its
- * own ICAO-type-designator shape if vendored; else, for the categories
- * `aircraftShapes.ts`'s `CATEGORY_FALLBACK_KEY` has a representative
- * AircraftShapesSVG type for, that same shape (the atlas already contains
- * an entry for it — every real type designator is vendored into the atlas
- * regardless of whether this particular aircraft matched one directly) —
- * this is also what `PlaneCard` falls back to, so an aircraft with no known
- * exact type still renders the *same* icon on the map and in its detail
- * card; else its ADS-B emitter category's pw-silhouettes generic silhouette
- * (covers a few categories — skydivers, UAVs, surface vehicles — that have
- * no reasonable AircraftShapesSVG stand-in); else the plain generic marker
- * — an aircraft is never left without an icon (see aircraft-tracks-layer
- * spec's icon-fallback requirement).
+ * own ICAO-type-designator shape; else its ADS-B emitter category's
+ * representative type (`aircraftShapes.ts`'s `CATEGORY_FALLBACK_KEY` — the
+ * same table the 3D model layer and `PlaneCard` use, so an aircraft with no
+ * known exact type renders the *same* shape on the map, in 3D and in its
+ * detail card); else the unknown-aircraft (`UNKN`) shape; else the plain
+ * generic marker — an aircraft is never left without an icon (see
+ * aircraft-tracks-layer spec's icon-fallback requirement).
  */
 export function resolveIconKey(aircraft: Aircraft): ResolvedIcon {
   if (aircraft.typeDesignator && knownTypeDesignators.has(aircraft.typeDesignator)) {
@@ -63,8 +57,8 @@ export function resolveIconKey(aircraft: Aircraft): ResolvedIcon {
   if (categoryTypeKey && knownTypeDesignators.has(categoryTypeKey)) {
     return { source: "category-type", key: categoryTypeKey };
   }
-  if (aircraft.category && AIRCRAFT_CATEGORY_FALLBACK_ICON[aircraft.category]) {
-    return { source: "category", key: aircraft.category };
+  if (knownTypeDesignators.has(UNKNOWN_FALLBACK_KEY)) {
+    return { source: "unknown", key: UNKNOWN_FALLBACK_KEY };
   }
   return { source: "generic", key: GENERIC_ICON_KEY };
 }
@@ -95,15 +89,6 @@ export interface IconAtlas {
   image: string;
   mapping: Record<string, IconAtlasEntry>;
 }
-
-// pw-silhouettes draws every category nose-up except these two, which are
-// nose-left in the source SVG (verified by rendering each vendored file) —
-// `getAngle` in aircraftLayer.ts assumes nose-up, so these render 90° off
-// from the aircraft's real track unless corrected here at atlas-build time.
-const ICON_ORIENTATION_OFFSET_DEG: Record<string, number> = {
-  A1: 90,
-  B1: 90,
-};
 
 // 96px (up from an original 64px) so a 40px on-screen icon (aircraftLayer.ts's
 // `getSize`) still has real supersampled resolution behind it instead of
@@ -136,7 +121,7 @@ function loadImage(url: string): Promise<HTMLImageElement | null> {
 }
 
 /**
- * Fetches a vendored shape SVG and rebuilds it before rasterizing, fixing
+ * Fetches a shape SVG and rebuilds it before rasterizing, fixing
  * two problems confirmed by inspecting the vendored files directly (see
  * `svgBBox.ts`'s doc comment): first, each file's own declared `viewBox`
  * isn't tightly cropped to its actual drawing — some types fill their
@@ -244,8 +229,9 @@ function drawRotorAccent(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
 
 /**
  * Builds a single combined icon atlas (canvas image + deck.gl `iconMapping`)
- * from every vendored type shape, every category fallback silhouette, and
- * one generic marker — built once at layer-mount time, not per-frame or
+ * from every shape under `public/aircraft-shapes/` (authored or generated
+ * from a `.glb`; category/unknown fallbacks reuse those entries) and one
+ * generic marker — built once at layer-mount time, not per-frame or
  * per-aircraft (see design.md Decision 6). Every entry also gets a second,
  * blurred glow variant under `glowIconKey(key)` (see `GLOW_ICON_KEY_SUFFIX`),
  * so the icon-glow layer can render each aircraft's own silhouette rather
@@ -258,10 +244,8 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
     ? await manifestResponse.json()
     : [];
 
-  const categoryKeys = Object.keys(AIRCRAFT_CATEGORY_FALLBACK_ICON);
   const baseEntries: Array<{ key: string; url: string | null }> = [
     ...typeDesignators.map((t) => ({ key: t, url: TYPE_SHAPE_URL(t) })),
-    ...categoryKeys.map((c) => ({ key: c, url: AIRCRAFT_CATEGORY_FALLBACK_ICON[c] })),
     { key: GENERIC_ICON_KEY, url: null },
     { key: ROTOR_ACCENT_KEY, url: null },
   ];
@@ -316,16 +300,7 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
       );
       const w = image.naturalWidth * scale;
       const h = image.naturalHeight * scale;
-      const offsetDeg = ICON_ORIENTATION_OFFSET_DEG[baseKey] ?? 0;
-      if (offsetDeg) {
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.rotate((offsetDeg * Math.PI) / 180);
-        ctx.drawImage(image, -w / 2, -h / 2, w, h);
-        ctx.restore();
-      } else {
-        ctx.drawImage(image, cx - w / 2, cy - h / 2, w, h);
-      }
+      ctx.drawImage(image, cx - w / 2, cy - h / 2, w, h);
     } else if (baseKey === ROTOR_ACCENT_KEY) {
       drawRotorAccent(ctx, cx, cy, drawableForEntry);
     } else {

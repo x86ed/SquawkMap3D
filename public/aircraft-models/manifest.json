@@ -158,5 +158,23 @@
   {
     "type": "TB20",
     "landingGearHideAboveFeetAGL": 1000
+  },
+  {
+    "type": "FIRE"
+  },
+  {
+    "type": "PTUG"
+  },
+  {
+    "type": "FALH"
+  },
+  {
+    "type": "TURB"
+  },
+  {
+    "type": "PARA"
+  },
+  {
+    "type": "UNKN"
   }
 ]

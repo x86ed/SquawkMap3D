@@ -1,60 +1,36 @@
-import aircraftShapeManifest from "./data/aircraftShapes.json";
-
 /**
- * Top-view aircraft silhouettes, vendored from
- * https://github.com/RexKramer1/AircraftShapesSVG (GPL-3.0 — see
- * `public/aircraft-shapes/LICENSE` and that directory's attribution
- * README). 179 shapes keyed by ICAO type designator (the same key this app
- * already uses for `Aircraft.typeDesignator` and the rarity dataset lookup
- * in `aircraftRarity.ts`), generated once by
- * `scripts/generate-aircraft-shapes-manifest.mjs` into
- * `components/map/data/aircraftShapes.json` — re-run that script manually
- * if the vendored SVG set changes; this isn't part of the build/CI.
+ * Top-down aircraft shapes under `public/aircraft-shapes/<KEY>.svg`, keyed
+ * by ICAO type designator (the same key this app uses for
+ * `Aircraft.typeDesignator`, the rarity dataset lookup in
+ * `aircraftRarity.ts`, and `public/aircraft-models/<KEY>.glb`).
  *
- * Every vendored file's paths are plain `fill:none; stroke:#000000` outline
- * drawings — there's no solid silhouette fill to speak of. Rather than
- * loading them as `<img>` and trying to recolor a rasterized image (what
- * adsb.win does, via a per-tier-tuned CSS `filter: invert() sepia()
- * hue-rotate() ...` chain — confirmed by inspecting their live site; it
- * only works because `<img>` can't reach into the SVG to change the actual
- * stroke color), the generator script already rewrote every
- * `stroke:#000000`/`fill:#ffffff` to `stroke:currentColor`/
- * `fill:currentColor`. Callers render `markup` as an *inlined* SVG (not an
- * `<img src>`) so a plain CSS `color` on the wrapping element resolves the
- * exact tier accent color directly — see `PlaneCard.module.css`'s
- * `.shapeIcon`.
+ * Every file there is either authored in-repo (root `data-author`) or
+ * generated from its type's `.glb` model by
+ * `scripts/generate-aircraft-silhouettes.mjs` (root `data-generated`, no
+ * author) — no third-party shape set is shipped. Both kinds are plain
+ * `fill="currentColor"` SVGs, so callers inline the file and a CSS `color`
+ * on the wrapping element tints it (see `PlaneCard.module.css`'s
+ * `.shapeIcon`).
  */
-export interface AircraftShape {
-  viewBox: string;
-  /** Inner SVG markup (the vendored file's drawing layers) — render inside
-   * your own `<svg viewBox={shape.viewBox}>` via `dangerouslySetInnerHTML`.
-   * Sourced from the vendored, license-attributed files at build time
-   * (`generate-aircraft-shapes-manifest.mjs`), never from user input. */
-  markup: string;
-}
 
-const UNIDENTIFIED_KEY = "UNIDENTIFIED";
-
-const manifest = aircraftShapeManifest as Record<string, AircraftShape>;
+/** Shape/model key used when an aircraft has no usable type or category. */
+export const UNKNOWN_FALLBACK_KEY = "UNKN";
 
 /**
  * ADS-B emitter category ("A0"-"D7", readsb's `category`) → a representative
- * manifest key, for when `typeDesignator` isn't available. Unlike
- * `typeDesignator` (readsb's `t`, only populated when the feeder has loaded
- * tar1090-db — see `Aircraft.typeDesignator`'s doc comment), the emitter
- * category is sent in the aircraft's own ADS-B transmissions and is
- * essentially always present. It's a coarse size/role bucket, not a real
- * type match, so this only stands in for the exact silhouette — it's still
- * far more informative than every aircraft in a bucket collapsing to the
- * same generic "Unidentified" outline. Categories with no reasonable
- * representative in the vendored 179-shape set (UAVs, surface vehicles,
- * obstacles, etc.) are omitted and fall through to `UNIDENTIFIED_KEY`.
+ * shape/model key, for when `typeDesignator` isn't available or has no
+ * asset. Unlike `typeDesignator` (readsb's `t`, only populated when the
+ * feeder has loaded tar1090-db — see `Aircraft.typeDesignator`'s doc
+ * comment), the emitter category is sent in the aircraft's own ADS-B
+ * transmissions and is essentially always present. The first group is a
+ * coarse size/role bucket, not a real type match; the special categories
+ * below it map to dedicated models. Categories without an entry (cluster
+ * and line obstacles, reserved values) fall through to
+ * `UNKNOWN_FALLBACK_KEY`.
  *
- * Exported so `aircraftIcons.ts`'s map-marker resolution can fall back to
- * the same representative shapes — keeping the card and the map's icon for
- * an aircraft of unknown exact type consistent, rather than the map falling
- * back to a visually distinct icon set (pw-silhouettes) that this table
- * doesn't cover.
+ * Shared with `aircraftModels.ts` (3D model resolution) and
+ * `aircraftIcons.ts` (map-marker icons) so the card, the 3D model and the
+ * map's 2D icon for an aircraft of unknown exact type always agree.
  */
 export const CATEGORY_FALLBACK_KEY: Record<string, string> = {
   A1: "C172", // light (<15,500 lbs) — small single/twin prop
@@ -66,65 +42,60 @@ export const CATEGORY_FALLBACK_KEY: Record<string, string> = {
   A7: "R44", // rotorcraft
   B1: "SF25", // glider/sailplane
   B2: "BALL", // lighter-than-air
+  B3: "PARA", // parachutist / skydiver
+  B4: "ULAC", // ultralight / hang-glider / paraglider
+  B6: "VFHC", // unmanned aerial vehicle
+  B7: "FALH", // space / transatmospheric vehicle
+  C1: "FIRE", // surface vehicle — emergency
+  C2: "PTUG", // surface vehicle — service
+  C3: "TURB", // point obstacle
 };
 
-/**
- * Whether `typeDesignator` itself has a vendored shape — i.e. whether
- * `getAircraftShape` would resolve to `typeDesignator`'s own exact shape
- * rather than its emitter category's representative fallback (or the
- * "Unidentified" fallback). Callers crediting a shape's embedded author
- * (`AircraftShape.author`) MUST check this first: a category-fallback or
- * "Unidentified" shape can itself carry real author metadata (it's a real
- * vendored shape, just not *this* aircraft's), and crediting it here would
- * misattribute someone else's shape to an unrelated aircraft.
- */
-export function isExactShapeMatch(typeDesignator: string | undefined): boolean {
-  return !!typeDesignator && typeDesignator.toUpperCase() in manifest;
-}
-
-/** The vendored silhouette for `typeDesignator`, its emitter-`category`'s
- * representative shape when the exact type isn't available, or the shape
- * set's own "Unidentified aircraft" fallback when neither is. */
-export function getAircraftShape(typeDesignator: string | undefined, category?: string): AircraftShape {
-  const exact = typeDesignator && manifest[typeDesignator.toUpperCase()];
-  if (exact) return exact;
-
-  const fallbackKey = category && CATEGORY_FALLBACK_KEY[category.toUpperCase()];
-  const byCategory = fallbackKey && manifest[fallbackKey];
-  return byCategory || manifest[UNIDENTIFIED_KEY];
+/** The shape keys to try for an aircraft, most specific first: its own type,
+ * its emitter category's representative, then the unknown-aircraft shape. */
+export function shapeKeyCandidates(typeDesignator: string | undefined, category?: string): string[] {
+  const keys: string[] = [];
+  if (typeDesignator) keys.push(typeDesignator.toUpperCase());
+  const byCategory = category ? CATEGORY_FALLBACK_KEY[category.toUpperCase()] : undefined;
+  if (byCategory) keys.push(byCategory);
+  keys.push(UNKNOWN_FALLBACK_KEY);
+  return [...new Set(keys)];
 }
 
 /** A shape read live from its served `.svg` asset (never cached). */
 export interface LiveShape {
-  /** The whole file, unmodified — inline it as-is. Only set for the newer
-   * plain SVGs (already `currentColor`-styled); the legacy Inkscape-layer
-   * files still render from the manifest markup. */
-  raw?: string;
-  /** Root `data-author`, when present. */
+  /** The whole file, unmodified — inline it as-is. */
+  raw: string;
+  /** Which key's file this is. */
+  key: string;
+  /** Whether `key` is the aircraft's own exact type designator (as opposed
+   * to its category's representative or the unknown-aircraft shape). */
+  exact: boolean;
+  /** Root `data-author`, only ever set for an exact match: a fallback shape
+   * is someone else's asset and crediting it would misattribute it to an
+   * unrelated aircraft. Generated shapes have no author. */
   author?: string;
 }
 
 /**
- * Reads `typeDesignator`'s own `public/aircraft-shapes/<TYPE>.svg` live
- * (`cache: "no-store"`) — the single source for both its drawing (newer
- * plain SVGs) and `data-author`. Only the exact type's file is consulted (a
- * category/"Unidentified" fallback is someone else's asset — see
- * `isExactShapeMatch`). Deliberately not gated on the manifest, which lacks
- * the newest plain SVGs: a 404 means "no shape file for this type". Resolves
- * `undefined` when there is none or the fetch fails.
+ * Reads the best available shape for an aircraft live (`cache: "no-store"`),
+ * walking `shapeKeyCandidates` until a file exists. Resolves `undefined`
+ * when none can be fetched.
  */
-export async function fetchLiveShape(typeDesignator: string | undefined): Promise<LiveShape | undefined> {
-  if (!typeDesignator) return undefined;
-  const key = typeDesignator.toUpperCase();
-  // Some shapes ship only as "<TYPE> slow.svg"/"<TYPE> fast.svg" variants.
-  for (const name of [key, `${key} slow`, `${key}-slow`]) {
+export async function fetchLiveShape(
+  typeDesignator: string | undefined,
+  category?: string,
+): Promise<LiveShape | undefined> {
+  const keys = shapeKeyCandidates(typeDesignator, category);
+  const exactKey = typeDesignator?.toUpperCase();
+  for (const key of keys) {
     try {
-      const response = await fetch(`/aircraft-shapes/${encodeURIComponent(name)}.svg`, { cache: "no-store" });
+      const response = await fetch(`/aircraft-shapes/${encodeURIComponent(key)}.svg`, { cache: "no-store" });
       if (!response.ok) continue;
       const raw = await response.text();
-      const author = raw.match(/<svg[^>]*\sdata-author="([^"]*)"/)?.[1]?.trim() || undefined;
-      const legacy = raw.includes("inkscape:groupmode");
-      return { ...(legacy ? {} : { raw }), ...(author ? { author } : {}) };
+      const exact = key === exactKey;
+      const author = exact ? raw.match(/<svg[^>]*\sdata-author="([^"]*)"/)?.[1]?.trim() || undefined : undefined;
+      return { raw, key, exact, ...(author ? { author } : {}) };
     } catch {
       continue;
     }

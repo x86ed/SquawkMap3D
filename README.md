@@ -15,11 +15,7 @@ The XP progress-to-next-tier bar shown for a successful card is driven by a smal
 
 ## Attribution
 
-Aircraft icons under `public/aircraft-shapes/` are vendored from [AircraftShapesSVG](https://github.com/RexKramer1/AircraftShapesSVG) (GPL-3.0), keyed by ICAO type designator.
-
-Fallback silhouettes under `public/aircraft-silhouettes/` are vendored from [pw-silhouettes](https://github.com/plane-watch/pw-silhouettes) (CC BY-NC-SA 4.0 — non-commercial), one per ADS-B emitter category, used when no type-specific icon exists.
-
-Both are vendored (not live-fetched) via `scripts/vendor-aircraft-icons.mjs`; re-run it and commit the result to refresh either set. See each directory's own `LICENSE` file.
+Aircraft shapes under `public/aircraft-shapes/` are this project's own: authored SVGs (carrying `data-author`) plus silhouettes generated from the `public/aircraft-models/*.glb` models by `scripts/generate-aircraft-silhouettes.mjs`. Each `.glb` carries its own embedded author metadata. No third-party shape sets are bundled.
 
 ## Deploying to the feeder
 
