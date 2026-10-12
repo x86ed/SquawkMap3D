@@ -95,3 +95,26 @@ a {
   text-align: center;
   color: #333;
 }
+
+/* 2D inline-SVG aircraft markers (components/map/aircraft2dMarkers.ts). One
+ * `--aircraft-tint` tints the whole SVG, rotor groups included. The marker's
+ * rotation is MapLibre's own (set on the Marker), not applied here. */
+.aircraft-2d-marker {
+  cursor: pointer;
+  pointer-events: auto;
+  line-height: 0;
+}
+
+.aircraft-2d-marker svg {
+  display: block;
+  overflow: visible;
+}
+
+.aircraft-2d-marker svg * {
+  fill: var(--aircraft-tint);
+  stroke: var(--aircraft-tint);
+}
+
+.aircraft-2d-marker.aircraft-2d-marker--selected svg {
+  filter: drop-shadow(0 0 4px var(--aircraft-tint)) drop-shadow(0 0 2px #fff);
+}
