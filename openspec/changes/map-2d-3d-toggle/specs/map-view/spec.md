@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: 2D/3D view mode toggle
-The map SHALL provide a 2D/3D view-mode toggle, defaulting to 3D, implemented as an additional button in the existing top-left navigation control group, styled to match it. The button SHALL be labeled with the current mode ("2D" or "3D"). The compass (reset-north) button SHALL keep its normal reset-north behavior in both modes and SHALL NOT act as the toggle. In 2D mode the map SHALL be viewed dead-on top-down (pitch 0) and the user SHALL NOT be able to change pitch; 3D terrain SHALL be disabled. Switching back to 3D SHALL restore the 3D pitch range and terrain.
+The map SHALL provide a 2D/3D view-mode toggle, defaulting to 3D, implemented as an additional button in the existing top-left navigation control group, styled to match it. The button SHALL be labeled with the current mode ("2D" or "3D"). The compass (reset-north) button SHALL keep its normal reset-north behavior in both modes and SHALL NOT act as the toggle. In 2D mode the map SHALL be viewed dead-on top-down (pitch 0) and the user SHALL NOT be able to change pitch; 3D terrain SHALL be disabled, and aircraft SHALL be drawn as inline SVG DOM markers (see aircraft-tracks-layer). Switching back to 3D SHALL restore the 3D pitch range and terrain and remove the 2D markers.
 
 #### Scenario: Toggle control placement
 - **WHEN** the map has loaded
@@ -22,6 +22,10 @@ The map SHALL provide a 2D/3D view-mode toggle, defaulting to 3D, implemented as
 #### Scenario: Switch back to 3D
 - **WHEN** the map is in 2D mode and the user clicks the 2D/3D button
 - **THEN** the map pitch returns to its pre-2D value (or the default initial pitch), terrain is re-applied, and the label shows "3D"
+
+#### Scenario: 2D aircraft are inline SVG markers
+- **WHEN** the map is in 2D mode with aircraft in view
+- **THEN** the aircraft are displayed as inline SVG markers positioned and rotated on the map (up to the marker cap, with static icon fallback beyond it), and switching back to 3D removes those markers
 
 #### Scenario: Mode survives style swap
 - **WHEN** the map is in 2D mode and the user switches theme or pilot mode
