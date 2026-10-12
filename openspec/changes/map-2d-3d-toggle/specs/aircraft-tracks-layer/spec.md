@@ -14,3 +14,22 @@ In 3D view mode, aircraft with a loaded 3D model SHALL render as that model (exi
 #### Scenario: Selection and tracks unaffected
 - **WHEN** the view mode changes
 - **THEN** the selected aircraft, its highlight, tracks, and hover tooltip remain intact
+
+### Requirement: Vertical rotors animate in 2D mode
+In 2D view mode, every aircraft with vertical rotors (helicopters, i.e. the rotorcraft emitter category or an ICAO type designator classified as rotorcraft, and other vertical-rotor types such as tiltrotors, gyrocopters and multirotor UAVs where the type's shape defines rotors) SHALL render its 2D icon with its rotor element(s) visibly spinning, continuously and smoothly (animated per rendered frame, not stepped once per data poll), around the rotor's own hub, independent of the aircraft's track updates. Fuselage orientation SHALL remain fixed to the aircraft's track while rotors spin.
+
+#### Scenario: Helicopter rotor spins in 2D
+- **WHEN** the map is in 2D mode and a helicopter is displayed
+- **THEN** its rotor blades rotate continuously and smoothly about the rotor hub while the fuselage stays aligned to track
+
+#### Scenario: Non-rotor aircraft do not spin
+- **WHEN** the map is in 2D mode and a fixed-wing aircraft is displayed
+- **THEN** no rotor animation is shown on it
+
+#### Scenario: Rotor spin continues between polls
+- **WHEN** no new aircraft data has arrived for several frames in 2D mode
+- **THEN** rotors on displayed rotorcraft continue spinning
+
+#### Scenario: Spin stops when leaving 2D animation path
+- **WHEN** the user switches to 3D mode
+- **THEN** the 2D rotor animation loop stops and rotor motion is provided by the 3D models' own rotor animation

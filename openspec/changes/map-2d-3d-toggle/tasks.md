@@ -16,8 +16,17 @@
 - [ ] 3.3 Pass `modelsEnabled: viewModeRef.current === "3d"` to every `buildAircraftLayers` call
 - [ ] 3.4 In the `style.load` / `setupStyleDependentState` path honor `viewModeRef` for terrain and pitch
 
+## 3b. 2D rotor animation
+
+- [ ] 3b.1 `aircraftLayer.ts`: add `hasVerticalRotors(a)` (category A7 OR type in `VERTICAL_ROTOR_TYPES`) and use it to filter the rotor layer data instead of the category-only check; add `VERTICAL_ROTOR_TYPES` to `constants.ts` or `aircraftModels.ts`
+- [ ] 3b.2 `aircraftIcons.ts`: for SVGs/types with rotor blades, emit a fuselage-only atlas entry plus a `<KEY>:rotor` blades-only entry (same canvas size, hub aligned); keep `ROTOR_ACCENT_KEY` as fallback; document hub offset handling for tandem/tail rotors
+- [ ] 3b.3 Rotor `IconLayer`: `getIcon` resolves the per-type blade sprite; `getAngle` driven by a per-frame clock via `updateTriggers`
+- [ ] 3b.4 `MapView.tsx`: rAF loop (cap ~30 fps) that rebuilds/updates only the rotor layer while `viewMode === "2d"` and rotorcraft are visible; cancel on 3D switch and unmount; keeps spinning between polls
+- [ ] 3b.5 Update the existing per-poll comment in `aircraftLayer.ts` (Decision 8 text) that says the spin is stepped per poll
+
 ## 4. Tests
 
 - [ ] 4.1 Unit test: `buildAircraftLayers` with `modelsEnabled=false` returns no scenegraph layers and includes every aircraft in the icon layer data
 - [ ] 4.2 Control test: compass click calls `onToggle` and does not trigger default reset-north-pitch; label reflects mode
-- [ ] 4.3 Run existing test suite and `openspec validate map-2d-3d-toggle`
+- [ ] 4.3 Unit test: `hasVerticalRotors` for A7, a helicopter type, a tiltrotor, and a fixed-wing; rotor layer `getAngle` changes across clock ticks without new data
+- [ ] 4.4 Run existing test suite and `openspec validate map-2d-3d-toggle`
