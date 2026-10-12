@@ -1,15 +1,9 @@
 /**
- * The vendored AircraftShapesSVG library (`aircraftShapes.ts`,
- * `aircraftIcons.ts`) declares a `viewBox`/physical size per file, but that
- * canvas isn't tightly cropped to each drawing's actual content — confirmed
- * by measuring a few files' real geometry: B738's drawing fills roughly
- * half of its declared 80×80 unit canvas, while C172's fills barely a
- * fourteenth of it (an ~11×8 unit drawing in the same nominal 80×80 space).
- * Every consumer that scales "the shape" to fit an icon box using the
- * file's own `viewBox` inherits that inconsistency — some aircraft render
- * at a sensible size, others (like the Cessna 172, one of the more common
- * types) render as a barely-visible speck regardless of how big the icon
- * box itself is.
+ * Shape SVGs (`aircraftShapes.ts`, `aircraftIcons.ts`) declare a
+ * `viewBox`/physical size per file, but that canvas isn't guaranteed to be
+ * tightly cropped to each drawing's actual content, so scaling "the shape"
+ * to fit an icon box using the file's own `viewBox` can leave a type
+ * rendering as a small speck inside a large canvas.
  *
  * This computes a tight, padded, square `viewBox` around a shape's actual
  * drawn geometry instead, so every shape fills its icon box consistently.

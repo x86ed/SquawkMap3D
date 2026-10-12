@@ -16,7 +16,7 @@
 
 1. **Authorship decides what is kept.** An SVG is kept iff its root element has `data-author="squawk-7500"` (34 files today: `A1 A20N A319 A333 A339 A37 A388 AS50 B38M B738 B763 B77L B77W BE9L C150 C180 C180-PONTOON E75L FALH FH11 FIRE L101 MG17 PARA PRTS PRTS-POD PTUG SR22 TB20 TURB UH1 ULAC V22 VF35`). Everything else in `aircraft-shapes/` is deleted, as is all of `aircraft-silhouettes/`. A test asserts every file left in `public/aircraft-shapes/` has either a `data-author` or `data-generated="true"` root attribute, so an unlicensed file can't sneak back in.
 
-2. **Gaps filled by a generator, committed output.** `scripts/generate-aircraft-silhouettes.mjs` (Node, `three` + `GLTFLoader` already dependencies) loads each `.glb` with no authored SVG, projects non-gear geometry top-down (skipping `Rotor*` nodes except for `UNKN`, whose saucer body is a rotor node), rasterizes, traces the outline, simplifies, and writes `public/aircraft-shapes/<TYPE>.svg`: one filled `currentColor` path, bbox-cropped, nose up, root `data-generated="true"` and no `data-author`. Never overwrites a file that has `data-author`. Output committed; not part of `npm run build`.
+2. **Gaps filled by a generator, committed output.** `scripts/generate-aircraft-silhouettes.mjs` (Node, `three` + `GLTFLoader` already dependencies) loads each `.glb` with no authored SVG, projects non-gear geometry top-down (rotor nodes included at rest — verified against the authored SVGs, whose silhouettes include rotor blades; model +X → SVG x, +Z → SVG y), rasterizes, traces the outline, simplifies, and writes `public/aircraft-shapes/<TYPE>.svg`: one filled `currentColor` path, bbox-cropped, nose up, root `data-generated="true"` and no `data-author`. Never overwrites a file that has `data-author`. Output committed; not part of `npm run build`.
 
 3. **Single shape directory.** Shapes stay in `public/aircraft-shapes/` (the existing authoring workflow already writes there); `public/aircraft-silhouettes/` goes away. `AIRCRAFT_CATEGORY_FALLBACK_ICON` is deleted; the atlas resolves category → `CATEGORY_FALLBACK_KEY[category]` → that type's shape; `resolveIconKey`'s `"category"` source disappears (`"type"`, `"category-type"`, `"generic"` remain).
 
@@ -45,7 +45,7 @@
 
 - Top-down model projection can yield blobby silhouettes for helicopters (rotors) or gear-down models → exclude `Rotors`/`Landing gear` nodes by name; spot-check every output visually.
 - Types with no model and no authored SVG lose their exact 2D icon (e.g. A124 shows as the A5 representative). Accepted per the goal; coverage grows by adding models.
-- `UNKN`'s whole saucer body is a rotor node, so the silhouette generator must include rotor nodes for that model (blade-only rotors on other types stay excluded).
+- Helicopter silhouettes include their blades at rest (matches the authored `AS50`/`UH1`/etc.), so rotorcraft icons read as a blade cross rather than a bare fuselage.
 - `ICON_ORIENTATION_OFFSET_DEG` was tuned per old SVG; generated silhouettes face nose-up by construction, so offsets are expected to be dropped — verify per key.
 
 ## Open Questions

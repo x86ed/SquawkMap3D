@@ -642,18 +642,12 @@
   color: var(--rarity-color);
 }
 
-/* Top-view aircraft silhouette (vendored from RexKramer1/AircraftShapesSVG,
-   GPL-3.0 — see public/aircraft-shapes/LICENSE), rendered as an inlined SVG
-   (not `<img>`) so it can be colored with a plain CSS `color`, exactly
-   matching the tier's accent — every vendored file's paths were rewritten
-   to `stroke:currentColor`/`fill:currentColor` at generation time (see
-   scripts/generate-aircraft-shapes-manifest.mjs). Each source drawing is a
-   thin outline stroke, not a filled silhouette, so `vector-effect:
-   non-scaling-stroke` plus a boosted `stroke-width` keep it visible (a
-   crisp constant pixel width regardless of the icon's own render size)
-   rather than the near-invisible hairline the files' own original
-   mm-scaled stroke width would produce at this size. The `drop-shadow`
-   glow mirrors adsb.win's own aircraft-icon treatment. */
+/* Top-view aircraft silhouette (an authored or `.glb`-generated SVG from
+   public/aircraft-shapes/ — see aircraftShapes.ts), rendered as an inlined
+   SVG (not `<img>`) so it can be colored with a plain CSS `color`, exactly
+   matching the tier's accent — each file is a solid `fill="currentColor"`
+   drawing. The `drop-shadow` glow mirrors adsb.win's own aircraft-icon
+   treatment. */
 /* Same container-size-driven growth as .modelName, same `cqmin` cap — the
    type silhouette is this card's "graph"-equivalent visual, so it scales
    with the cell rather than sitting fixed at 48px while headroom opens up
@@ -664,19 +658,6 @@
   aspect-ratio: 1;
   color: var(--rarity-color);
   filter: drop-shadow(0 0 3px var(--rarity-glow));
-}
-
-/* Several vendored shapes (`aircraftShapes.ts`) are pure `fill:none` outline
-   strokes with no solid fill at all — confirmed by inspecting the source
-   files directly (e.g. the Cessna 172's silhouette) — which read as a bare
-   hairline even at this icon's full size. Force every path to a solid fill
-   in the tier's own color instead of trusting each of the 179 vendored
-   files' own styling to already have one. */
-.shapeIcon:not([data-live]) path {
-  vector-effect: non-scaling-stroke;
-  stroke-width: 2.5px !important;
-  fill: currentColor !important;
-  stroke: currentColor !important;
 }
 
 .statLabel {
@@ -1294,8 +1275,8 @@
   text-overflow: ellipsis;
 }
 
-/* A live-inlined SVG file (`data-live`) keeps its own styling; only size the
- * root <svg> to the icon box. */
+/* The inlined SVG file keeps its own styling; only size the root <svg> to
+ * the icon box. */
 .shapeIcon[data-live] svg,
 .creditIcon[data-live] svg {
   width: 100%;

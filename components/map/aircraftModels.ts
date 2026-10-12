@@ -1,7 +1,7 @@
 import { load } from "@loaders.gl/core";
 import { GLTFLoader } from "@loaders.gl/gltf";
 import type { Aircraft } from "./aircraft";
-import { CATEGORY_FALLBACK_KEY } from "./aircraftShapes";
+import { CATEGORY_FALLBACK_KEY, UNKNOWN_FALLBACK_KEY } from "./aircraftShapes";
 
 interface AircraftModelManifestEntry {
   /** Only tells us which ICAO type designators have a vendored `.glb` at all
@@ -197,10 +197,11 @@ export async function loadAircraftModelManifest(): Promise<void> {
 /**
  * The vendored-model manifest key for `aircraft` — its own exact ICAO type
  * designator if that's vendored, else (mirroring `aircraftIcons.ts`'s
- * `resolveIconKey`/`aircraftShapes.ts`'s `getAircraftShape` category
+ * `resolveIconKey`/`aircraftShapes.ts`'s `shapeKeyCandidates` category
  * fallback, via the same `CATEGORY_FALLBACK_KEY` table) its emitter
- * category's representative modeled type, or `undefined` if neither is
- * vendored — the caller should fall back to the 2D icon in that case. Kept
+ * category's representative modeled type, else the dedicated unknown-aircraft
+ * model (`UNKN`), or `undefined` if none of those is vendored — the caller
+ * should fall back to the 2D icon in that case. Kept
  * in lockstep with the 2D fallback chain so a GA type real ADS-B traffic
  * reports as a variant designator the model manifest doesn't carry (e.g. a
  * Cessna 172S variant, category `A1`) still gets the model its 2D icon
@@ -227,6 +228,11 @@ export function resolveModelKeyForTypeAndCategory(
   const fallbackKey = category && CATEGORY_FALLBACK_KEY[category.toUpperCase()];
   if (fallbackKey && modelInfoByTypeDesignator.has(fallbackKey)) {
     return fallbackKey;
+  }
+  // Neither the exact type nor its category is modeled: the dedicated
+  // unknown-aircraft model, when vendored.
+  if (modelInfoByTypeDesignator.has(UNKNOWN_FALLBACK_KEY)) {
+    return UNKNOWN_FALLBACK_KEY;
   }
   return undefined;
 }

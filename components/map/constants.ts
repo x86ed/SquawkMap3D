@@ -149,14 +149,6 @@ export const RANGE_OUTLINE_REFRESH_INTERVAL_MS = 15_000;
 // revolution every 8 seconds.
 export const RANGE_OUTLINE_SWEEP_PERIOD_MS = 8_000;
 
-// ADS-B emitter category (as reported in aircraft.json's `category` field,
-// values "A0"-"D7" per DO-260B) -> vendored fallback silhouette under
-// public/aircraft-silhouettes/, used by aircraftIcons.ts when no
-// type-specific shape matches the aircraft's `t` field. Resolved from
-// pw-silhouettes' generics/<name>.json "aliasOf" mappings (see
-// scripts/vendor-aircraft-icons.mjs for the source of each entry) — not
-// every category has a pw-silhouettes generic (e.g. B5, C3-C7 are
-// unmapped), those fall through to the plain-marker fallback instead.
 // Selected-aircraft glow highlight (components/map/aircraftLayer.ts's
 // ScatterplotLayer, see design.md Decision 4) — radius comfortably larger
 // than the 40px icon size in aircraftLayer.ts (kept at roughly the same
@@ -255,24 +247,6 @@ export const AIRCRAFT_MODEL_SIZE_SCALE = 1;
 // larger, at its real 1:1 scale, once zoomed in close enough for that to
 // exceed the floor.
 export const AIRCRAFT_MODEL_MIN_SIZE_PIXELS_PER_METER = 1.4;
-
-export const AIRCRAFT_CATEGORY_FALLBACK_ICON: Record<string, string> = {
-  A1: "/aircraft-silhouettes/A1.svg", // light
-  A2: "/aircraft-silhouettes/A2.svg", // medium 1 (7,000-34,000 kg)
-  A3: "/aircraft-silhouettes/A3.svg", // medium 2 (34,000-136,000 kg)
-  A4: "/aircraft-silhouettes/A4.svg", // high vortex large
-  A5: "/aircraft-silhouettes/A5.svg", // heavy
-  A6: "/aircraft-silhouettes/A6.svg", // high performance
-  A7: "/aircraft-silhouettes/A7.svg", // rotorcraft
-  B1: "/aircraft-silhouettes/B1.svg", // glider/sailplane
-  B2: "/aircraft-silhouettes/B2.svg", // lighter-than-air
-  B3: "/aircraft-silhouettes/B3.svg", // parachutist/skydiver
-  B4: "/aircraft-silhouettes/B4.svg", // ultralight/hang-glider/paraglider
-  B6: "/aircraft-silhouettes/B6.svg", // unmanned aerial vehicle
-  B7: "/aircraft-silhouettes/B7.svg", // space/transatmospheric vehicle
-  C1: "/aircraft-silhouettes/C1.svg", // surface emergency vehicle
-  C2: "/aircraft-silhouettes/C2.svg", // surface service vehicle
-};
 
 // Optional deep-link URL templates into three external CRUD UIs this app
 // doesn't own or build (see openspec/changes/compass-card-airframe-toggle):

@@ -3,7 +3,7 @@
 // not tracked as a build input) into public/aircraft-models/ and writes a
 // manifest.json listing which ICAO type designators have a model — same
 // "no directory-listing API for Next's public/" reason
-// generate-aircraft-shapes-manifest.mjs writes one for the 2D SVG shapes.
+// generate-aircraft-silhouettes.mjs writes one for the 2D SVG shapes.
 //
 // Each manifest entry is just `{ type }` — this manifest only says which
 // types have a vendored model at all (2D vs. 3D). Per-model data actually

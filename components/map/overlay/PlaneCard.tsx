@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import styles from "./PlaneCard.module.css";
 import { RARITY_TIER_STYLES, type RarityTier } from "../aircraftRarity";
-import { getAircraftShape, fetchLiveShape, type AircraftShape, type LiveShape } from "../aircraftShapes";
-import { computeTightViewBox } from "../svgBBox";
+import { fetchLiveShape, type LiveShape } from "../aircraftShapes";
 import type { AircraftModelCardResult } from "./aircraftModelCard";
 import { storeFeederUuid } from "./feederUuid";
 import { computeTierProgress } from "./tierProgress";
@@ -15,11 +14,12 @@ import { creditLinkMarkup, WIREFRAME_CUBE_ICON } from "./compassCard/vendor/core
 const UNKNOWN = "Unknown";
 
 export interface PlaneCardProps {
-  /** ICAO type designator — selects the vendored top-view silhouette (see
-   * `aircraftShapes.ts`); falls back to that set's own "Unidentified"
-   * shape when unset or unrecognized. */
+  /** ICAO type designator — selects the top-view silhouette (see
+   * `aircraftShapes.ts`); falls back to its category's representative
+   * shape, then the unknown-aircraft (`UNKN`) shape, when unset or
+   * unrecognized. */
   typeDesignator?: string;
-  /** ADS-B emitter category — passed straight through to `getAircraftShape`
+  /** ADS-B emitter category — passed straight through to `fetchLiveShape`
    * as its coarse fallback when `typeDesignator` isn't available. */
   category?: string;
   manufacturerModel?: string;
@@ -72,22 +72,6 @@ function formatDuration(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   return `${hours}h ${minutes.toString().padStart(2, "0")}m`;
-}
-
-/**
- * The vendored shape's own declared `viewBox` isn't tightly cropped to its
- * actual drawing (see `svgBBox.ts`'s doc comment — some types, like the
- * Cessna 172, draw at barely a fourteenth of their nominal canvas), so
- * using it directly renders as a near-invisible speck regardless of how big
- * `.shapeIcon` itself is sized. Measures the shape's real content bounding
- * box (mounts the markup into a detached, off-screen `<svg>` just long
- * enough to call `getBBox()`, then immediately unmounts it — see
- * `computeTightViewBox`) and returns a tight, padded, square crop instead,
- * memoized per `shape` reference so re-renders with the same selected
- * aircraft don't remeasure.
- */
-function useTightAircraftShapeViewBox(shape: AircraftShape): string {
-  return useMemo(() => computeTightViewBox(shape.markup, shape.viewBox), [shape]);
 }
 
 /**
@@ -290,35 +274,36 @@ export function PlaneCard({
   addedBy = "",
   firstSeenBy = "",
 }: PlaneCardProps) {
-  const shape = getAircraftShape(typeDesignator, category);
-  const viewBox = useTightAircraftShapeViewBox(shape);
-
-  // Silhouette drawing + author, read live from the served SVG asset (never
-  // the manifest) — keyed by type so a stale result never applies to a new
-  // selection.
-  const [liveResult, setLiveResult] = useState<{ type?: string; live?: LiveShape }>({});
+  // Silhouette drawing + author, read live from the served SVG asset —
+  // keyed by type/category so a stale result never applies to a new
+  // selection. Falls back through the category's representative shape to
+  // the unknown-aircraft shape (see `fetchLiveShape`); only an exact-type
+  // match ever carries an author.
+  const [liveResult, setLiveResult] = useState<{ type?: string; category?: string; live?: LiveShape }>({});
   useEffect(() => {
     let cancelled = false;
-    fetchLiveShape(typeDesignator).then((live) => {
-      if (!cancelled) setLiveResult({ type: typeDesignator, live });
+    fetchLiveShape(typeDesignator, category).then((live) => {
+      if (!cancelled) setLiveResult({ type: typeDesignator, category, live });
     });
     return () => {
       cancelled = true;
     };
-  }, [typeDesignator]);
-  const live = liveResult.type === typeDesignator ? liveResult.live : undefined;
+  }, [typeDesignator, category]);
+  const live = liveResult.type === typeDesignator && liveResult.category === category ? liveResult.live : undefined;
   const silhouetteAuthor = live?.author ?? "";
   const liveSvg = live?.raw;
 
-  /** The aircraft's silhouette: the live file inlined whole when it's a newer
-   * plain SVG, else the manifest's legacy markup in our own `<svg viewBox>`.
-   * Both are vendored/served from this app's own `public/`, never user input. */
-  const renderShape = (className: string) =>
-    liveSvg ? (
-      <span className={className} data-live aria-hidden="true" dangerouslySetInnerHTML={{ __html: liveSvg }} />
-    ) : (
-      <svg className={className} viewBox={viewBox} aria-hidden="true" dangerouslySetInnerHTML={{ __html: shape.markup }} />
-    );
+  /** The aircraft's silhouette: the served file inlined whole. Served from
+   * this app's own `public/`, never user input. Renders an empty,
+   * size-holding placeholder until it loads. */
+  const renderShape = (className: string) => (
+    <span
+      className={className}
+      data-live
+      aria-hidden="true"
+      dangerouslySetInnerHTML={liveSvg ? { __html: liveSvg } : undefined}
+    />
+  );
 
   const { manufacturer, model } = splitManufacturerModel(manufacturerModel);
 
@@ -402,7 +387,7 @@ export function PlaneCard({
     // the browser's HTML parser never enters SVG foreign-content mode for
     // the bare `<g>`/`<path>` markup, so it rendered broken/tiny instead of
     // filling the front face like the 3D wireframe does.
-    const fallbackSvg = liveSvg ?? `<svg viewBox="${viewBox}">${shape.markup}</svg>`;
+    const fallbackSvg = liveSvg ?? "";
     loadAircraftGltfScene(typeDesignator, category).then((scene) => {
       if (cancelled) return;
       mountCardArt(slot, scene ?? undefined, color, fallbackSvg);
@@ -411,7 +396,7 @@ export function PlaneCard({
     return () => {
       cancelled = true;
     };
-  }, [typeDesignator, category, rarityTier, shape, viewBox, liveSvg]);
+  }, [typeDesignator, category, rarityTier, liveSvg]);
 
   // Reset once the selection itself changes (type/category), so a stale
   // flat/3D verdict from the previous aircraft never briefly credits the
