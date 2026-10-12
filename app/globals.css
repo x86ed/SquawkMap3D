@@ -83,3 +83,38 @@ a {
   color: #f1f5f9;
   background-color: rgba(255, 255, 255, 0.08);
 }
+
+/* 2D/3D view-mode button (components/map/viewModeControl.ts) — sits in its
+ * own `.maplibregl-ctrl-group`, so MapLibre's own group/button rules supply
+ * the border, shadow, size, and hover; this only styles the text label to
+ * match the (unthemed, white) nav controls beside it. */
+.maplibregl-ctrl-group button.maplibregl-ctrl-view-mode {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 29px;
+  text-align: center;
+  color: #333;
+}
+
+/* 2D inline-SVG aircraft markers (components/map/aircraft2dMarkers.ts). One
+ * `--aircraft-tint` tints the whole SVG, rotor groups included. The marker's
+ * rotation is MapLibre's own (set on the Marker), not applied here. */
+.aircraft-2d-marker {
+  cursor: pointer;
+  pointer-events: auto;
+  line-height: 0;
+}
+
+.aircraft-2d-marker svg {
+  display: block;
+  overflow: visible;
+}
+
+.aircraft-2d-marker svg * {
+  fill: var(--aircraft-tint);
+  stroke: var(--aircraft-tint);
+}
+
+.aircraft-2d-marker.aircraft-2d-marker--selected svg {
+  filter: drop-shadow(0 0 4px var(--aircraft-tint)) drop-shadow(0 0 2px #fff);
+}

@@ -76,7 +76,7 @@ export interface IconAtlasEntry {
   // `vColorMode` comes straight from this `mask` flag — 0/false uses the
   // texture color as-is, 1/true treats the texture as an alpha-only mask
   // tinted by `getColor`). Every shape here is deliberately baked solid
-  // white (see `loadShapeImage`/`drawGenericMarker`) specifically so this
+  // white (see `loadShapeSprites`/`drawGenericMarker`) specifically so this
   // mask mode can recolor it — `mask: true` is what actually turns that on.
   mask: true;
 }
@@ -144,7 +144,9 @@ function loadImage(url: string): Promise<HTMLImageElement | null> {
  * with no explicit size defaults to a fixed 300×150 box regardless of its
  * `viewBox`.
  */
-async function loadShapeImage(url: string): Promise<HTMLImageElement | null> {
+const SHAPE_RASTER_SIZE = 256;
+
+async function loadShapeSprite(url: string): Promise<HTMLImageElement | null> {
   let response: Response;
   try {
     response = await fetch(url);
@@ -162,12 +164,13 @@ async function loadShapeImage(url: string): Promise<HTMLImageElement | null> {
   const innerMarkup = svgEl.innerHTML;
   const tightViewBox = computeTightViewBox(innerMarkup, fallbackViewBox);
 
+  // The whole static drawing, rotors in place: 2D rotor motion is done by
+  // the live SVG DOM markers (aircraft2dMarkers.ts), not by the atlas.
   const wrapped =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${tightViewBox}" width="256" height="256">` +
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${tightViewBox}" width="${SHAPE_RASTER_SIZE}" height="${SHAPE_RASTER_SIZE}">` +
     `<style>path,polygon,polyline,circle,ellipse,rect{fill:#ffffff!important;stroke:#ffffff!important;stroke-width:3px;vector-effect:non-scaling-stroke;}</style>` +
     innerMarkup +
     `</svg>`;
-
   const blob = new Blob([wrapped], { type: "image/svg+xml" });
   const blobUrl = URL.createObjectURL(blob);
   try {
@@ -194,39 +197,6 @@ function drawGenericMarker(ctx: CanvasRenderingContext2D, cx: number, cy: number
   ctx.stroke();
 }
 
-/** Atlas key for the rotorcraft rotor-disc accent (see `ROTOR_ACCENT_KEY`'s
- * doc comment on `resolveIconKey`'s sibling usage in `aircraftLayer.ts`). */
-export const ROTOR_ACCENT_KEY = "ROTOR_ACCENT";
-
-/**
- * A rotor-disc glyph (a cross through a center hub), drawn solid white so
- * `getColor` can tint it like every other atlas entry (design.md's `mask:
- * true` fix). Rendered as its own small deck.gl `IconLayer` positioned at
- * the exact same real-world altitude as the aircraft's own icon — unlike
- * the previous MapLibre-`Marker`-based approach (`rotorMarkers.ts`, now
- * removed), which had no altitude/pitch awareness at all and always
- * projected onto the ground plane regardless of the aircraft's actual
- * height or the camera's tilt.
- */
-function drawRotorAccent(ctx: CanvasRenderingContext2D, cx: number, cy: number, size: number): void {
-  const half = size / 2;
-  ctx.save();
-  ctx.strokeStyle = "#ffffff";
-  ctx.fillStyle = "#ffffff";
-  ctx.lineWidth = Math.max(2, size * 0.08);
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - half);
-  ctx.lineTo(cx, cy + half);
-  ctx.moveTo(cx - half, cy);
-  ctx.lineTo(cx + half, cy);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(cx, cy, Math.max(2, size * 0.08), 0, Math.PI * 2);
-  ctx.fill();
-  ctx.restore();
-}
-
 /**
  * Builds a single combined icon atlas (canvas image + deck.gl `iconMapping`)
  * from every shape under `public/aircraft-shapes/` (authored or generated
@@ -247,15 +217,22 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
   const baseEntries: Array<{ key: string; url: string | null }> = [
     ...typeDesignators.map((t) => ({ key: t, url: TYPE_SHAPE_URL(t) })),
     { key: GENERIC_ICON_KEY, url: null },
-    { key: ROTOR_ACCENT_KEY, url: null },
   ];
+
+  // Loaded once per unique base entry/URL, then reused for both that entry's
+  // normal and glow cells — avoids fetching every vendored shape SVG twice.
+  const baseImages = await Promise.all(
+    baseEntries.map((entry) => (entry.url ? loadShapeSprite(entry.url) : Promise.resolve(null))),
+  );
+  const imageByKey = new Map<string, HTMLImageElement | null>();
+  baseEntries.forEach((entry, i) => imageByKey.set(entry.key, baseImages[i]));
 
   // Every base entry gets a second, blurred "glow" entry (see
   // `GLOW_ICON_KEY_SUFFIX`) so the icon-glow layer can render each aircraft's
   // own silhouette instead of an unrelated shape like a plain circle.
-  const entries: Array<{ key: string; url: string | null; glow: boolean }> = [
-    ...baseEntries.map((e) => ({ ...e, glow: false })),
-    ...baseEntries.map((e) => ({ key: glowIconKey(e.key), url: e.url, glow: true })),
+  const entries: Array<{ key: string; glow: boolean }> = [
+    ...baseEntries.map((e) => ({ key: e.key, glow: false })),
+    ...baseEntries.map((e) => ({ key: glowIconKey(e.key), glow: true })),
   ];
 
   const columns = Math.max(1, Math.ceil(Math.sqrt(entries.length)));
@@ -265,13 +242,6 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
   canvas.height = rows * CELL_SIZE;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("2D canvas context unavailable");
-
-  // Loaded once per unique base entry/URL, then reused for both that entry's
-  // normal and glow cells — avoids fetching every vendored shape SVG twice.
-  const baseImages = await Promise.all(
-    baseEntries.map((entry) => (entry.url ? loadShapeImage(entry.url) : Promise.resolve(null))),
-  );
-  const imageByKey = new Map(baseEntries.map((entry, i) => [entry.key, baseImages[i]]));
 
   const mapping: Record<string, IconAtlasEntry> = {};
   const drawable = CELL_SIZE - CELL_PADDING * 2;
@@ -301,8 +271,6 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
       const w = image.naturalWidth * scale;
       const h = image.naturalHeight * scale;
       ctx.drawImage(image, cx - w / 2, cy - h / 2, w, h);
-    } else if (baseKey === ROTOR_ACCENT_KEY) {
-      drawRotorAccent(ctx, cx, cy, drawableForEntry);
     } else {
       drawGenericMarker(ctx, cx, cy, drawableForEntry);
     }

@@ -34,8 +34,9 @@ export function buildSelectionPulseLayer(params: {
   selected: SelectionPulseTarget | null;
   nowMs: number;
   pulseStartMs: number;
+  flat?: boolean;
 }): Layer[] {
-  const { selected, nowMs, pulseStartMs } = params;
+  const { selected, nowMs, pulseStartMs, flat = false } = params;
   if (!selected) return [];
 
   const elapsedMs = nowMs - pulseStartMs;
@@ -50,7 +51,7 @@ export function buildSelectionPulseLayer(params: {
   const pulseLayer = new ScatterplotLayer<SelectionPulseTarget>({
     id: AIRCRAFT_SELECTION_GLOW_LAYER_ID,
     data: [selected],
-    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
+    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude, flat)],
     getFillColor: () => [r, g, b, alpha],
     getRadius: radius,
     radiusUnits: "pixels",

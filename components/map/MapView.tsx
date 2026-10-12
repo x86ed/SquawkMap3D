@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   Map as MapLibreMap,
+  Marker,
   NavigationControl,
   Popup,
   setWorkerUrl,
@@ -16,7 +17,9 @@ import {
   type MapTheme,
 } from "./mapStyles";
 import { getInitialTheme, storeTheme } from "./theme";
-import { applySky, applyTerrain } from "./terrain";
+import { applySky, setTerrainEnabled } from "./terrain";
+import { getInitialViewMode, storeViewMode, type ViewMode } from "./viewMode";
+import { ViewModeControl } from "./viewModeControl";
 import {
   fetchAircraft,
   updateTracks,
@@ -25,7 +28,19 @@ import {
   clearTracks,
   type Aircraft,
 } from "./aircraft";
-import { buildAircraftIconAtlas, type ColorMode, type IconAtlas } from "./aircraftIcons";
+import {
+  buildAircraftIconAtlas,
+  resolveAircraftColor,
+  resolveIconKey,
+  type ColorMode,
+  type IconAtlas,
+} from "./aircraftIcons";
+import {
+  createAircraft2dMarkerManager,
+  type Aircraft2dMarkerManager,
+  type MarkerLike,
+  type MarkerMapLike,
+} from "./aircraft2dMarkers";
 import { loadAircraftModelManifest } from "./aircraftModels";
 import { altitudeToRenderMeters, buildAircraftLayers } from "./aircraftLayer";
 import { computeRarityTier, RARITY_TIER_STYLES } from "./aircraftRarity";
@@ -118,6 +133,7 @@ import {
   SUA_REFRESH_INTERVAL_MS,
   TERMINATOR_REFRESH_INTERVAL_MS,
   TFR_REFRESH_INTERVAL_MS,
+  VIEW_MODE_2D_PITCH,
 } from "./constants";
 import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
 
@@ -191,6 +207,19 @@ export default function MapView() {
   const styleReadyRef = useRef(false);
   const deckOverlayRef = useRef<MapboxOverlay | null>(null);
   const aircraftIconAtlasRef = useRef<IconAtlas | null>(null);
+  // 2D/3D view mode: read from style-swap/poll/rAF callbacks, so a ref (no
+  // React state — nothing in the React tree renders from it; the toggle
+  // button's label is owned by `ViewModeControl`).
+  const viewModeRef = useRef<ViewMode>(getInitialViewMode());
+  const viewModeControlRef = useRef<ViewModeControl | null>(null);
+  // Pitch to restore when leaving 2D; null means "use INITIAL_PITCH".
+  const savedPitchRef = useRef<number | null>(null);
+  // 2D inline-SVG DOM markers (aircraft2dMarkers.ts): owned by the manager,
+  // which also runs the shared rotor-spin rAF loop. `lastAircraftRef` lets a
+  // viewport-driven marker-set change rebuild layers without a new fetch.
+  const markerManagerRef = useRef<Aircraft2dMarkerManager | null>(null);
+  const lastAircraftRef = useRef<Aircraft[]>([]);
+  const hoveredAircraftHexRef = useRef<string | null>(null);
   // Collision-aware repositioning between the two bottom docks (design.md
   // Decision 4) — refs to each dock's root `.dock` element.
   const leftDockRef = useRef<HTMLDivElement>(null);
@@ -341,7 +370,7 @@ export default function MapView() {
       const metersPerPixel =
         (78271.517 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, map.getZoom());
       altitudePixels =
-        (altitudeToRenderMeters(altitudeFt) * Math.sin((map.getPitch() * Math.PI) / 180)) /
+        (altitudeToRenderMeters(altitudeFt, viewModeRef.current === "2d") * Math.sin((map.getPitch() * Math.PI) / 180)) /
         metersPerPixel;
     }
     return [-occupiedWidth / 2, -drawerHeight / 2 + altitudePixels];
@@ -401,10 +430,50 @@ export default function MapView() {
     void refreshAircraft();
   };
 
+  const handleAircraftHover = (
+    hovered: (Aircraft & { lat: number; lon: number }) | null,
+    x: number,
+    y: number,
+  ) => {
+    hoveredAircraftHexRef.current = hovered ? hovered.hex : null;
+    setHoveredAircraft(hovered);
+    if (hovered) setHoverPosition({ x, y });
+  };
+
+  // Builds and pushes the deck.gl aircraft layers from `aircraft`. In 2D the
+  // marker manager first decides which aircraft hold a DOM marker; those ids
+  // are excluded from the IconLayer data (the glow still draws every one).
+  const renderAircraftLayers = (aircraft: Aircraft[]) => {
+    if (!deckOverlayRef.current) return;
+    const is2d = viewModeRef.current === "2d";
+    const domMarkerIds =
+      is2d && markerManagerRef.current
+        ? markerManagerRef.current.update(aircraft, {
+            selectedId: selectedAircraftHexRef.current,
+            hoveredId: hoveredAircraftHexRef.current,
+            colorFor: (a) => resolveAircraftColor(a, colorModeRef.current),
+          })
+        : undefined;
+    const layers = buildAircraftLayers({
+      aircraft,
+      tracks: getAllTracks(),
+      iconAtlas: aircraftIconAtlasRef.current,
+      colorMode: colorModeRef.current,
+      tracksVisible: tracksVisibleRef.current,
+      modelsEnabled: !is2d,
+      domMarkerIds,
+      onAircraftClick: (hex) =>
+        handleAircraftClick(hex, hex ? aircraft.find((a) => a.hex === hex) : undefined),
+      onAircraftHover: handleAircraftHover,
+    });
+    deckOverlayRef.current.setProps({ layers });
+  };
+
   const refreshAircraft = async () => {
     if (!deckOverlayRef.current) return;
     if (!aircraftVisibleRef.current) {
       deckOverlayRef.current.setProps({ layers: [] });
+      markerManagerRef.current?.clear();
       return;
     }
     const aircraft = await fetchAircraft();
@@ -424,20 +493,8 @@ export default function MapView() {
       stopSelectionPulse();
     }
 
-    const layers = buildAircraftLayers({
-      aircraft,
-      tracks: getAllTracks(),
-      iconAtlas: aircraftIconAtlasRef.current,
-      colorMode: colorModeRef.current,
-      tracksVisible: tracksVisibleRef.current,
-      onAircraftClick: (hex) =>
-        handleAircraftClick(hex, hex ? aircraft.find((a) => a.hex === hex) : undefined),
-      onAircraftHover: (hovered, x, y) => {
-        setHoveredAircraft(hovered);
-        if (hovered) setHoverPosition({ x, y });
-      },
-    });
-    deckOverlayRef.current.setProps({ layers });
+    lastAircraftRef.current = aircraft;
+    renderAircraftLayers(aircraft);
 
     const selected = selectedAircraftHexRef.current
       ? aircraft.find((a) => a.hex === selectedAircraftHexRef.current)
@@ -586,6 +643,7 @@ export default function MapView() {
       selected: selectedAircraftPulseRef.current,
       nowMs,
       pulseStartMs: selectionPulseStartRef.current,
+      flat: viewModeRef.current === "2d",
     });
     overlay.setProps({ layers });
 
@@ -611,6 +669,43 @@ export default function MapView() {
     // Clears the ring immediately rather than leaving the last frame
     // painted (mirrors stopRangeOutlineSweep's own layers-clear above).
     selectionPulseOverlayRef.current?.setProps({ layers: [] });
+  };
+
+  const handleViewModeToggle = () => {
+    const map = mapRef.current;
+    if (!map) return;
+    const next: ViewMode = viewModeRef.current === "2d" ? "3d" : "2d";
+    viewModeRef.current = next;
+    storeViewMode(next);
+    viewModeControlRef.current?.setMode(next);
+
+    if (next === "2d") {
+      const pitch = map.getPitch();
+      if (pitch > 0) savedPitchRef.current = pitch;
+      setTerrainEnabled(map, false);
+      if (pitch === 0) {
+        map.setMaxPitch(VIEW_MODE_2D_PITCH);
+      } else {
+        // `setMaxPitch` clamps the current pitch immediately (no
+        // animation), so ease to flat first and lock the pitch range once
+        // the ease ends — unless the user switched back to 3D meanwhile.
+        map.easeTo({ pitch: VIEW_MODE_2D_PITCH, duration: 500 });
+        map.once("moveend", () => {
+          if (viewModeRef.current === "2d") map.setMaxPitch(VIEW_MODE_2D_PITCH);
+        });
+      }
+    } else {
+      map.setMaxPitch(MAX_PITCH);
+      setTerrainEnabled(map, true);
+      map.easeTo({ pitch: savedPitchRef.current ?? INITIAL_PITCH, duration: 500 });
+    }
+
+    // Leaving 2D drops every DOM marker (and stops the rotor loop) before
+    // the rebuild; entering 2D populates them from the last poll below.
+    if (next === "3d") markerManagerRef.current?.clear();
+
+    // Swap models/icons now rather than at the next ~1 Hz poll.
+    void refreshAircraft();
   };
 
   const handleLocationResolved = (coords: GeoCoords | null) => {
@@ -660,11 +755,25 @@ export default function MapView() {
       container: containerRef.current,
       style: getStyleUrl(themeRef.current),
       bounds: getBoundsForRadiusNM(DEFAULT_VIEW.center, INITIAL_ZOOM_RADIUS_NM),
-      pitch: INITIAL_PITCH,
-      maxPitch: MAX_PITCH,
+      pitch: viewModeRef.current === "2d" ? VIEW_MODE_2D_PITCH : INITIAL_PITCH,
+      maxPitch: viewModeRef.current === "2d" ? VIEW_MODE_2D_PITCH : MAX_PITCH,
       bearing: INITIAL_BEARING,
     });
     mapRef.current = map;
+    markerManagerRef.current = createAircraft2dMarkerManager({
+      map: map as unknown as MarkerMapLike,
+      createMarker: (element) =>
+        new Marker({
+          element,
+          anchor: "center",
+          rotationAlignment: "map",
+          pitchAlignment: "map",
+        }) as unknown as MarkerLike,
+      resolveTypeKey: (aircraft) => resolveIconKey(aircraft).key,
+      onSelect: (hex, aircraft) => handleAircraftClick(hex, aircraft),
+      onHover: handleAircraftHover,
+      onMarkerIdsChange: () => renderAircraftLayers(lastAircraftRef.current),
+    });
     map.addControl(
       new NavigationControl({
         showZoom: true,
@@ -673,6 +782,14 @@ export default function MapView() {
       }),
       "top-left",
     );
+    // A separate button directly below the nav group; the compass above
+    // keeps its reset-north behavior in both modes.
+    const viewModeControl = new ViewModeControl({
+      getMode: () => viewModeRef.current,
+      onToggle: handleViewModeToggle,
+    });
+    viewModeControlRef.current = viewModeControl;
+    map.addControl(viewModeControl, "top-left");
     map.on("rotate", () => setMapBearing(map.getBearing()));
 
     // Unlike the style-owned custom layers below (re-added in
@@ -757,7 +874,9 @@ export default function MapView() {
 
     const setupStyleDependentState = () => {
       styleReadyRef.current = true;
-      applyTerrain(map);
+      // Terrain is style-owned (cleared by `setStyle`), so honor the current
+      // view mode here; pitch/maxPitch live on the camera and survive.
+      setTerrainEnabled(map, viewModeRef.current === "3d");
       applySky(map);
       // Added before `addCustomLayers` so it lands at the bottom of the
       // custom-layer stack (MapLibre draws layers in insertion order) —
@@ -947,6 +1066,8 @@ export default function MapView() {
       window.removeEventListener("keydown", handleKeyDown);
       stopRangeOutlineSweep();
       stopSelectionPulse();
+      markerManagerRef.current?.destroy();
+      markerManagerRef.current = null;
       map.remove();
       mapRef.current = null;
     };

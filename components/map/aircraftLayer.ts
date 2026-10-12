@@ -8,13 +8,13 @@ import {
   resolveAircraftColor,
   resolveIconKey,
   resolveTrackPointColor,
-  ROTOR_ACCENT_KEY,
   type IconAtlas,
 } from "./aircraftIcons";
 import { isRotorcraftModel, landingGearHideThresholdFeet, modelRotorSpecs, resolveModelKey, resolveModelScenegraph } from "./aircraftModels";
 import { AnimatedAircraftScenegraphLayer } from "./animatedAircraftScenegraphLayer";
 import {
   AIRCRAFT_GLOW_BRIGHTEN_AMOUNT,
+  AIRCRAFT_ICON_SIZE_PIXELS,
   AIRCRAFT_ICON_GLOW_ALPHA,
   AIRCRAFT_ICON_GLOW_SIZE_PIXELS,
   AIRCRAFT_MODEL_MIN_SIZE_PIXELS_PER_METER,
@@ -34,14 +34,9 @@ export const AIRCRAFT_ICON_LAYER_ID = "aircraft-icons";
 export const AIRCRAFT_MODEL_LAYER_ID = "aircraft-models";
 export const AIRCRAFT_TRACK_LAYER_ID = "aircraft-tracks";
 export const AIRCRAFT_SELECTION_GLOW_LAYER_ID = "aircraft-selection-glow";
-export const AIRCRAFT_ROTOR_ACCENT_LAYER_ID = "aircraft-rotor-accent";
 export const AIRCRAFT_ICON_GLOW_LAYER_ID = "aircraft-icon-glow";
 export const AIRCRAFT_TRACK_GLOW_LAYER_ID = "aircraft-track-glow";
 export const AIRCRAFT_TRACK_DROPLINE_LAYER_ID = "aircraft-track-dropline";
-
-const ROTORCRAFT_CATEGORY = "A7";
-const ROTOR_ACCENT_SIZE_PIXELS = 22;
-const ROTOR_ACCENT_COLOR: [number, number, number] = [229, 229, 229];
 
 // Exported so other real-altitude-positioned deck.gl layers (radarSweep.ts's
 // aircraft dots) reuse the exact same conversion rather than a copy that
@@ -58,8 +53,16 @@ export const FEET_TO_METERS = 0.3048;
  * Exported so every real-altitude-positioned deck.gl layer (this file's icon/
  * glow/track layers, and radarSweep.ts's aircraft dots) shares one
  * conversion rather than copies that could drift apart.
+ *
+ * `flat` (2D view mode): no altitude lift at all, since a high aircraft
+ * drawn at its real height drifts off its ground position toward the screen
+ * edges under the top-down perspective camera.
  */
-export function altitudeToRenderMeters(altitudeFt: number | undefined): number {
+export function altitudeToRenderMeters(
+  altitudeFt: number | undefined,
+  flat = false,
+): number {
+  if (flat) return 0;
   return (altitudeFt ?? 0) * FEET_TO_METERS * TERRAIN_EXAGGERATION;
 }
 
@@ -131,10 +134,18 @@ export function buildAircraftLayers(params: {
   tracks: ReadonlyMap<string, TrackPoint[]>;
   iconAtlas: IconAtlas | null;
   colorMode: ColorMode;
-  // Gates trail line/glow/droplines only — icon, icon-glow, and
-  // rotor layers are unaffected (aircraft-tracks-layer's "toggleable
+  // Gates trail line/glow/droplines only — icon and icon-glow
+  // layers are unaffected (aircraft-tracks-layer's "toggleable
   // independently of aircraft icon visibility" requirement).
   tracksVisible: boolean;
+  // 3D view mode: aircraft with a loaded .glb render as models. 2D view
+  // mode (false): every aircraft is a 2D icon (inline-SVG DOM marker or
+  // static IconLayer icon beyond the marker cap).
+  modelsEnabled: boolean;
+  // Ids currently held by a 2D DOM marker (aircraft2dMarkers.ts): excluded
+  // from the IconLayer data so no aircraft is drawn twice. The glow layer
+  // still draws every aircraft.
+  domMarkerIds?: ReadonlySet<string>;
   onAircraftClick: (hex: string | null) => void;
   onAircraftHover: (
     aircraft: (Aircraft & { lat: number; lon: number }) | null,
@@ -142,27 +153,30 @@ export function buildAircraftLayers(params: {
     y: number,
   ) => void;
 }): Layer[] {
-  const { aircraft, tracks, iconAtlas, colorMode, tracksVisible, onAircraftClick, onAircraftHover } =
-    params;
+  const {
+    aircraft,
+    tracks,
+    iconAtlas,
+    colorMode,
+    tracksVisible,
+    modelsEnabled,
+    domMarkerIds,
+    onAircraftClick,
+    onAircraftHover,
+  } = params;
   if (!iconAtlas) return [];
+  const flat = !modelsEnabled;
 
   const positioned = aircraft.filter(
     (a): a is Aircraft & { lat: number; lon: number } =>
       a.lat !== undefined && a.lon !== undefined,
   );
 
-  // Per-poll wall-clock-derived spin angle for the 2D rotor accent below.
-  // 3D-modeled types animate their own "Rotors" node independently, off a
-  // continuous per-frame clock rather than this per-poll one — see
-  // animatedAircraftScenegraphLayer.ts's `draw()`.
-  const rotorSpinAngleDeg = (Date.now() / 7) % 360;
-
   // Replace-2d-sprite-with-3d-model: any aircraft whose exact ICAO type
   // designator has a vendored .glb (aircraftModels.ts) renders as a real
-  // ScenegraphLayer mesh instead of the flat IconLayer sprite — the icon,
-  // icon-glow, and rotor-accent layers below are all built from
-  // `iconOnlyPositioned`, not `positioned`, so a modeled aircraft is never
-  // double-rendered as both a sprite and a mesh.
+  // ScenegraphLayer mesh instead of the flat IconLayer sprite — the icon
+  // layer below is built from `iconOnlyPositioned`, not `positioned`, so a
+  // modeled aircraft is never double-rendered as both a sprite and a mesh.
   //
   // Grouped by type + gear-hidden state, not just type: `ScenegraphLayer`
   // renders one shared instanced mesh per layer (see
@@ -180,6 +194,10 @@ export function buildAircraftLayers(params: {
   const modeledByGroup = new Map<string, { scenegraph: unknown; data: (Aircraft & { lat: number; lon: number })[] }>();
   const iconOnlyPositioned: (Aircraft & { lat: number; lon: number })[] = [];
   for (const d of positioned) {
+    if (!modelsEnabled) {
+      iconOnlyPositioned.push(d);
+      continue;
+    }
     const modelKey = resolveModelKey(d);
     const hideThreshold = landingGearHideThresholdFeet(modelKey);
     const gearHidden = hideThreshold !== undefined && (d.altitude ?? 0) > hideThreshold;
@@ -208,7 +226,7 @@ export function buildAircraftLayers(params: {
       rotorcraft: isRotorcraftModel(modelKey),
       rotorSpecs: modelRotorSpecs(modelKey),
       scenegraph,
-      getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
+      getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude, flat)],
       // The vendored B738.glb's own local axes (confirmed by inspecting its
       // accessor bounding box: X ±14.2, Y -2.78..4.8, Z ±12.85, scaled
       // near-identically off the real 737-800's 39.5m length/35.8m
@@ -249,11 +267,14 @@ export function buildAircraftLayers(params: {
 
   const iconLayer = new IconLayer<Aircraft & { lat: number; lon: number }>({
     id: AIRCRAFT_ICON_LAYER_ID,
-    data: iconOnlyPositioned,
+    data:
+      domMarkerIds && domMarkerIds.size > 0
+        ? iconOnlyPositioned.filter((d) => !domMarkerIds.has(d.hex))
+        : iconOnlyPositioned,
     iconAtlas: iconAtlas.image,
     iconMapping: iconAtlas.mapping,
     getIcon: (d) => resolveIconKey(d).key,
-    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
+    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude, flat)],
     // Icon SVGs are drawn nose-up in the atlas (authored shapes and the
     // ones generated from the .glb models share that convention). deck.gl's IconLayer actually rotates *counter-clockwise*
     // for positive `angle` — confirmed empirically (a standalone IconLayer
@@ -266,7 +287,7 @@ export function buildAircraftLayers(params: {
     // Was 28 — with a solid-filled icon (see aircraftIcons.ts's atlas
     // builder), that read as too small on the map to be legible against
     // basemap clutter.
-    getSize: 40,
+    getSize: AIRCRAFT_ICON_SIZE_PIXELS,
     sizeUnits: "pixels",
     // design.md Decision 7: laying the icon flat in its own ground plane
     // (rotated by getAngle above) rather than always billboarding to face
@@ -324,7 +345,7 @@ export function buildAircraftLayers(params: {
     iconAtlas: iconAtlas.image,
     iconMapping: iconAtlas.mapping,
     getIcon: (d) => glowIconKey(resolveIconKey(d).key),
-    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
+    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude, flat)],
     getAngle: (d) => -(d.track ?? 0),
     getColor: (d) => {
       const [r, g, b] = resolveAircraftColor(d, colorMode);
@@ -368,8 +389,8 @@ export function buildAircraftLayers(params: {
             : lerp(255, AIRCRAFT_TRACK_FADE_MIN_ALPHA, ageFraction);
         segments.push({
           path: [
-            [a.lon, a.lat, altitudeToRenderMeters(a.altitude)],
-            [b.lon, b.lat, altitudeToRenderMeters(b.altitude)],
+            [a.lon, a.lat, altitudeToRenderMeters(a.altitude, flat)],
+            [b.lon, b.lat, altitudeToRenderMeters(b.altitude, flat)],
           ],
           color: resolveTrackPointColor(b, colorMode, typeDesignator),
           alpha,
@@ -378,7 +399,7 @@ export function buildAircraftLayers(params: {
 
       const markers = selectTrackMarkers(points);
       for (const marker of markers) {
-        const markerHeight = altitudeToRenderMeters(marker.altitude);
+        const markerHeight = altitudeToRenderMeters(marker.altitude, flat);
         const markerColor = resolveTrackPointColor(marker, colorMode, typeDesignator);
         for (let dot = 0; dot < AIRCRAFT_TRACK_DROPLINE_DOT_COUNT; dot++) {
           const f = dot / (AIRCRAFT_TRACK_DROPLINE_DOT_COUNT - 1);
@@ -444,47 +465,14 @@ export function buildAircraftLayers(params: {
     });
   }
 
-  // Rotorcraft rotor-disc accent (design.md Decision 8, revised): a second,
-  // smaller `IconLayer` for category-A7 aircraft only, positioned at the
-  // exact same real-world altitude as the aircraft's own icon (unlike the
-  // previous MapLibre-`Marker`-based version, which had no altitude/pitch
-  // awareness — see aircraftIcons.ts's `drawRotorAccent` doc comment).
-  // `billboard: false` matches the main icon layer so the accent tilts with
-  // the same 3D ground-plane orientation rather than floating flat-on
-  // relative to the tilted fuselage beneath it. The "spin" is a per-poll
-  // wall-clock-derived angle (not a continuous per-frame animation, unlike
-  // the CSS version) — consistent with this app's aircraft themselves only
-  // moving once per poll (~1s), not smoothly interpolated, so a
-  // continuously-animated rotor would visually mismatch its own
-  // "teleporting" parent anyway; the large per-poll step (~143°/s) still
-  // reads as spinning rather than static.
-  const rotorcraft = iconOnlyPositioned.filter((a) => a.category === ROTORCRAFT_CATEGORY);
-  const rotorLayer = new IconLayer<Aircraft & { lat: number; lon: number }>({
-    id: AIRCRAFT_ROTOR_ACCENT_LAYER_ID,
-    data: rotorcraft,
-    iconAtlas: iconAtlas.image,
-    iconMapping: iconAtlas.mapping,
-    getIcon: () => ROTOR_ACCENT_KEY,
-    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
-    getAngle: () => rotorSpinAngleDeg,
-    getColor: ROTOR_ACCENT_COLOR,
-    getSize: ROTOR_ACCENT_SIZE_PIXELS,
-    sizeUnits: "pixels",
-    billboard: false,
-    pickable: false,
-  });
-
   // Paint order, back to front: the always-on icon glow, the track glow, the
-  // ground droplines, then the crisp track line, rotor accent, and icons on
-  // top (rotor drawn just before the icon so the fuselage silhouette isn't
-  // hidden underneath it). The three track-related layers are `null` (and
+  // ground droplines, then the crisp track line and icons. The three track-related layers are `null` (and
   // simply omitted) when `tracksVisible` is false.
   return [
     iconGlowLayer,
     trackGlowLayer,
     droplineLayer,
     trackLayer,
-    rotorLayer,
     iconLayer,
     ...modelLayers,
   ].filter((layer): layer is Layer => layer !== null);
