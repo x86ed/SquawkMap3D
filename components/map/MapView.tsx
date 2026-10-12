@@ -211,7 +211,7 @@ export default function MapView() {
   // Pitch to restore when leaving 2D; null means "use INITIAL_PITCH".
   const savedPitchRef = useRef<number | null>(null);
   // 2D rotor-spin loop state: the last built aircraft layers (reused except
-  // for the rotor layers), plus the inputs those two layers rebuild from.
+  // for the rotor layer), plus the inputs it rebuilds from.
   const aircraftLayersRef = useRef<Layer[]>([]);
   const rotorInstancesRef = useRef<RotorInstance[]>([]);
   const rotorRafRef = useRef<number | null>(null);

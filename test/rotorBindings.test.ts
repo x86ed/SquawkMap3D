@@ -347,3 +347,13 @@ test("2D flattens track points and rotor binding layer; 3D keeps the lift", () =
   assert.equal(zOf(rotor, inst), 0);
   rotorBindingsByType.clear();
 });
+
+test("an A7 aircraft whose SVG has no rotor bindings gets no synthesized rotor layer", () => {
+  const list = [ac("h1", { typeDesignator: "ZZZZ", category: "A7" })];
+  for (const modelsEnabled of [false, true]) {
+    const layers = buildAircraftLayers(layerParams(list, modelsEnabled));
+    assert.equal(layers.filter((l) => /rotor/.test(l.id)).length, modelsEnabled ? 0 : 1);
+    const binding = layers.find((l) => l.id === AIRCRAFT_ROTOR_BINDING_LAYER_ID);
+    if (binding) assert.equal((binding.props.data as unknown[]).length, 0);
+  }
+});
