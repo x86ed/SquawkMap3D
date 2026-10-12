@@ -14,7 +14,7 @@
 
 ## 3. Special types in 3D
 
-- [ ] 3.1 Owner authors/adds `.glb` (with embedded author) to `public/aircraft-models/`: `PARA` (B3), `FALH` (B7), `FIRE` (C1), `PTUG` (C2), `TURB` (C3), `UNKN` (unknown); regenerate `manifest.json` via `scripts/generate-aircraft-models-manifest.mjs`
+- [ ] 3.1 Models `PARA`, `FALH`, `FIRE`, `PTUG`, `TURB` are present in `public/aircraft-models/` and `manifest.json`; owner still adds `UNKN` (unknown) with embedded author, then regenerate manifest via `scripts/generate-aircraft-models-manifest.mjs`
 - [ ] 3.2 Extend `CATEGORY_FALLBACK_KEY`: `B3→PARA`, `B4→ULAC`, `B6→VFHC`, `B7→FALH`, `C1→FIRE`, `C2→PTUG`, `C3→TURB`; add `UNKNOWN_FALLBACK_KEY="UNKN"` used by `resolveIconKey`, `resolveModelKeyForTypeAndCategory`, and `compassTrackModel.ts`
 - [ ] 3.3 Regenerate silhouettes (1.1) so every special type gets 2D art
 - [ ] 3.4 Tests: B3/B6/B7/C1/C2/C3 and no-category aircraft resolve to the mapped model key and silhouette
@@ -22,7 +22,7 @@
 
 ## 4. Scrub assets and licenses
 
-- [ ] 4.1 Delete `public/aircraft-shapes/*.svg` with no matching model (confirm list before deleting)
+- [ ] 4.1 Delete (includes the untracked `public/aircraft-shapes/PARA.svg`, now superseded by `PARA.glb`) `public/aircraft-shapes/*.svg` with no matching model (confirm list before deleting)
 - [ ] 4.2 Delete remainder of `public/aircraft-shapes/` (incl. `LICENSE`, `README.md`, `manifest.json`) and `components/map/data/aircraftShapes.json`
 - [ ] 4.3 Delete pw-silhouettes files (`A1…C2.svg`, `wake-models.txt`) and `public/aircraft-silhouettes/LICENSE`; ensure only generated files remain
 - [ ] 4.4 Delete `scripts/vendor-aircraft-icons.mjs` and `scripts/generate-aircraft-shapes-manifest.mjs`; update stale comments in `compass-card` vendor headers, `aircraftModels.ts`, `svgBBox.ts`
