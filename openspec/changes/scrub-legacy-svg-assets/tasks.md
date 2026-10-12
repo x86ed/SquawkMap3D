@@ -14,10 +14,11 @@
 
 ## 3. Special types in 3D
 
-- [ ] 3.1 Decide/obtain models: parachutist (`PARA`), ground vehicle (`GND`, or reuse `SERV`), unknown (`UNKN`); add `.glb` to `public/aircraft-models/` with embedded author, regenerate `manifest.json` via `scripts/generate-aircraft-models-manifest.mjs`
-- [ ] 3.2 Extend `CATEGORY_FALLBACK_KEY` (`B3`, `B4→ULAC`, `C1`, `C2`) and add unknown fallback used by `resolveIconKey`, `resolveModelKeyForTypeAndCategory`, and `compassTrackModel.ts` default
-- [ ] 3.3 Regenerate silhouettes (1.1) so special types get 2D art
-- [ ] 3.4 Tests: B3/C1/C2/no-category aircraft resolve to the special model key and silhouette
+- [ ] 3.1 Owner authors/adds `.glb` (with embedded author) to `public/aircraft-models/`: `PARA` (B3), `FALH` (B7), `FIRE` (C1), `PTUG` (C2), `TURB` (C3), `UNKN` (unknown); regenerate `manifest.json` via `scripts/generate-aircraft-models-manifest.mjs`
+- [ ] 3.2 Extend `CATEGORY_FALLBACK_KEY`: `B3→PARA`, `B4→ULAC`, `B6→VFHC`, `B7→FALH`, `C1→FIRE`, `C2→PTUG`, `C3→TURB`; add `UNKNOWN_FALLBACK_KEY="UNKN"` used by `resolveIconKey`, `resolveModelKeyForTypeAndCategory`, and `compassTrackModel.ts`
+- [ ] 3.3 Regenerate silhouettes (1.1) so every special type gets 2D art
+- [ ] 3.4 Tests: B3/B6/B7/C1/C2/C3 and no-category aircraft resolve to the mapped model key and silhouette
+- [ ] 3.5 Decide `SERV`: remove from `public/aircraft-models/` or keep as a type-addressable model; remove from any `ROTORCRAFT`/special lists that reference it
 
 ## 4. Scrub assets and licenses
 

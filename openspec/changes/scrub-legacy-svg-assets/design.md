@@ -18,7 +18,20 @@
 
 2. **Silhouette key = model key.** Output `public/aircraft-silhouettes/<TYPE>.svg` for every manifest entry plus `manifest.json`. Category entries (`A1`…`C2`) are no longer separate files: the atlas resolves category → `CATEGORY_FALLBACK_KEY[category]` → that type's silhouette. `AIRCRAFT_CATEGORY_FALLBACK_ICON` is deleted; `resolveIconKey`'s `"category"` source disappears (`"type"`, `"category-type"`, `"generic"` remain).
 
-3. **Special types as real models.** Add `.glb` keys: `PARA` (B3 parachutist), `GND` (C1/C2 surface vehicles; reuse existing `SERV` if it fits — decide at task 3.1), `UNKN` (no type and no category). Extend `CATEGORY_FALLBACK_KEY`: `B3→PARA`, `B4→ULAC` (exists), `C1→GND`, `C2→GND`, and a new `UNKNOWN_FALLBACK_KEY = "UNKN"` used when neither type nor category resolves. Models drive silhouettes, so one task covers both 2D and 3D. B6/B7 intentionally left to the generic marker for now.
+3. **Special types as real models.** Category → key mapping, all resolved through `CATEGORY_FALLBACK_KEY`; one `.glb` yields both the 3D model and the silhouette:
+
+   | Category | Key | Model status |
+   |---|---|---|
+   | B3 parachutist | `PARA` | new |
+   | B4 ultralight | `ULAC` | exists |
+   | B6 UAV | `VFHC` | exists |
+   | B7 space/transatmospheric | `FALH` | new |
+   | C1 emergency vehicle | `FIRE` | new |
+   | C2 service vehicle | `PTUG` | new (pushback tug) |
+   | C3 point obstacle | `TURB` | new (turbine/wind turbine) |
+   | no type and no category (incl. A0/B0/C0/D0) | `UNKN` | new |
+
+   Add `UNKNOWN_FALLBACK_KEY = "UNKN"`. C4/C5 (cluster/line obstacle) stay on the generic marker. Existing `SERV` was the C1 stand-in; once `FIRE` lands it is unreferenced by the fallback table (remove or keep as a directly addressable type — decide in task 3.5).
 
 4. **Card flat fallback loads the silhouette SVG, not the manifest JSON.** `aircraftShapes.ts` drops `data/aircraftShapes.json` and the GPL-era `currentColor` rewrite; generated silhouettes are already a single `<path fill="currentColor">`. `.shapeIcon:not([data-live]) path` stroke override and most of `svgBBox.ts`'s tight-crop become unnecessary because the generator already crops to bbox — keep `computeTightViewBox` only if the generator's padding isn't enough; otherwise delete.
 
@@ -30,10 +43,10 @@
 
 - Top-down model projection can yield blobby silhouettes for helicopters (rotors) or gear-down models → exclude `Rotors`/`Landing gear` nodes by name; spot-check every output visually.
 - Types with no model lose their exact 2D icon (e.g. A124 shows as the A5 representative). Accepted per the goal; coverage grows by adding models.
-- Special-type models need authoring/sourcing with clean licensing → ask owner to supply, or ship simple primitives-based placeholders first.
+- Six new special-type models (`PARA`, `FALH`, `FIRE`, `PTUG`, `TURB`, `UNKN`) are authored by the repo owner; until each lands, its category resolves to the generic marker.
 - `ICON_ORIENTATION_OFFSET_DEG` was tuned per old SVG; generated silhouettes face nose-up by construction, so offsets are expected to be dropped — verify per key.
 
 ## Open Questions
 
 - "Rendered in 3d as well": interpreted as silhouette derived from the 3D asset so 2D and 3D match. If the intent is also to extrude/render the silhouette in the 3D layer for unmodeled types, that's a follow-up.
-- Exact special-type keys (`PARA`/`GND`/`UNKN`) and whether `SERV` already covers ground vehicles.
+- Key for the unknown type (`UNKN` assumed) and `PARA` for parachutist are still proposals; the rest are owner-specified.
