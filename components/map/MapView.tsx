@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   Map as MapLibreMap,
+  Marker,
   NavigationControl,
   Popup,
   setWorkerUrl,
@@ -27,16 +28,21 @@ import {
   clearTracks,
   type Aircraft,
 } from "./aircraft";
-import { buildAircraftIconAtlas, type ColorMode, type IconAtlas } from "./aircraftIcons";
-import { loadAircraftModelManifest } from "./aircraftModels";
 import {
-  AIRCRAFT_ROTOR_BINDING_LAYER_ID,
-  altitudeToRenderMeters,
-  buildAircraftLayers,
-  buildRotorBindingLayer,
-  collectRotorInstances,
-  type RotorInstance,
-} from "./aircraftLayer";
+  buildAircraftIconAtlas,
+  resolveAircraftColor,
+  resolveIconKey,
+  type ColorMode,
+  type IconAtlas,
+} from "./aircraftIcons";
+import {
+  createAircraft2dMarkerManager,
+  type Aircraft2dMarkerManager,
+  type MarkerLike,
+  type MarkerMapLike,
+} from "./aircraft2dMarkers";
+import { loadAircraftModelManifest } from "./aircraftModels";
+import { altitudeToRenderMeters, buildAircraftLayers } from "./aircraftLayer";
 import { computeRarityTier, RARITY_TIER_STYLES } from "./aircraftRarity";
 import { buildSelectionPulseLayer, type SelectionPulseTarget } from "./selectionPulse";
 import { AircraftColorDock } from "./controls/AircraftColorDock";
@@ -127,10 +133,8 @@ import {
   SUA_REFRESH_INTERVAL_MS,
   TERMINATOR_REFRESH_INTERVAL_MS,
   TFR_REFRESH_INTERVAL_MS,
-  ROTOR_ANIMATION_MAX_FPS,
   VIEW_MODE_2D_PITCH,
 } from "./constants";
-import type { Layer } from "@deck.gl/core";
 import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
 
 // maplibre-gl resolves its worker script relative to `import.meta.url` of
@@ -210,12 +214,12 @@ export default function MapView() {
   const viewModeControlRef = useRef<ViewModeControl | null>(null);
   // Pitch to restore when leaving 2D; null means "use INITIAL_PITCH".
   const savedPitchRef = useRef<number | null>(null);
-  // 2D rotor-spin loop state: the last built aircraft layers (reused except
-  // for the rotor layer), plus the inputs it rebuilds from.
-  const aircraftLayersRef = useRef<Layer[]>([]);
-  const rotorInstancesRef = useRef<RotorInstance[]>([]);
-  const rotorRafRef = useRef<number | null>(null);
-  const rotorLastFrameMsRef = useRef(0);
+  // 2D inline-SVG DOM markers (aircraft2dMarkers.ts): owned by the manager,
+  // which also runs the shared rotor-spin rAF loop. `lastAircraftRef` lets a
+  // viewport-driven marker-set change rebuild layers without a new fetch.
+  const markerManagerRef = useRef<Aircraft2dMarkerManager | null>(null);
+  const lastAircraftRef = useRef<Aircraft[]>([]);
+  const hoveredAircraftHexRef = useRef<string | null>(null);
   // Collision-aware repositioning between the two bottom docks (design.md
   // Decision 4) — refs to each dock's root `.dock` element.
   const leftDockRef = useRef<HTMLDivElement>(null);
@@ -426,13 +430,50 @@ export default function MapView() {
     void refreshAircraft();
   };
 
+  const handleAircraftHover = (
+    hovered: (Aircraft & { lat: number; lon: number }) | null,
+    x: number,
+    y: number,
+  ) => {
+    hoveredAircraftHexRef.current = hovered ? hovered.hex : null;
+    setHoveredAircraft(hovered);
+    if (hovered) setHoverPosition({ x, y });
+  };
+
+  // Builds and pushes the deck.gl aircraft layers from `aircraft`. In 2D the
+  // marker manager first decides which aircraft hold a DOM marker; those ids
+  // are excluded from the IconLayer data (the glow still draws every one).
+  const renderAircraftLayers = (aircraft: Aircraft[]) => {
+    if (!deckOverlayRef.current) return;
+    const is2d = viewModeRef.current === "2d";
+    const domMarkerIds =
+      is2d && markerManagerRef.current
+        ? markerManagerRef.current.update(aircraft, {
+            selectedId: selectedAircraftHexRef.current,
+            hoveredId: hoveredAircraftHexRef.current,
+            colorFor: (a) => resolveAircraftColor(a, colorModeRef.current),
+          })
+        : undefined;
+    const layers = buildAircraftLayers({
+      aircraft,
+      tracks: getAllTracks(),
+      iconAtlas: aircraftIconAtlasRef.current,
+      colorMode: colorModeRef.current,
+      tracksVisible: tracksVisibleRef.current,
+      modelsEnabled: !is2d,
+      domMarkerIds,
+      onAircraftClick: (hex) =>
+        handleAircraftClick(hex, hex ? aircraft.find((a) => a.hex === hex) : undefined),
+      onAircraftHover: handleAircraftHover,
+    });
+    deckOverlayRef.current.setProps({ layers });
+  };
+
   const refreshAircraft = async () => {
     if (!deckOverlayRef.current) return;
     if (!aircraftVisibleRef.current) {
       deckOverlayRef.current.setProps({ layers: [] });
-      aircraftLayersRef.current = [];
-      rotorInstancesRef.current = [];
-      stopRotorLoop();
+      markerManagerRef.current?.clear();
       return;
     }
     const aircraft = await fetchAircraft();
@@ -452,33 +493,8 @@ export default function MapView() {
       stopSelectionPulse();
     }
 
-    const layers = buildAircraftLayers({
-      aircraft,
-      tracks: getAllTracks(),
-      iconAtlas: aircraftIconAtlasRef.current,
-      colorMode: colorModeRef.current,
-      tracksVisible: tracksVisibleRef.current,
-      modelsEnabled: viewModeRef.current === "3d",
-      onAircraftClick: (hex) =>
-        handleAircraftClick(hex, hex ? aircraft.find((a) => a.hex === hex) : undefined),
-      onAircraftHover: (hovered, x, y) => {
-        setHoveredAircraft(hovered);
-        if (hovered) setHoverPosition({ x, y });
-      },
-    });
-    deckOverlayRef.current.setProps({ layers });
-
-    aircraftLayersRef.current = layers;
-    if (viewModeRef.current === "2d") {
-      const positioned = aircraft.filter(
-        (a): a is Aircraft & { lat: number; lon: number } =>
-          a.lat !== undefined && a.lon !== undefined,
-      );
-      rotorInstancesRef.current = collectRotorInstances(positioned);
-    } else {
-      rotorInstancesRef.current = [];
-    }
-    syncRotorLoop();
+    lastAircraftRef.current = aircraft;
+    renderAircraftLayers(aircraft);
 
     const selected = selectedAircraftHexRef.current
       ? aircraft.find((a) => a.hex === selectedAircraftHexRef.current)
@@ -655,55 +671,6 @@ export default function MapView() {
     selectionPulseOverlayRef.current?.setProps({ layers: [] });
   };
 
-  // 2D rotor-spin loop: rebuilds only the rotor layer each frame
-  // (capped at ROTOR_ANIMATION_MAX_FPS) and reuses every other layer from
-  // the last poll's build, so the ~1 Hz full rebuild isn't repeated per
-  // frame. Runs only in 2D with a rotor-bearing aircraft on screen.
-  const rotorFrame = (nowMs: number) => {
-    rotorRafRef.current = requestAnimationFrame(rotorFrame);
-    if (nowMs - rotorLastFrameMsRef.current < 1000 / ROTOR_ANIMATION_MAX_FPS) return;
-    rotorLastFrameMsRef.current = nowMs;
-
-    const overlay = deckOverlayRef.current;
-    const atlas = aircraftIconAtlasRef.current;
-    if (!overlay || !atlas || aircraftLayersRef.current.length === 0) return;
-
-    // Same epoch-ms clock as buildAircraftLayers's Date.now(), so the spin
-    // phase doesn't jump between a poll build and the frames after it.
-    const wallMs = performance.timeOrigin + nowMs;
-    const layers = aircraftLayersRef.current.map((layer) => {
-      if (layer.id === AIRCRAFT_ROTOR_BINDING_LAYER_ID) {
-        return buildRotorBindingLayer({
-          instances: rotorInstancesRef.current,
-          iconAtlas: atlas,
-          colorMode: colorModeRef.current,
-          nowMs: wallMs,
-          flat: viewModeRef.current === "2d",
-        });
-      }
-      return layer;
-    });
-    aircraftLayersRef.current = layers;
-    overlay.setProps({ layers });
-  };
-
-  const stopRotorLoop = () => {
-    if (rotorRafRef.current !== null) {
-      cancelAnimationFrame(rotorRafRef.current);
-      rotorRafRef.current = null;
-    }
-  };
-
-  const syncRotorLoop = () => {
-    const wanted =
-      viewModeRef.current === "2d" && rotorInstancesRef.current.length > 0;
-    if (!wanted) {
-      stopRotorLoop();
-    } else if (rotorRafRef.current === null) {
-      rotorRafRef.current = requestAnimationFrame(rotorFrame);
-    }
-  };
-
   const handleViewModeToggle = () => {
     const map = mapRef.current;
     if (!map) return;
@@ -732,6 +699,10 @@ export default function MapView() {
       setTerrainEnabled(map, true);
       map.easeTo({ pitch: savedPitchRef.current ?? INITIAL_PITCH, duration: 500 });
     }
+
+    // Leaving 2D drops every DOM marker (and stops the rotor loop) before
+    // the rebuild; entering 2D populates them from the last poll below.
+    if (next === "3d") markerManagerRef.current?.clear();
 
     // Swap models/icons now rather than at the next ~1 Hz poll.
     void refreshAircraft();
@@ -789,6 +760,20 @@ export default function MapView() {
       bearing: INITIAL_BEARING,
     });
     mapRef.current = map;
+    markerManagerRef.current = createAircraft2dMarkerManager({
+      map: map as unknown as MarkerMapLike,
+      createMarker: (element) =>
+        new Marker({
+          element,
+          anchor: "center",
+          rotationAlignment: "map",
+          pitchAlignment: "map",
+        }) as unknown as MarkerLike,
+      resolveTypeKey: (aircraft) => resolveIconKey(aircraft).key,
+      onSelect: (hex, aircraft) => handleAircraftClick(hex, aircraft),
+      onHover: handleAircraftHover,
+      onMarkerIdsChange: () => renderAircraftLayers(lastAircraftRef.current),
+    });
     map.addControl(
       new NavigationControl({
         showZoom: true,
@@ -1081,7 +1066,8 @@ export default function MapView() {
       window.removeEventListener("keydown", handleKeyDown);
       stopRangeOutlineSweep();
       stopSelectionPulse();
-      stopRotorLoop();
+      markerManagerRef.current?.destroy();
+      markerManagerRef.current = null;
       map.remove();
       mapRef.current = null;
     };
