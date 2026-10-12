@@ -45,3 +45,14 @@ In 2D view mode, every aircraft whose 2D icon SVG declares top-mounted rotors vi
 #### Scenario: Animation stops in 3D
 - **WHEN** the user switches to 3D mode
 - **THEN** the 2D rotor animation loop stops and rotor motion is provided by the 3D models' own rotor animation
+
+### Requirement: Aircraft altitude is not lifted in 2D
+In 2D view mode, aircraft icons, their glow and rotor layers, track paths and the selection pulse SHALL be positioned at ground level (no altitude-derived z offset), so aircraft stay at their true lon/lat across the whole top-down view including the screen edges. In 3D view mode, aircraft SHALL keep their altitude-based lift. Altitude-based coloring is unaffected.
+
+#### Scenario: High aircraft not displaced in 2D
+- **WHEN** the map is in 2D mode and an aircraft is at 35,000 ft
+- **THEN** its icon, track and highlight are drawn with zero altitude lift, at its ground position
+
+#### Scenario: Lift restored in 3D
+- **WHEN** the user switches from 2D to 3D mode
+- **THEN** aircraft and tracks are lifted by altitude again without waiting for the next data poll

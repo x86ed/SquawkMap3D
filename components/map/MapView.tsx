@@ -370,7 +370,7 @@ export default function MapView() {
       const metersPerPixel =
         (78271.517 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, map.getZoom());
       altitudePixels =
-        (altitudeToRenderMeters(altitudeFt) * Math.sin((map.getPitch() * Math.PI) / 180)) /
+        (altitudeToRenderMeters(altitudeFt, viewModeRef.current === "2d") * Math.sin((map.getPitch() * Math.PI) / 180)) /
         metersPerPixel;
     }
     return [-occupiedWidth / 2, -drawerHeight / 2 + altitudePixels];
@@ -634,6 +634,7 @@ export default function MapView() {
       selected: selectedAircraftPulseRef.current,
       nowMs,
       pulseStartMs: selectionPulseStartRef.current,
+      flat: viewModeRef.current === "2d",
     });
     overlay.setProps({ layers });
 
@@ -683,6 +684,7 @@ export default function MapView() {
           aircraft: rotorIconAircraftRef.current,
           iconAtlas: atlas,
           nowMs: wallMs,
+          flat: viewModeRef.current === "2d",
         });
       }
       if (layer.id === AIRCRAFT_ROTOR_BINDING_LAYER_ID) {
@@ -691,6 +693,7 @@ export default function MapView() {
           iconAtlas: atlas,
           colorMode: colorModeRef.current,
           nowMs: wallMs,
+          flat: viewModeRef.current === "2d",
         });
       }
       return layer;

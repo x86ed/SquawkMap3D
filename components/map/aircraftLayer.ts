@@ -94,8 +94,9 @@ export function buildRotorAccentLayer(params: {
   aircraft: PositionedAircraft[];
   iconAtlas: IconAtlas;
   nowMs: number;
+  flat?: boolean;
 }): Layer {
-  const { aircraft, iconAtlas, nowMs } = params;
+  const { aircraft, iconAtlas, nowMs, flat = false } = params;
   const spinAngleDeg = (nowMs / 7) % 360;
   const rotorcraft = aircraft.filter(
     (a) => a.category === ROTORCRAFT_CATEGORY && !rotorBindingsByType.has(resolveIconKey(a).key),
@@ -106,7 +107,7 @@ export function buildRotorAccentLayer(params: {
     iconAtlas: iconAtlas.image,
     iconMapping: iconAtlas.mapping,
     getIcon: () => ROTOR_ACCENT_KEY,
-    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
+    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude, flat)],
     getAngle: () => spinAngleDeg,
     getColor: ROTOR_ACCENT_COLOR,
     getSize: ROTOR_ACCENT_SIZE_PIXELS,
@@ -129,8 +130,9 @@ export function buildRotorBindingLayer(params: {
   iconAtlas: IconAtlas;
   colorMode: ColorMode;
   nowMs: number;
+  flat?: boolean;
 }): Layer {
-  const { instances, iconAtlas, colorMode, nowMs } = params;
+  const { instances, iconAtlas, colorMode, nowMs, flat = false } = params;
   const tSeconds = nowMs / 1000;
   return new IconLayer<RotorInstance>({
     id: AIRCRAFT_ROTOR_BINDING_LAYER_ID,
@@ -138,7 +140,7 @@ export function buildRotorBindingLayer(params: {
     iconAtlas: iconAtlas.image,
     iconMapping: iconAtlas.mapping,
     getIcon: (d) => d.binding.atlasKey,
-    getPosition: (d) => [d.aircraft.lon, d.aircraft.lat, altitudeToRenderMeters(d.aircraft.altitude)],
+    getPosition: (d) => [d.aircraft.lon, d.aircraft.lat, altitudeToRenderMeters(d.aircraft.altitude, flat)],
     // `getAngle` is counter-clockwise-positive in deck.gl; the track and the
     // SVG-recipe spin are clockwise-positive (see rotorDeckAngle).
     getAngle: (d) => rotorDeckAngle(d.aircraft.track, rotorSpinDegrees(d.binding, tSeconds)),
@@ -176,8 +178,16 @@ export const FEET_TO_METERS = 0.3048;
  * Exported so every real-altitude-positioned deck.gl layer (this file's icon/
  * glow/track layers, and radarSweep.ts's aircraft dots) shares one
  * conversion rather than copies that could drift apart.
+ *
+ * `flat` (2D view mode): no altitude lift at all, since a high aircraft
+ * drawn at its real height drifts off its ground position toward the screen
+ * edges under the top-down perspective camera.
  */
-export function altitudeToRenderMeters(altitudeFt: number | undefined): number {
+export function altitudeToRenderMeters(
+  altitudeFt: number | undefined,
+  flat = false,
+): number {
+  if (flat) return 0;
   return (altitudeFt ?? 0) * FEET_TO_METERS * TERRAIN_EXAGGERATION;
 }
 
@@ -274,6 +284,7 @@ export function buildAircraftLayers(params: {
     onAircraftHover,
   } = params;
   if (!iconAtlas) return [];
+  const flat = !modelsEnabled;
 
   const positioned = aircraft.filter(
     (a): a is Aircraft & { lat: number; lon: number } =>
@@ -335,7 +346,7 @@ export function buildAircraftLayers(params: {
       rotorcraft: isRotorcraftModel(modelKey),
       rotorSpecs: modelRotorSpecs(modelKey),
       scenegraph,
-      getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
+      getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude, flat)],
       // The vendored B738.glb's own local axes (confirmed by inspecting its
       // accessor bounding box: X ±14.2, Y -2.78..4.8, Z ±12.85, scaled
       // near-identically off the real 737-800's 39.5m length/35.8m
@@ -386,7 +397,7 @@ export function buildAircraftLayers(params: {
       // so draw the whole icon.
       return modelsEnabled && rotorBindingsByType.has(key) ? fullIconKey(key) : key;
     },
-    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
+    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude, flat)],
     // Icon SVGs are drawn nose-up in the atlas (authored shapes and the
     // ones generated from the .glb models share that convention). deck.gl's IconLayer actually rotates *counter-clockwise*
     // for positive `angle` — confirmed empirically (a standalone IconLayer
@@ -457,7 +468,7 @@ export function buildAircraftLayers(params: {
     iconAtlas: iconAtlas.image,
     iconMapping: iconAtlas.mapping,
     getIcon: (d) => glowIconKey(resolveIconKey(d).key),
-    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
+    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude, flat)],
     getAngle: (d) => -(d.track ?? 0),
     getColor: (d) => {
       const [r, g, b] = resolveAircraftColor(d, colorMode);
@@ -501,8 +512,8 @@ export function buildAircraftLayers(params: {
             : lerp(255, AIRCRAFT_TRACK_FADE_MIN_ALPHA, ageFraction);
         segments.push({
           path: [
-            [a.lon, a.lat, altitudeToRenderMeters(a.altitude)],
-            [b.lon, b.lat, altitudeToRenderMeters(b.altitude)],
+            [a.lon, a.lat, altitudeToRenderMeters(a.altitude, flat)],
+            [b.lon, b.lat, altitudeToRenderMeters(b.altitude, flat)],
           ],
           color: resolveTrackPointColor(b, colorMode, typeDesignator),
           alpha,
@@ -511,7 +522,7 @@ export function buildAircraftLayers(params: {
 
       const markers = selectTrackMarkers(points);
       for (const marker of markers) {
-        const markerHeight = altitudeToRenderMeters(marker.altitude);
+        const markerHeight = altitudeToRenderMeters(marker.altitude, flat);
         const markerColor = resolveTrackPointColor(marker, colorMode, typeDesignator);
         for (let dot = 0; dot < AIRCRAFT_TRACK_DROPLINE_DOT_COUNT; dot++) {
           const f = dot / (AIRCRAFT_TRACK_DROPLINE_DOT_COUNT - 1);
@@ -581,6 +592,7 @@ export function buildAircraftLayers(params: {
     aircraft: iconOnlyPositioned,
     iconAtlas,
     nowMs: Date.now(),
+    flat,
   });
 
   // 2D mode only (see `collectRotorInstances`): spun rotor sprites for types
@@ -592,6 +604,7 @@ export function buildAircraftLayers(params: {
         iconAtlas,
         colorMode,
         nowMs: Date.now(),
+        flat,
       });
 
   // Paint order, back to front: the always-on icon glow, the track glow, the

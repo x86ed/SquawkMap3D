@@ -23,6 +23,8 @@ import {
   buildAircraftLayers,
   buildRotorBindingLayer,
   collectRotorInstances,
+  altitudeToRenderMeters,
+  AIRCRAFT_TRACK_LAYER_ID,
 } from "../components/map/aircraftLayer";
 import { GENERIC_ICON_KEY, rotorBindingsByType, type IconAtlas } from "../components/map/aircraftIcons";
 import type { Aircraft } from "../components/map/aircraft";
@@ -312,4 +314,47 @@ test("2D build adds a rotor layer for rotor-bearing types; 3D build does not; sp
   } finally {
     rotorBindingsByType.clear();
   }
+});
+
+test("altitudeToRenderMeters is zero when flat and lifted otherwise", () => {
+  assert.ok(altitudeToRenderMeters(30000) > 0);
+  assert.equal(altitudeToRenderMeters(30000, true), 0);
+});
+
+function zOf(layer: { props: unknown }, d: unknown): number {
+  const getPosition = (layer.props as { getPosition: (d: unknown) => number[] }).getPosition;
+  return getPosition(d)[2];
+}
+
+test("buildAircraftLayers lifts icons by altitude in 3D and flattens them in 2D", () => {
+  const a = ac("a1", { altitude: 30000 });
+  const lifted = buildAircraftLayers(layerParams([a], true)).find((l) => l.id === AIRCRAFT_ICON_LAYER_ID)!;
+  const flat = buildAircraftLayers(layerParams([a], false)).find((l) => l.id === AIRCRAFT_ICON_LAYER_ID)!;
+  assert.ok(zOf(lifted, a) > 0);
+  assert.equal(zOf(flat, a), 0);
+});
+
+test("2D flattens track points and rotor binding layer; 3D keeps the lift", () => {
+  const pts = [
+    { lat: 40, lon: -100, altitude: 30000, timestamp: Date.now() - 1000 },
+    { lat: 40.1, lon: -100, altitude: 30000, timestamp: Date.now() },
+  ];
+  const a = ac("a1", { altitude: 30000 });
+  const tracks = new Map([["a1", pts]]) as never;
+  const zs = (modelsEnabled: boolean) => {
+    const layer = buildAircraftLayers({ ...layerParams([a], modelsEnabled), tracks, tracksVisible: true }).find(
+      (l) => l.id === AIRCRAFT_TRACK_LAYER_ID,
+    )!;
+    const seg = (layer.props as unknown as { data: { path: number[][] }[] }).data[0];
+    return seg.path.map((p) => p[2]);
+  };
+  assert.ok(zs(true).every((z) => z > 0));
+  assert.ok(zs(false).every((z) => z === 0));
+
+  rotorBindingsByType.clear();
+  rotorBindingsByType.set(GENERIC_ICON_KEY, TWO_ROTORS);
+  const [inst] = collectRotorInstances([a as Aircraft & { lat: number; lon: number }]);
+  const rotor = buildRotorBindingLayer({ instances: [inst], iconAtlas: ATLAS, colorMode: "altitude", nowMs: 0, flat: true });
+  assert.equal(zOf(rotor, inst), 0);
+  rotorBindingsByType.clear();
 });
