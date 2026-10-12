@@ -674,7 +674,9 @@ export default function MapView() {
     const atlas = aircraftIconAtlasRef.current;
     if (!overlay || !atlas || aircraftLayersRef.current.length === 0) return;
 
-    const wallMs = Date.now();
+    // Same epoch-ms clock as buildAircraftLayers's Date.now(), so the spin
+    // phase doesn't jump between a poll build and the frames after it.
+    const wallMs = performance.timeOrigin + nowMs;
     const layers = aircraftLayersRef.current.map((layer) => {
       if (layer.id === AIRCRAFT_ROTOR_ACCENT_LAYER_ID) {
         return buildRotorAccentLayer({
