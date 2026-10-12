@@ -105,7 +105,7 @@ export interface IconAtlasEntry {
   // `vColorMode` comes straight from this `mask` flag — 0/false uses the
   // texture color as-is, 1/true treats the texture as an alpha-only mask
   // tinted by `getColor`). Every shape here is deliberately baked solid
-  // white (see `loadShapeImage`/`drawGenericMarker`) specifically so this
+  // white (see `loadShapeSprites`/`drawGenericMarker`) specifically so this
   // mask mode can recolor it — `mask: true` is what actually turns that on.
   mask: true;
 }
@@ -353,7 +353,8 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
     baseEntries.map((entry) => (entry.url ? loadShapeSprites(entry.url) : Promise.resolve(null))),
   );
   const imageByKey = new Map<string, HTMLImageElement | null>();
-  // Rotor sprites, whole-drawing variants: extra non-glow entries.
+  // Whole-drawing and per-rotor sprites of rotor-bearing types: extra,
+  // non-glow atlas entries.
   const extraEntries: Array<{ key: string; rotor?: { pivotNorm: [number, number] } }> = [];
   rotorBindingsByType.clear();
   const pendingBindings: Array<{ typeKey: string; binding: RotorBinding }> = [];

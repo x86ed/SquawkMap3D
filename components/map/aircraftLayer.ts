@@ -4,13 +4,21 @@ import type { Aircraft, TrackPoint } from "./aircraft";
 import {
   brightenColor,
   type ColorMode,
+  fullIconKey,
   glowIconKey,
   resolveAircraftColor,
   resolveIconKey,
   resolveTrackPointColor,
   ROTOR_ACCENT_KEY,
+  rotorBindingsByType,
   type IconAtlas,
 } from "./aircraftIcons";
+import {
+  rotateOffsetByTrack,
+  rotorDeckAngle,
+  rotorSpinDegrees,
+  type RotorAtlasBinding,
+} from "./rotorBindings";
 import { isRotorcraftModel, landingGearHideThresholdFeet, modelRotorSpecs, resolveModelKey, resolveModelScenegraph } from "./aircraftModels";
 import { AnimatedAircraftScenegraphLayer } from "./animatedAircraftScenegraphLayer";
 import {
@@ -35,11 +43,121 @@ export const AIRCRAFT_MODEL_LAYER_ID = "aircraft-models";
 export const AIRCRAFT_TRACK_LAYER_ID = "aircraft-tracks";
 export const AIRCRAFT_SELECTION_GLOW_LAYER_ID = "aircraft-selection-glow";
 export const AIRCRAFT_ROTOR_ACCENT_LAYER_ID = "aircraft-rotor-accent";
+export const AIRCRAFT_ROTOR_BINDING_LAYER_ID = "aircraft-rotor-bindings";
 export const AIRCRAFT_ICON_GLOW_LAYER_ID = "aircraft-icon-glow";
 export const AIRCRAFT_TRACK_GLOW_LAYER_ID = "aircraft-track-glow";
 export const AIRCRAFT_TRACK_DROPLINE_LAYER_ID = "aircraft-track-dropline";
 
 const ROTORCRAFT_CATEGORY = "A7";
+const AIRCRAFT_ICON_SIZE_PIXELS = 40;
+// Fallback when an atlas entry's own height is unknown; matches the atlas
+// builder's cell size (aircraftIcons.ts).
+const ATLAS_CELL_SIZE_FALLBACK = 96;
+
+type PositionedAircraft = Aircraft & { lat: number; lon: number };
+
+export interface RotorInstance {
+  aircraft: PositionedAircraft;
+  binding: RotorAtlasBinding;
+}
+
+/** One entry per (aircraft, rotor) for aircraft whose resolved icon type has
+ * `data-rotor` bindings (aircraftIcons.ts's `rotorBindingsByType`). Types
+ * with none, and everything else, yield nothing. */
+export function collectRotorInstances(aircraft: PositionedAircraft[]): RotorInstance[] {
+  const instances: RotorInstance[] = [];
+  for (const d of aircraft) {
+    const bindings = rotorBindingsByType.get(resolveIconKey(d).key);
+    if (!bindings) continue;
+    for (const binding of bindings) instances.push({ aircraft: d, binding });
+  }
+  return instances;
+}
+
+/**
+ * Rotorcraft rotor-disc accent (design.md Decision 8, revised): a second,
+ * smaller `IconLayer` for category-A7 aircraft only, positioned at the
+ * exact same real-world altitude as the aircraft's own icon (unlike the
+ * previous MapLibre-`Marker`-based version, which had no altitude/pitch
+ * awareness — see aircraftIcons.ts's `drawRotorAccent` doc comment).
+ * `billboard: false` matches the main icon layer so the accent tilts with
+ * the same 3D ground-plane orientation rather than floating flat-on
+ * relative to the tilted fuselage beneath it. The spin angle is derived
+ * from `nowMs` at build time: in 3D it advances once per poll, in 2D
+ * MapView's rotor loop rebuilds this layer every animation frame. Only the
+ * fallback for A7 aircraft whose icon SVG declares no `data-rotor`
+ * bindings — types with bindings get their own spun rotor sprites
+ * (`buildRotorBindingLayer`). 3D-modeled types animate their own "Rotors"
+ * node independently (animatedAircraftScenegraphLayer.ts's `draw()`).
+ */
+export function buildRotorAccentLayer(params: {
+  aircraft: PositionedAircraft[];
+  iconAtlas: IconAtlas;
+  nowMs: number;
+}): Layer {
+  const { aircraft, iconAtlas, nowMs } = params;
+  const spinAngleDeg = (nowMs / 7) % 360;
+  const rotorcraft = aircraft.filter(
+    (a) => a.category === ROTORCRAFT_CATEGORY && !rotorBindingsByType.has(resolveIconKey(a).key),
+  );
+  return new IconLayer<PositionedAircraft>({
+    id: AIRCRAFT_ROTOR_ACCENT_LAYER_ID,
+    data: rotorcraft,
+    iconAtlas: iconAtlas.image,
+    iconMapping: iconAtlas.mapping,
+    getIcon: () => ROTOR_ACCENT_KEY,
+    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
+    getAngle: () => spinAngleDeg,
+    getColor: ROTOR_ACCENT_COLOR,
+    getSize: ROTOR_ACCENT_SIZE_PIXELS,
+    sizeUnits: "pixels",
+    billboard: false,
+    pickable: false,
+    updateTriggers: { getAngle: spinAngleDeg },
+  });
+}
+
+/**
+ * The 2D-mode rotor layer: each rotor sprite is anchored on its hub (atlas
+ * `anchorX/anchorY`), positioned at the aircraft, shifted by the hub's
+ * offset from the fuselage center rotated to the aircraft's track, and
+ * spun about the hub. `nowMs` drives the spin; the caller re-invokes this
+ * per animation frame (MapView.tsx) with cached instances.
+ */
+export function buildRotorBindingLayer(params: {
+  instances: RotorInstance[];
+  iconAtlas: IconAtlas;
+  colorMode: ColorMode;
+  nowMs: number;
+}): Layer {
+  const { instances, iconAtlas, colorMode, nowMs } = params;
+  const tSeconds = nowMs / 1000;
+  return new IconLayer<RotorInstance>({
+    id: AIRCRAFT_ROTOR_BINDING_LAYER_ID,
+    data: instances,
+    iconAtlas: iconAtlas.image,
+    iconMapping: iconAtlas.mapping,
+    getIcon: (d) => d.binding.atlasKey,
+    getPosition: (d) => [d.aircraft.lon, d.aircraft.lat, altitudeToRenderMeters(d.aircraft.altitude)],
+    // `getAngle` is counter-clockwise-positive in deck.gl; the track and the
+    // SVG-recipe spin are clockwise-positive (see rotorDeckAngle).
+    getAngle: (d) => rotorDeckAngle(d.aircraft.track, rotorSpinDegrees(d.binding, tSeconds)),
+    getPixelOffset: (d) => {
+      const cell = iconAtlas.mapping[d.binding.atlasKey]?.height ?? ATLAS_CELL_SIZE_FALLBACK;
+      const scale = AIRCRAFT_ICON_SIZE_PIXELS / cell;
+      return rotateOffsetByTrack(
+        [d.binding.offset[0] * scale, d.binding.offset[1] * scale],
+        d.aircraft.track,
+      );
+    },
+    getColor: (d) => resolveAircraftColor(d.aircraft, colorMode),
+    getSize: AIRCRAFT_ICON_SIZE_PIXELS,
+    sizeUnits: "pixels",
+    billboard: false,
+    pickable: false,
+    updateTriggers: { getAngle: nowMs },
+  });
+}
 const ROTOR_ACCENT_SIZE_PIXELS = 22;
 const ROTOR_ACCENT_COLOR: [number, number, number] = [229, 229, 229];
 
@@ -135,6 +253,9 @@ export function buildAircraftLayers(params: {
   // rotor layers are unaffected (aircraft-tracks-layer's "toggleable
   // independently of aircraft icon visibility" requirement).
   tracksVisible: boolean;
+  // 3D view mode: aircraft with a loaded .glb render as models. 2D view
+  // mode (false): every aircraft is a 2D icon and top rotors spin.
+  modelsEnabled: boolean;
   onAircraftClick: (hex: string | null) => void;
   onAircraftHover: (
     aircraft: (Aircraft & { lat: number; lon: number }) | null,
@@ -142,20 +263,22 @@ export function buildAircraftLayers(params: {
     y: number,
   ) => void;
 }): Layer[] {
-  const { aircraft, tracks, iconAtlas, colorMode, tracksVisible, onAircraftClick, onAircraftHover } =
-    params;
+  const {
+    aircraft,
+    tracks,
+    iconAtlas,
+    colorMode,
+    tracksVisible,
+    modelsEnabled,
+    onAircraftClick,
+    onAircraftHover,
+  } = params;
   if (!iconAtlas) return [];
 
   const positioned = aircraft.filter(
     (a): a is Aircraft & { lat: number; lon: number } =>
       a.lat !== undefined && a.lon !== undefined,
   );
-
-  // Per-poll wall-clock-derived spin angle for the 2D rotor accent below.
-  // 3D-modeled types animate their own "Rotors" node independently, off a
-  // continuous per-frame clock rather than this per-poll one — see
-  // animatedAircraftScenegraphLayer.ts's `draw()`.
-  const rotorSpinAngleDeg = (Date.now() / 7) % 360;
 
   // Replace-2d-sprite-with-3d-model: any aircraft whose exact ICAO type
   // designator has a vendored .glb (aircraftModels.ts) renders as a real
@@ -180,6 +303,10 @@ export function buildAircraftLayers(params: {
   const modeledByGroup = new Map<string, { scenegraph: unknown; data: (Aircraft & { lat: number; lon: number })[] }>();
   const iconOnlyPositioned: (Aircraft & { lat: number; lon: number })[] = [];
   for (const d of positioned) {
+    if (!modelsEnabled) {
+      iconOnlyPositioned.push(d);
+      continue;
+    }
     const modelKey = resolveModelKey(d);
     const hideThreshold = landingGearHideThresholdFeet(modelKey);
     const gearHidden = hideThreshold !== undefined && (d.altitude ?? 0) > hideThreshold;
@@ -252,7 +379,13 @@ export function buildAircraftLayers(params: {
     data: iconOnlyPositioned,
     iconAtlas: iconAtlas.image,
     iconMapping: iconAtlas.mapping,
-    getIcon: (d) => resolveIconKey(d).key,
+    getIcon: (d) => {
+      const key = resolveIconKey(d).key;
+      // Rotor-bearing types' plain entry has the rotors stripped (they're
+      // spun by the rotor-binding layer in 2D); 3D never builds that layer,
+      // so draw the whole icon.
+      return modelsEnabled && rotorBindingsByType.has(key) ? fullIconKey(key) : key;
+    },
     getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
     // Icon SVGs are drawn nose-up in the atlas (authored shapes and the
     // ones generated from the .glb models share that convention). deck.gl's IconLayer actually rotates *counter-clockwise*
@@ -266,7 +399,7 @@ export function buildAircraftLayers(params: {
     // Was 28 — with a solid-filled icon (see aircraftIcons.ts's atlas
     // builder), that read as too small on the map to be legible against
     // basemap clutter.
-    getSize: 40,
+    getSize: AIRCRAFT_ICON_SIZE_PIXELS,
     sizeUnits: "pixels",
     // design.md Decision 7: laying the icon flat in its own ground plane
     // (rotated by getAngle above) rather than always billboarding to face
@@ -444,35 +577,22 @@ export function buildAircraftLayers(params: {
     });
   }
 
-  // Rotorcraft rotor-disc accent (design.md Decision 8, revised): a second,
-  // smaller `IconLayer` for category-A7 aircraft only, positioned at the
-  // exact same real-world altitude as the aircraft's own icon (unlike the
-  // previous MapLibre-`Marker`-based version, which had no altitude/pitch
-  // awareness — see aircraftIcons.ts's `drawRotorAccent` doc comment).
-  // `billboard: false` matches the main icon layer so the accent tilts with
-  // the same 3D ground-plane orientation rather than floating flat-on
-  // relative to the tilted fuselage beneath it. The "spin" is a per-poll
-  // wall-clock-derived angle (not a continuous per-frame animation, unlike
-  // the CSS version) — consistent with this app's aircraft themselves only
-  // moving once per poll (~1s), not smoothly interpolated, so a
-  // continuously-animated rotor would visually mismatch its own
-  // "teleporting" parent anyway; the large per-poll step (~143°/s) still
-  // reads as spinning rather than static.
-  const rotorcraft = iconOnlyPositioned.filter((a) => a.category === ROTORCRAFT_CATEGORY);
-  const rotorLayer = new IconLayer<Aircraft & { lat: number; lon: number }>({
-    id: AIRCRAFT_ROTOR_ACCENT_LAYER_ID,
-    data: rotorcraft,
-    iconAtlas: iconAtlas.image,
-    iconMapping: iconAtlas.mapping,
-    getIcon: () => ROTOR_ACCENT_KEY,
-    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude)],
-    getAngle: () => rotorSpinAngleDeg,
-    getColor: ROTOR_ACCENT_COLOR,
-    getSize: ROTOR_ACCENT_SIZE_PIXELS,
-    sizeUnits: "pixels",
-    billboard: false,
-    pickable: false,
+  const rotorLayer = buildRotorAccentLayer({
+    aircraft: iconOnlyPositioned,
+    iconAtlas,
+    nowMs: Date.now(),
   });
+
+  // 2D mode only (see `collectRotorInstances`): spun rotor sprites for types
+  // with SVG rotor bindings, drawn over the fuselage icon.
+  const rotorBindingLayer = modelsEnabled
+    ? null
+    : buildRotorBindingLayer({
+        instances: collectRotorInstances(iconOnlyPositioned),
+        iconAtlas,
+        colorMode,
+        nowMs: Date.now(),
+      });
 
   // Paint order, back to front: the always-on icon glow, the track glow, the
   // ground droplines, then the crisp track line, rotor accent, and icons on
@@ -486,6 +606,7 @@ export function buildAircraftLayers(params: {
     trackLayer,
     rotorLayer,
     iconLayer,
+    rotorBindingLayer,
     ...modelLayers,
   ].filter((layer): layer is Layer => layer !== null);
 }
