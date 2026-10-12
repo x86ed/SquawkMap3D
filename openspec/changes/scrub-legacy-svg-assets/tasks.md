@@ -33,4 +33,4 @@
 ## 5. Verify
 
 - [x] 5.1 `npm run lint`, `npm test`, `npm run build` pass
-- [ ] 5.2 Run app: modeled type, unmodeled type (category fallback), B3, C1, no-category aircraft all render at map zoom-out (2D) and close-in (3D); PlaneCard flat fallback and glow look right
+- [x] 5.2 Run app: modeled type, unmodeled type (category fallback), B3, C1, no-category aircraft all render at map zoom-out (2D) and close-in (3D); PlaneCard flat fallback and glow look right
