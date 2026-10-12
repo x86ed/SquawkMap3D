@@ -23,11 +23,10 @@ interface AttributeSource {
   getAttribute(name: string): string | null;
 }
 
-/** Parses one `[data-rotor]` element. Returns null when its pivot is missing
- * or not two finite numbers (a rotor with no hub can't be spun). Direction
- * is always read from the attribute; anything but `cw` is treated as `ccw`
- * only when the attribute is `ccw` — an absent/unknown direction yields null
- * rather than a guessed spin. */
+/** Parses one `[data-rotor]` element. Returns null when its pivot is not
+ * two finite numbers or its direction is not `cw`/`ccw` — direction is
+ * always read from the attribute, never guessed. A missing/zero rpm
+ * defaults to ROTOR_DEFAULT_RPM. */
 export function parseRotorBinding(el: AttributeSource, fallbackId: string): RotorBinding | null {
   const pivotParts = (el.getAttribute("data-rotor-pivot") ?? "")
     .trim()

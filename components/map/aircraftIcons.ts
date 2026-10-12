@@ -4,6 +4,13 @@ import { CATEGORY_FALLBACK_KEY, UNKNOWN_FALLBACK_KEY } from "./aircraftShapes";
 import { MACH1_APPROX_KTS } from "./constants";
 import { AIRPORT_FILL_COLOR } from "./layers";
 import { computeTightViewBox } from "./svgBBox";
+import {
+  parseRotorBinding,
+  parseViewBox,
+  pivotToCanvasPixels,
+  type RotorAtlasBinding,
+  type RotorBinding,
+} from "./rotorBindings";
 
 export type IconSource = "type" | "category-type" | "unknown" | "generic";
 
@@ -20,6 +27,28 @@ export const GENERIC_ICON_KEY = "generic";
 // crisp icon (just larger/blurred/tinted), instead of an unrelated shape
 // like a plain circle.
 export const GLOW_ICON_KEY_SUFFIX = "__GLOW";
+
+// Suffix for the atlas entry holding a rotor-bearing type's whole drawing
+// (fuselage with its rotors baked in). The plain `<KEY>` entry has the rotors
+// removed so 2D mode can spin them separately; 3D mode, and the glow
+// silhouette, use this one so they still show the rotors.
+export const FULL_ICON_KEY_SUFFIX = "__FULL";
+
+export function fullIconKey(key: string): string {
+  return `${key}${FULL_ICON_KEY_SUFFIX}`;
+}
+
+/** Atlas key of one rotor group's own sprite for icon `key`. */
+export function rotorIconKey(key: string, rotorId: string): string {
+  return `${key}#${rotorId}`;
+}
+
+/**
+ * Rotor bindings per icon key, for types whose SVG declares `[data-rotor]`
+ * groups — populated by `buildAircraftIconAtlas`. Types with none have no
+ * entry. A module-level map (like `knownTypeDesignators`), mutated in place.
+ */
+export const rotorBindingsByType = new Map<string, RotorAtlasBinding[]>();
 
 /** Maps a normal atlas icon key to its pre-baked blurred glow variant's key
  * (see `GLOW_ICON_KEY_SUFFIX` and `buildAircraftIconAtlas`). */
@@ -144,7 +173,23 @@ function loadImage(url: string): Promise<HTMLImageElement | null> {
  * with no explicit size defaults to a fixed 300×150 box regardless of its
  * `viewBox`.
  */
-async function loadShapeImage(url: string): Promise<HTMLImageElement | null> {
+const SHAPE_RASTER_SIZE = 256;
+
+interface ShapeSprites {
+  // Fuselage only when the SVG has valid rotor bindings (rotor groups
+  // removed), otherwise the whole drawing.
+  fuselage: HTMLImageElement | null;
+  // The whole drawing, only set when `rotors` is non-empty.
+  full: HTMLImageElement | null;
+  rotors: Array<{
+    binding: RotorBinding;
+    image: HTMLImageElement | null;
+    // Pivot as a 0-1 fraction of the rasterized square.
+    pivotNorm: [number, number];
+  }>;
+}
+
+async function loadShapeSprites(url: string): Promise<ShapeSprites | null> {
   let response: Response;
   try {
     response = await fetch(url);
@@ -160,21 +205,73 @@ async function loadShapeImage(url: string): Promise<HTMLImageElement | null> {
 
   const fallbackViewBox = svgEl.getAttribute("viewBox") ?? "0 0 100 100";
   const innerMarkup = svgEl.innerHTML;
+  // Measured over the whole drawing (rotors included) and shared by every
+  // sprite of this type, so fuselage and rotor sprites stay registered.
   const tightViewBox = computeTightViewBox(innerMarkup, fallbackViewBox);
 
-  const wrapped =
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${tightViewBox}" width="256" height="256">` +
-    `<style>path,polygon,polyline,circle,ellipse,rect{fill:#ffffff!important;stroke:#ffffff!important;stroke-width:3px;vector-effect:non-scaling-stroke;}</style>` +
-    innerMarkup +
-    `</svg>`;
+  const rasterize = async (markup: string): Promise<HTMLImageElement | null> => {
+    const wrapped =
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${tightViewBox}" width="${SHAPE_RASTER_SIZE}" height="${SHAPE_RASTER_SIZE}">` +
+      `<style>path,polygon,polyline,circle,ellipse,rect{fill:#ffffff!important;stroke:#ffffff!important;stroke-width:3px;vector-effect:non-scaling-stroke;}</style>` +
+      markup +
+      `</svg>`;
+    const blob = new Blob([wrapped], { type: "image/svg+xml" });
+    const blobUrl = URL.createObjectURL(blob);
+    try {
+      return await loadImage(blobUrl);
+    } finally {
+      URL.revokeObjectURL(blobUrl);
+    }
+  };
 
-  const blob = new Blob([wrapped], { type: "image/svg+xml" });
-  const blobUrl = URL.createObjectURL(blob);
-  try {
-    return await loadImage(blobUrl);
-  } finally {
-    URL.revokeObjectURL(blobUrl);
+  // Top-level rotor groups only; ones nested in another are spun with it.
+  const rotorEls = [...svgEl.querySelectorAll("[data-rotor]")].filter(
+    (el) => !el.parentElement?.closest("[data-rotor]"),
+  );
+  const parsed = rotorEls
+    .map((el, i) => ({ el, binding: parseRotorBinding(el, `r${i + 1}`) }))
+    .filter((r): r is { el: Element; binding: RotorBinding } => r.binding !== null);
+  // Ids name atlas entries, so they must be unique within a type.
+  const seenIds = new Set<string>();
+  for (const r of parsed) {
+    let id = r.binding.id;
+    for (let n = 2; seenIds.has(id); n++) id = `${r.binding.id}~${n}`;
+    seenIds.add(id);
+    r.binding.id = id;
   }
+
+  if (parsed.length === 0) {
+    return { fuselage: await rasterize(innerMarkup), full: null, rotors: [] };
+  }
+
+  const viewBox = parseViewBox(tightViewBox, SHAPE_RASTER_SIZE, SHAPE_RASTER_SIZE);
+  const serializer = new XMLSerializer();
+  const stripped = svgEl.cloneNode(true) as Element;
+  stripped.querySelectorAll("[data-rotor]").forEach((el) => el.remove());
+
+  const [fuselage, full, ...rotorImages] = await Promise.all([
+    rasterize(stripped.innerHTML),
+    rasterize(innerMarkup),
+    ...parsed.map((r) => rasterize(serializer.serializeToString(r.el))),
+  ]);
+
+  return {
+    fuselage,
+    full,
+    rotors: parsed.map((r, i) => {
+      const [px, py] = pivotToCanvasPixels(
+        r.binding.pivot,
+        viewBox,
+        SHAPE_RASTER_SIZE,
+        SHAPE_RASTER_SIZE,
+      );
+      return {
+        binding: r.binding,
+        image: rotorImages[i],
+        pivotNorm: [px / SHAPE_RASTER_SIZE, py / SHAPE_RASTER_SIZE] as [number, number],
+      };
+    }),
+  };
 }
 
 /** A plain rotated triangle, drawn directly to canvas — no external asset —
@@ -250,12 +347,41 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
     { key: ROTOR_ACCENT_KEY, url: null },
   ];
 
+  // Loaded once per unique base entry/URL, then reused for both that entry's
+  // normal and glow cells — avoids fetching every vendored shape SVG twice.
+  const baseSprites = await Promise.all(
+    baseEntries.map((entry) => (entry.url ? loadShapeSprites(entry.url) : Promise.resolve(null))),
+  );
+  const imageByKey = new Map<string, HTMLImageElement | null>();
+  // Rotor sprites, whole-drawing variants: extra non-glow entries.
+  const extraEntries: Array<{ key: string; rotor?: { pivotNorm: [number, number] } }> = [];
+  rotorBindingsByType.clear();
+  const pendingBindings: Array<{ typeKey: string; binding: RotorBinding }> = [];
+  baseEntries.forEach((entry, i) => {
+    const sprites = baseSprites[i];
+    imageByKey.set(entry.key, sprites?.fuselage ?? null);
+    if (!sprites || sprites.rotors.length === 0) return;
+    imageByKey.set(fullIconKey(entry.key), sprites.full);
+    extraEntries.push({ key: fullIconKey(entry.key) });
+    for (const rotor of sprites.rotors) {
+      const key = rotorIconKey(entry.key, rotor.binding.id);
+      imageByKey.set(key, rotor.image);
+      extraEntries.push({ key, rotor: { pivotNorm: rotor.pivotNorm } });
+      pendingBindings.push({ typeKey: entry.key, binding: rotor.binding });
+    }
+  });
+
   // Every base entry gets a second, blurred "glow" entry (see
   // `GLOW_ICON_KEY_SUFFIX`) so the icon-glow layer can render each aircraft's
   // own silhouette instead of an unrelated shape like a plain circle.
-  const entries: Array<{ key: string; url: string | null; glow: boolean }> = [
-    ...baseEntries.map((e) => ({ ...e, glow: false })),
-    ...baseEntries.map((e) => ({ key: glowIconKey(e.key), url: e.url, glow: true })),
+  const entries: Array<{
+    key: string;
+    glow: boolean;
+    rotor?: { pivotNorm: [number, number] };
+  }> = [
+    ...baseEntries.map((e) => ({ key: e.key, glow: false })),
+    ...extraEntries.map((e) => ({ key: e.key, glow: false, rotor: e.rotor })),
+    ...baseEntries.map((e) => ({ key: glowIconKey(e.key), glow: true })),
   ];
 
   const columns = Math.max(1, Math.ceil(Math.sqrt(entries.length)));
@@ -266,15 +392,10 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("2D canvas context unavailable");
 
-  // Loaded once per unique base entry/URL, then reused for both that entry's
-  // normal and glow cells — avoids fetching every vendored shape SVG twice.
-  const baseImages = await Promise.all(
-    baseEntries.map((entry) => (entry.url ? loadShapeImage(entry.url) : Promise.resolve(null))),
-  );
-  const imageByKey = new Map(baseEntries.map((entry, i) => [entry.key, baseImages[i]]));
-
   const mapping: Record<string, IconAtlasEntry> = {};
   const drawable = CELL_SIZE - CELL_PADDING * 2;
+  // Hub offset from the fuselage sprite's center, per rotor atlas key.
+  const hubOffsetByKey = new Map<string, [number, number]>();
 
   entries.forEach((entry, i) => {
     const col = i % columns;
@@ -285,8 +406,13 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
     const cy = y + CELL_SIZE / 2;
 
     const baseKey = entry.glow ? entry.key.slice(0, -GLOW_ICON_KEY_SUFFIX.length) : entry.key;
-    const image = imageByKey.get(baseKey) ?? null;
+    // The glow silhouette includes the rotors, hence the whole-drawing image.
+    const image =
+      (entry.glow ? imageByKey.get(fullIconKey(baseKey)) : null) ?? imageByKey.get(baseKey) ?? null;
     const drawableForEntry = entry.glow ? drawable * GLOW_SHRINK : drawable;
+
+    let anchorX = CELL_SIZE / 2;
+    let anchorY = CELL_SIZE / 2;
 
     if (entry.glow) {
       ctx.save();
@@ -301,6 +427,14 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
       const w = image.naturalWidth * scale;
       const h = image.naturalHeight * scale;
       ctx.drawImage(image, cx - w / 2, cy - h / 2, w, h);
+      if (entry.rotor) {
+        // The sprite is laid out exactly like its fuselage's cell; its
+        // anchor sits on the hub so IconLayer spins it about the pivot.
+        const [nx, ny] = entry.rotor.pivotNorm;
+        anchorX = (CELL_SIZE - w) / 2 + nx * w;
+        anchorY = (CELL_SIZE - h) / 2 + ny * h;
+        hubOffsetByKey.set(entry.key, [anchorX - CELL_SIZE / 2, anchorY - CELL_SIZE / 2]);
+      }
     } else if (baseKey === ROTOR_ACCENT_KEY) {
       drawRotorAccent(ctx, cx, cy, drawableForEntry);
     } else {
@@ -316,11 +450,22 @@ export async function buildAircraftIconAtlas(): Promise<IconAtlas> {
       y,
       width: CELL_SIZE,
       height: CELL_SIZE,
-      anchorX: CELL_SIZE / 2,
-      anchorY: CELL_SIZE / 2,
+      anchorX,
+      anchorY,
       mask: true,
     };
   });
+
+  for (const { typeKey, binding } of pendingBindings) {
+    const atlasKey = rotorIconKey(typeKey, binding.id);
+    const offset = hubOffsetByKey.get(atlasKey);
+    // No usable rotor sprite (image failed to load): leave this rotor
+    // unbound rather than spinning a generic marker.
+    if (!offset) continue;
+    const list = rotorBindingsByType.get(typeKey) ?? [];
+    list.push({ ...binding, atlasKey, offset });
+    rotorBindingsByType.set(typeKey, list);
+  }
 
   knownTypeDesignators = new Set(typeDesignators);
 
