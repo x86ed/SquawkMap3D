@@ -9,7 +9,6 @@ import {
   resolveAircraftColor,
   resolveIconKey,
   resolveTrackPointColor,
-  ROTOR_ACCENT_KEY,
   rotorBindingsByType,
   type IconAtlas,
 } from "./aircraftIcons";
@@ -42,13 +41,11 @@ export const AIRCRAFT_ICON_LAYER_ID = "aircraft-icons";
 export const AIRCRAFT_MODEL_LAYER_ID = "aircraft-models";
 export const AIRCRAFT_TRACK_LAYER_ID = "aircraft-tracks";
 export const AIRCRAFT_SELECTION_GLOW_LAYER_ID = "aircraft-selection-glow";
-export const AIRCRAFT_ROTOR_ACCENT_LAYER_ID = "aircraft-rotor-accent";
 export const AIRCRAFT_ROTOR_BINDING_LAYER_ID = "aircraft-rotor-bindings";
 export const AIRCRAFT_ICON_GLOW_LAYER_ID = "aircraft-icon-glow";
 export const AIRCRAFT_TRACK_GLOW_LAYER_ID = "aircraft-track-glow";
 export const AIRCRAFT_TRACK_DROPLINE_LAYER_ID = "aircraft-track-dropline";
 
-export const ROTORCRAFT_CATEGORY = "A7";
 const AIRCRAFT_ICON_SIZE_PIXELS = 40;
 // Fallback when an atlas entry's own height is unknown; matches the atlas
 // builder's cell size (aircraftIcons.ts).
@@ -72,50 +69,6 @@ export function collectRotorInstances(aircraft: PositionedAircraft[]): RotorInst
     for (const binding of bindings) instances.push({ aircraft: d, binding });
   }
   return instances;
-}
-
-/**
- * Rotorcraft rotor-disc accent (design.md Decision 8, revised): a second,
- * smaller `IconLayer` for category-A7 aircraft only, positioned at the
- * exact same real-world altitude as the aircraft's own icon (unlike the
- * previous MapLibre-`Marker`-based version, which had no altitude/pitch
- * awareness — see aircraftIcons.ts's `drawRotorAccent` doc comment).
- * `billboard: false` matches the main icon layer so the accent tilts with
- * the same 3D ground-plane orientation rather than floating flat-on
- * relative to the tilted fuselage beneath it. The spin angle is derived
- * from `nowMs` at build time: in 3D it advances once per poll, in 2D
- * MapView's rotor loop rebuilds this layer every animation frame. Only the
- * fallback for A7 aircraft whose icon SVG declares no `data-rotor`
- * bindings — types with bindings get their own spun rotor sprites
- * (`buildRotorBindingLayer`). 3D-modeled types animate their own "Rotors"
- * node independently (animatedAircraftScenegraphLayer.ts's `draw()`).
- */
-export function buildRotorAccentLayer(params: {
-  aircraft: PositionedAircraft[];
-  iconAtlas: IconAtlas;
-  nowMs: number;
-  flat?: boolean;
-}): Layer {
-  const { aircraft, iconAtlas, nowMs, flat = false } = params;
-  const spinAngleDeg = (nowMs / 7) % 360;
-  const rotorcraft = aircraft.filter(
-    (a) => a.category === ROTORCRAFT_CATEGORY && !rotorBindingsByType.has(resolveIconKey(a).key),
-  );
-  return new IconLayer<PositionedAircraft>({
-    id: AIRCRAFT_ROTOR_ACCENT_LAYER_ID,
-    data: rotorcraft,
-    iconAtlas: iconAtlas.image,
-    iconMapping: iconAtlas.mapping,
-    getIcon: () => ROTOR_ACCENT_KEY,
-    getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude, flat)],
-    getAngle: () => spinAngleDeg,
-    getColor: ROTOR_ACCENT_COLOR,
-    getSize: ROTOR_ACCENT_SIZE_PIXELS,
-    sizeUnits: "pixels",
-    billboard: false,
-    pickable: false,
-    updateTriggers: { getAngle: spinAngleDeg },
-  });
 }
 
 /**
@@ -160,8 +113,6 @@ export function buildRotorBindingLayer(params: {
     updateTriggers: { getAngle: nowMs },
   });
 }
-const ROTOR_ACCENT_SIZE_PIXELS = 22;
-const ROTOR_ACCENT_COLOR: [number, number, number] = [229, 229, 229];
 
 // Exported so other real-altitude-positioned deck.gl layers (radarSweep.ts's
 // aircraft dots) reuse the exact same conversion rather than a copy that
@@ -294,7 +245,7 @@ export function buildAircraftLayers(params: {
   // Replace-2d-sprite-with-3d-model: any aircraft whose exact ICAO type
   // designator has a vendored .glb (aircraftModels.ts) renders as a real
   // ScenegraphLayer mesh instead of the flat IconLayer sprite — the icon,
-  // icon-glow, and rotor-accent layers below are all built from
+  // icon-glow, and rotor-binding layers below are all built from
   // `iconOnlyPositioned`, not `positioned`, so a modeled aircraft is never
   // double-rendered as both a sprite and a mesh.
   //
@@ -588,13 +539,6 @@ export function buildAircraftLayers(params: {
     });
   }
 
-  const rotorLayer = buildRotorAccentLayer({
-    aircraft: iconOnlyPositioned,
-    iconAtlas,
-    nowMs: Date.now(),
-    flat,
-  });
-
   // 2D mode only (see `collectRotorInstances`): spun rotor sprites for types
   // with SVG rotor bindings, drawn over the fuselage icon.
   const rotorBindingLayer = modelsEnabled
@@ -608,16 +552,14 @@ export function buildAircraftLayers(params: {
       });
 
   // Paint order, back to front: the always-on icon glow, the track glow, the
-  // ground droplines, then the crisp track line, rotor accent, and icons on
-  // top (rotor drawn just before the icon so the fuselage silhouette isn't
-  // hidden underneath it). The three track-related layers are `null` (and
+  // ground droplines, then the crisp track line and icons, with the
+  // SVG-bound rotor sprites on top of the fuselage icon. The three track-related layers are `null` (and
   // simply omitted) when `tracksVisible` is false.
   return [
     iconGlowLayer,
     trackGlowLayer,
     droplineLayer,
     trackLayer,
-    rotorLayer,
     iconLayer,
     rotorBindingLayer,
     ...modelLayers,

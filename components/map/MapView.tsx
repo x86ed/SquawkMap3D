@@ -30,14 +30,11 @@ import {
 import { buildAircraftIconAtlas, type ColorMode, type IconAtlas } from "./aircraftIcons";
 import { loadAircraftModelManifest } from "./aircraftModels";
 import {
-  AIRCRAFT_ROTOR_ACCENT_LAYER_ID,
   AIRCRAFT_ROTOR_BINDING_LAYER_ID,
   altitudeToRenderMeters,
   buildAircraftLayers,
-  buildRotorAccentLayer,
   buildRotorBindingLayer,
   collectRotorInstances,
-  ROTORCRAFT_CATEGORY,
   type RotorInstance,
 } from "./aircraftLayer";
 import { computeRarityTier, RARITY_TIER_STYLES } from "./aircraftRarity";
@@ -216,7 +213,6 @@ export default function MapView() {
   // 2D rotor-spin loop state: the last built aircraft layers (reused except
   // for the rotor layers), plus the inputs those two layers rebuild from.
   const aircraftLayersRef = useRef<Layer[]>([]);
-  const rotorIconAircraftRef = useRef<(Aircraft & { lat: number; lon: number })[]>([]);
   const rotorInstancesRef = useRef<RotorInstance[]>([]);
   const rotorRafRef = useRef<number | null>(null);
   const rotorLastFrameMsRef = useRef(0);
@@ -435,7 +431,6 @@ export default function MapView() {
     if (!aircraftVisibleRef.current) {
       deckOverlayRef.current.setProps({ layers: [] });
       aircraftLayersRef.current = [];
-      rotorIconAircraftRef.current = [];
       rotorInstancesRef.current = [];
       stopRotorLoop();
       return;
@@ -479,10 +474,8 @@ export default function MapView() {
         (a): a is Aircraft & { lat: number; lon: number } =>
           a.lat !== undefined && a.lon !== undefined,
       );
-      rotorIconAircraftRef.current = positioned;
       rotorInstancesRef.current = collectRotorInstances(positioned);
     } else {
-      rotorIconAircraftRef.current = [];
       rotorInstancesRef.current = [];
     }
     syncRotorLoop();
@@ -662,7 +655,7 @@ export default function MapView() {
     selectionPulseOverlayRef.current?.setProps({ layers: [] });
   };
 
-  // 2D rotor-spin loop: rebuilds only the two rotor layers each frame
+  // 2D rotor-spin loop: rebuilds only the rotor layer each frame
   // (capped at ROTOR_ANIMATION_MAX_FPS) and reuses every other layer from
   // the last poll's build, so the ~1 Hz full rebuild isn't repeated per
   // frame. Runs only in 2D with a rotor-bearing aircraft on screen.
@@ -679,14 +672,6 @@ export default function MapView() {
     // phase doesn't jump between a poll build and the frames after it.
     const wallMs = performance.timeOrigin + nowMs;
     const layers = aircraftLayersRef.current.map((layer) => {
-      if (layer.id === AIRCRAFT_ROTOR_ACCENT_LAYER_ID) {
-        return buildRotorAccentLayer({
-          aircraft: rotorIconAircraftRef.current,
-          iconAtlas: atlas,
-          nowMs: wallMs,
-          flat: viewModeRef.current === "2d",
-        });
-      }
       if (layer.id === AIRCRAFT_ROTOR_BINDING_LAYER_ID) {
         return buildRotorBindingLayer({
           instances: rotorInstancesRef.current,
@@ -711,9 +696,7 @@ export default function MapView() {
 
   const syncRotorLoop = () => {
     const wanted =
-      viewModeRef.current === "2d" &&
-      (rotorInstancesRef.current.length > 0 ||
-        rotorIconAircraftRef.current.some((a) => a.category === ROTORCRAFT_CATEGORY));
+      viewModeRef.current === "2d" && rotorInstancesRef.current.length > 0;
     if (!wanted) {
       stopRotorLoop();
     } else if (rotorRafRef.current === null) {
