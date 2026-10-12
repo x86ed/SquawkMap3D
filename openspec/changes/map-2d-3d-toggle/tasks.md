@@ -30,7 +30,7 @@ Note: parsing, speed and direction follow the requester's rotor docs (see design
 
 ## 3c. Flat altitude in 2D
 
-- [x] 3c.1 `aircraftLayer.ts`: `altitudeToRenderMeters(alt, flat)` returns 0 when flat; `buildAircraftLayers` passes `flat = !modelsEnabled` to icon, icon-glow,  rotor-binding, track and dropline positions; `buildRotorBindingLayer`/`buildRotorAccentLayer`/`buildSelectionPulseLayer` take `flat`; `MapView.tsx` passes `viewModeRef.current === "2d"` from the rotor and pulse rAF loops and the focus offset
+- [x] 3c.1 `aircraftLayer.ts`: `altitudeToRenderMeters(alt, flat)` returns 0 when flat; `buildAircraftLayers` passes `flat = !modelsEnabled` to icon, icon-glow, rotor-binding, track and dropline positions; `buildRotorBindingLayer`/`buildSelectionPulseLayer` take `flat`; `MapView.tsx` passes `viewModeRef.current === "2d"` from the rotor and pulse rAF loops and the focus offset
 - [x] 3c.2 Unit test: icon/track/rotor-binding z is 0 in 2D and altitude-lifted in 3D
 
 ## 4. Tests

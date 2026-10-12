@@ -85,7 +85,7 @@ export function pivotToCanvasPixels(
 
 /** Clockwise-positive spin (degrees, SVG `rotate()` convention) at wall
  * time `tSeconds`. Fixed display rate; only the sign comes from the binding. */
-export function rotorSpinDegrees(binding: Pick<RotorBinding, "sign">, tSeconds: number): number {
+export function rotorSpinDegrees(binding: Pick<RotorBinding, "sign"> & Partial<Pick<RotorBinding, "rpm">>, tSeconds: number): number {
   return (binding.sign * ROTOR_DISPLAY_REVS_PER_SECOND * 360 * tSeconds) % 360;
 }
 
