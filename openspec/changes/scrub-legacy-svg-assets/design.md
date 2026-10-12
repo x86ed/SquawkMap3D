@@ -29,7 +29,7 @@
    | C1 emergency vehicle | `FIRE` | exists |
    | C2 service vehicle | `PTUG` | exists (pushback tug) |
    | C3 point obstacle | `TURB` | exists (turbine/wind turbine) |
-   | no type and no category (incl. A0/B0/C0/D0) | `UNKN` | new |
+   | no type and no category (incl. A0/B0/C0/D0) | `UNKN` | exists (flying saucer; body spins as a rotor) |
 
    Add `UNKNOWN_FALLBACK_KEY = "UNKN"`. C4/C5 (cluster/line obstacle) stay on the generic marker. Existing `SERV` was the C1 stand-in; once `FIRE` lands it is unreferenced by the fallback table (remove or keep as a directly addressable type — decide in task 3.5).
 
@@ -43,7 +43,7 @@
 
 - Top-down model projection can yield blobby silhouettes for helicopters (rotors) or gear-down models → exclude `Rotors`/`Landing gear` nodes by name; spot-check every output visually.
 - Types with no model lose their exact 2D icon (e.g. A124 shows as the A5 representative). Accepted per the goal; coverage grows by adding models.
-- Only `UNKN` is still to be authored by the repo owner; until it lands, the unknown case resolves to the generic marker.
+- `UNKN`'s whole saucer body is a rotor node, so the silhouette generator must include rotor nodes for that model (blade-only rotors on other types stay excluded).
 - `ICON_ORIENTATION_OFFSET_DEG` was tuned per old SVG; generated silhouettes face nose-up by construction, so offsets are expected to be dropped — verify per key.
 
 ## Open Questions

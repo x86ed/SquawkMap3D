@@ -1,6 +1,6 @@
 ## 1. Silhouette generator
 
-- [ ] 1.1 Add `scripts/generate-aircraft-silhouettes.mjs`: load each `public/aircraft-models/*.glb`, project non-rotor/non-gear geometry top-down, trace outline, write filled single-path `public/aircraft-silhouettes/<TYPE>.svg` (square viewBox, bbox-cropped, nose up) and `manifest.json`
+- [ ] 1.1 Add `scripts/generate-aircraft-silhouettes.mjs`: load each `public/aircraft-models/*.glb`, project non-gear geometry top-down (skip `Rotor*` nodes except for `UNKN`, whose saucer body is a rotor node), trace outline, write filled single-path `public/aircraft-silhouettes/<TYPE>.svg` (square viewBox, bbox-cropped, nose up) and `manifest.json`
 - [ ] 1.2 Run it for all existing models; visually spot-check every output (helicopters, floats, gear) and fix exclusion rules
 - [ ] 1.3 Add a test asserting every `aircraft-models/manifest.json` entry has a silhouette file and manifest entry
 
@@ -14,7 +14,7 @@
 
 ## 3. Special types in 3D
 
-- [ ] 3.1 Models `PARA`, `FALH`, `FIRE`, `PTUG`, `TURB` are present in `public/aircraft-models/` and `manifest.json`; owner still adds `UNKN` (unknown) with embedded author, then regenerate manifest via `scripts/generate-aircraft-models-manifest.mjs`
+- [ ] 3.1 Models `PARA`, `FALH`, `FIRE`, `PTUG`, `TURB` are present in `public/aircraft-models/` and `manifest.json`; `UNKN` (flying saucer; body is a `Rotor*` node spinning about Y) added to `public/aircraft-models/` and `manifest.json`; owner may add embedded author metadata
 - [ ] 3.2 Extend `CATEGORY_FALLBACK_KEY`: `B3→PARA`, `B4→ULAC`, `B6→VFHC`, `B7→FALH`, `C1→FIRE`, `C2→PTUG`, `C3→TURB`; add `UNKNOWN_FALLBACK_KEY="UNKN"` used by `resolveIconKey`, `resolveModelKeyForTypeAndCategory`, and `compassTrackModel.ts`
 - [ ] 3.3 Regenerate silhouettes (1.1) so every special type gets 2D art
 - [ ] 3.4 Tests: B3/B6/B7/C1/C2/C3 and no-category aircraft resolve to the mapped model key and silhouette
