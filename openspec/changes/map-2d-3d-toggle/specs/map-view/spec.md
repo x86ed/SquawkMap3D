@@ -1,27 +1,46 @@
 ## ADDED Requirements
 
 ### Requirement: 2D/3D view mode toggle
-The map SHALL provide a 2D/3D view-mode toggle, defaulting to 3D, implemented as the compass (reset-north) button of the existing top-left navigation control group. Clicking it SHALL reset the map bearing to north and switch between the two modes. In 2D mode the map SHALL be viewed from a dead-on top-down perspective (pitch 0) and the user SHALL NOT be able to change pitch; 3D terrain SHALL be disabled. Switching back to 3D SHALL restore the 3D pitch range and terrain.
+The map SHALL provide a 2D/3D view-mode toggle, defaulting to 3D, implemented as an additional button in the existing top-left navigation control group, styled to match it. The button SHALL be labeled with the current mode ("2D" or "3D"). The compass (reset-north) button SHALL keep its normal reset-north behavior in both modes and SHALL NOT act as the toggle. In 2D mode the map SHALL be viewed dead-on top-down (pitch 0) and the user SHALL NOT be able to change pitch; 3D terrain SHALL be disabled. Switching back to 3D SHALL restore the 3D pitch range and terrain.
 
 #### Scenario: Toggle control placement
 - **WHEN** the map has loaded
-- **THEN** the top-left navigation control group (zoom buttons and compass) shows the compass button labeled with the current mode ("3D" initially)
+- **THEN** the top-left control group shows the zoom buttons, the compass, and a separate 2D/3D button labeled with the current mode ("3D" initially)
 
 #### Scenario: Switch to 2D
-- **WHEN** the map is in 3D mode and the user clicks the compass/reset-north button
-- **THEN** the bearing returns to 0 (north up), the pitch becomes 0, the button label changes to "2D", and 3D terrain is no longer applied
+- **WHEN** the map is in 3D mode and the user clicks the 2D/3D button
+- **THEN** the pitch becomes 0, the button label changes to "2D", and 3D terrain is no longer applied
+
+#### Scenario: Compass still resets north
+- **WHEN** the user clicks the compass button in either 2D or 3D mode
+- **THEN** the bearing returns to 0 and the view mode does not change
 
 #### Scenario: No pitch in 2D
 - **WHEN** the map is in 2D mode and the user performs a pitch gesture (e.g. right-click drag vertically, two-finger tilt)
 - **THEN** the map pitch remains 0 (bearing may still change)
 
 #### Scenario: Switch back to 3D
-- **WHEN** the map is in 2D mode and the user clicks the compass button
-- **THEN** the bearing is 0, the map pitch returns to its pre-2D value (or the default initial pitch), terrain is re-applied, and the label shows "3D"
+- **WHEN** the map is in 2D mode and the user clicks the 2D/3D button
+- **THEN** the map pitch returns to its pre-2D value (or the default initial pitch), terrain is re-applied, and the label shows "3D"
 
 #### Scenario: Mode survives style swap
 - **WHEN** the map is in 2D mode and the user switches theme or pilot mode
 - **THEN** the map remains in 2D mode at pitch 0 without terrain
+
+### Requirement: View mode is persisted
+The selected view mode SHALL be persisted in browser `localStorage` (key `squawkmap3d:viewMode`) using the same convention as the theme and drawer-width preferences, SHALL default to 3D when nothing valid is stored, and SHALL be restored on load.
+
+#### Scenario: Default
+- **WHEN** the app loads with no stored view mode
+- **THEN** the map is in 3D mode
+
+#### Scenario: Restored on reload
+- **WHEN** the user switches to 2D and reloads the page
+- **THEN** the map loads in 2D mode (pitch 0, no terrain, label "2D")
+
+#### Scenario: Invalid or unavailable storage
+- **WHEN** the stored value is not "2d" or "3d", or `localStorage` is unavailable
+- **THEN** the map loads in 3D mode without error
 
 ## MODIFIED Requirements
 
