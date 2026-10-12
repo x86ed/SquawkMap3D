@@ -1,4 +1,4 @@
-import { ROTOR_DEFAULT_RPM, rotorRevsPerSecond } from "./constants";
+import { ROTOR_DEFAULT_RPM, ROTOR_DISPLAY_REVS_PER_SECOND } from "./constants";
 
 /** A top-mounted rotor declared on an icon SVG via a
  * `<g data-rotor data-rotor-pivot data-rotor-direction data-rotor-rpm>`
@@ -84,9 +84,9 @@ export function pivotToCanvasPixels(
 }
 
 /** Clockwise-positive spin (degrees, SVG `rotate()` convention) at wall
- * time `tSeconds`. */
-export function rotorSpinDegrees(binding: Pick<RotorBinding, "sign" | "rpm">, tSeconds: number): number {
-  return (binding.sign * rotorRevsPerSecond(binding.rpm) * 360 * tSeconds) % 360;
+ * time `tSeconds`. Fixed display rate; only the sign comes from the binding. */
+export function rotorSpinDegrees(binding: Pick<RotorBinding, "sign">, tSeconds: number): number {
+  return (binding.sign * ROTOR_DISPLAY_REVS_PER_SECOND * 360 * tSeconds) % 360;
 }
 
 /** deck.gl `IconLayer` angles are counter-clockwise-positive while both the

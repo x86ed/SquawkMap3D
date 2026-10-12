@@ -13,8 +13,7 @@ import {
 } from "../components/map/rotorBindings";
 import {
   ROTOR_DEFAULT_RPM,
-  ROTOR_REVS_AT_DEFAULT,
-  rotorRevsPerSecond,
+  ROTOR_DISPLAY_REVS_PER_SECOND,
 } from "../components/map/constants";
 import {
   AIRCRAFT_ICON_LAYER_ID,
@@ -173,26 +172,16 @@ test("pivotToCanvasPixels with the real-world R44-style viewBox and a 3x canvas 
 
 // --- Speed + angle sign ---
 
-test("rotorRevsPerSecond: 600 rpm is 2.5 rev/s and the result clamps to [1, 4]", () => {
-  assert.equal(rotorRevsPerSecond(600), ROTOR_REVS_AT_DEFAULT);
-  assert.equal(rotorRevsPerSecond(600), 2.5);
-  assert.equal(rotorRevsPerSecond(1), 1);
-  assert.equal(rotorRevsPerSecond(10_000), 4);
-  assert.equal(rotorRevsPerSecond(960), 4);
-  assert.equal(rotorRevsPerSecond(240), 1);
-  assert.equal(rotorRevsPerSecond(480), 2);
-});
-
-test("rotorRevsPerSecond treats invalid rpm as the default", () => {
-  assert.equal(rotorRevsPerSecond(0), 2.5);
-  assert.equal(rotorRevsPerSecond(NaN), 2.5);
-  assert.equal(rotorRevsPerSecond(-5), 2.5);
+test("rotor display rate is a fixed 1 rev/s and ignores rpm", () => {
+  assert.equal(ROTOR_DISPLAY_REVS_PER_SECOND, 1);
+  assert.equal(rotorSpinDegrees({ sign: 1, rpm: 60 }, 0.25), 90);
+  assert.equal(rotorSpinDegrees({ sign: 1, rpm: 6000 }, 0.25), 90);
 });
 
 test("rotorSpinDegrees is clockwise-positive for cw and negative for ccw", () => {
-  // 2.5 rev/s -> 0.1 s = 90 deg
-  assert.equal(rotorSpinDegrees({ sign: 1, rpm: 600 }, 0.1), 90);
-  assert.equal(rotorSpinDegrees({ sign: -1, rpm: 600 }, 0.1), -90);
+  // 1 rev/s -> 0.25 s = 90 deg
+  assert.equal(rotorSpinDegrees({ sign: 1, rpm: 600 }, 0.25), 90);
+  assert.equal(rotorSpinDegrees({ sign: -1, rpm: 600 }, 0.25), -90);
   assert.equal(rotorSpinDegrees({ sign: 1, rpm: 600 }, 0), 0);
 });
 

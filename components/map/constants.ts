@@ -286,20 +286,10 @@ export function buildCrudUrl(
 }
 
 // 2D-mode rotor animation (aircraftIcons.ts's `data-rotor` SVG bindings,
-// aircraftLayer.ts's rotor-binding layer). A rotor's display rate scales
-// with its declared rpm: ROTOR_DEFAULT_RPM spins at ROTOR_REVS_AT_DEFAULT
-// rev/s, clamped to [ROTOR_REVS_MIN, ROTOR_REVS_MAX].
+// aircraftLayer.ts's rotor-binding layer). Matches the iconizer's spin-toggle
+// preview: every rotor spins at one fixed display rate, the declared rpm is
+// not applied, and only the direction sign differs per rotor.
 export const ROTOR_DEFAULT_RPM = 600;
-export const ROTOR_REVS_AT_DEFAULT = 2.5;
-export const ROTOR_REVS_MIN = 1;
-export const ROTOR_REVS_MAX = 4;
+export const ROTOR_DISPLAY_REVS_PER_SECOND = 1;
 // Frame-rate cap for the per-frame rotor spin loop (MapView.tsx).
 export const ROTOR_ANIMATION_MAX_FPS = 30;
-
-export function rotorRevsPerSecond(rpm: number): number {
-  const safeRpm = Number.isFinite(rpm) && rpm > 0 ? rpm : ROTOR_DEFAULT_RPM;
-  return Math.min(
-    ROTOR_REVS_MAX,
-    Math.max(ROTOR_REVS_MIN, (safeRpm / ROTOR_DEFAULT_RPM) * ROTOR_REVS_AT_DEFAULT),
-  );
-}
