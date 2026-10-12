@@ -1,15 +1,16 @@
-## 1. Silhouette generator
+## 1. Audit and silhouette generator
 
-- [ ] 1.1 Add `scripts/generate-aircraft-silhouettes.mjs`: load each `public/aircraft-models/*.glb`, project non-gear geometry top-down (skip `Rotor*` nodes except for `UNKN`, whose saucer body is a rotor node), trace outline, write filled single-path `public/aircraft-silhouettes/<TYPE>.svg` (square viewBox, bbox-cropped, nose up) and `manifest.json`
-- [ ] 1.2 Run it for all existing models; visually spot-check every output (helicopters, floats, gear) and fix exclusion rules
-- [ ] 1.3 Add a test asserting every `aircraft-models/manifest.json` entry has a silhouette file and manifest entry
+- [ ] 1.1 Confirm the keep list: every `public/aircraft-shapes/*.svg` with root `data-author="squawk-7500"` (34 today) is kept; list the rest for deletion and get owner sign-off
+- [ ] 1.2 Add `scripts/generate-aircraft-silhouettes.mjs`: for each `public/aircraft-models/*.glb` with no authored SVG, project non-gear geometry top-down (skip `Rotor*` nodes except `UNKN`), trace outline, write a filled `currentColor` single-path SVG with `data-generated="true"` to `public/aircraft-shapes/<TYPE>.svg`; never overwrite a file with `data-author`; regenerate `public/aircraft-shapes/manifest.json`
+- [ ] 1.3 Run it for the 21 models without authored SVGs (`A21N A320 A321 A359 AS35 B744 B752 B789 BALL C172 F16 FFLO H60 P28A PC12 R44 SERV SF25 SHIP UNKN VFHC`); visually spot-check each (helicopters, floats, saucer)
+- [ ] 1.4 Add a test: every `aircraft-models/manifest.json` entry has a shape file, and every file in `public/aircraft-shapes/*.svg` has `data-author` or `data-generated="true"`
 
-## 2. Re-point code at generated silhouettes
+## 2. Re-point code at the remaining shape set
 
-- [ ] 2.1 `aircraftIcons.ts`: build atlas from `/aircraft-silhouettes/manifest.json`; drop `TYPE_SHAPE_URL` to `/aircraft-shapes`, drop `"category"` source and `AIRCRAFT_CATEGORY_FALLBACK_ICON` usage; re-check `ICON_ORIENTATION_OFFSET_DEG`
+- [ ] 2.1 `aircraftIcons.ts`: atlas from `/aircraft-shapes/manifest.json` (now authored + generated only); drop the `"category"` icon source and `AIRCRAFT_CATEGORY_FALLBACK_ICON` usage; re-check `ICON_ORIENTATION_OFFSET_DEG` for the kept/generated keys
 - [ ] 2.2 `constants.ts`: delete `AIRCRAFT_CATEGORY_FALLBACK_ICON`
-- [ ] 2.3 `aircraftShapes.ts`: load silhouette from `/aircraft-silhouettes/<KEY>.svg`; remove `data/aircraftShapes.json`, `fetchLiveShape`, author parsing; keep `CATEGORY_FALLBACK_KEY`
-- [ ] 2.4 `PlaneCard.tsx` / `PlaneCard.module.css`: use new shape source, drop `liveSvg`/legacy stroke override, credit from model only; remove `svgBBox.ts` if unused
+- [ ] 2.3 `aircraftShapes.ts`: remove legacy-Inkscape handling and `data/aircraftShapes.json`; fetch `/aircraft-shapes/<KEY>.svg`; fall back to `UNKN`; keep `data-author` parsing for exact-match credit
+- [ ] 2.4 `PlaneCard.tsx` / `PlaneCard.module.css`: use the new source; drop the legacy stroke override and `computeTightViewBox`/`svgBBox.ts` if unused
 - [ ] 2.5 Update `test/compassTrackModel.test.ts` and any test touching shape/category fallback or `resolveIconKey` sources
 
 ## 3. Special types in 3D
@@ -22,12 +23,12 @@
 
 ## 4. Scrub assets and licenses
 
-- [ ] 4.1 Delete (includes the untracked `public/aircraft-shapes/PARA.svg`, now superseded by `PARA.glb`) `public/aircraft-shapes/*.svg` with no matching model (confirm list before deleting)
-- [ ] 4.2 Delete remainder of `public/aircraft-shapes/` (incl. `LICENSE`, `README.md`, `manifest.json`) and `components/map/data/aircraftShapes.json`
-- [ ] 4.3 Delete pw-silhouettes files (`A1…C2.svg`, `wake-models.txt`) and `public/aircraft-silhouettes/LICENSE`; ensure only generated files remain
-- [ ] 4.4 Delete `scripts/vendor-aircraft-icons.mjs` and `scripts/generate-aircraft-shapes-manifest.mjs`; update stale comments in `compass-card` vendor headers, `aircraftModels.ts`, `svgBBox.ts`
+- [ ] 4.1 Delete the 173 unauthored `public/aircraft-shapes/*.svg` (confirm list against 1.1 before deleting; `PARA.svg` and every other authored file stays)
+- [ ] 4.2 Delete `public/aircraft-shapes/LICENSE`, `components/map/data/aircraftShapes.json`, and replace `public/aircraft-shapes/README.md` GPL text with a provenance note (authored in-repo or generated from `.glb`)
+- [ ] 4.3 Delete `public/aircraft-silhouettes/` entirely (pw-silhouettes `A1…C2.svg`, `wake-models.txt`, `LICENSE`)
+- [ ] 4.4 Delete `scripts/vendor-aircraft-icons.mjs` and `scripts/generate-aircraft-shapes-manifest.mjs` (or reduce the latter to the new manifest step); update stale comments in `compass-card` vendor headers, `aircraftModels.ts`, `svgBBox.ts`, `PlaneCard.module.css`
 - [ ] 4.5 `README.md`: remove AircraftShapesSVG/pw-silhouettes Attribution entries; document `generate-aircraft-silhouettes.mjs`
-- [ ] 4.6 `grep -rn "aircraft-shapes\|AircraftShapesSVG\|pw-silhouettes\|GPL" .` returns nothing outside `openspec/changes/archive` and `node_modules`
+- [ ] 4.6 `grep -rn "AircraftShapesSVG\|pw-silhouettes\|RexKramer1\|GPL" .` returns nothing outside `openspec/changes/archive` and `node_modules`
 
 ## 5. Verify
 
