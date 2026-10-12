@@ -4,6 +4,7 @@ export const DEFAULT_VIEW = {
 
 export const INITIAL_PITCH = 60;
 export const MAX_PITCH = 85;
+export const VIEW_MODE_2D_PITCH = 0;
 export const INITIAL_BEARING = 0;
 export const TERRAIN_EXAGGERATION = 3;
 
@@ -282,4 +283,23 @@ export function buildCrudUrl(
     const value = params[key];
     return value === undefined ? match : encodeURIComponent(value);
   });
+}
+
+// 2D-mode rotor animation (aircraftIcons.ts's `data-rotor` SVG bindings,
+// aircraftLayer.ts's rotor-binding layer). A rotor's display rate scales
+// with its declared rpm: ROTOR_DEFAULT_RPM spins at ROTOR_REVS_AT_DEFAULT
+// rev/s, clamped to [ROTOR_REVS_MIN, ROTOR_REVS_MAX].
+export const ROTOR_DEFAULT_RPM = 600;
+export const ROTOR_REVS_AT_DEFAULT = 2.5;
+export const ROTOR_REVS_MIN = 1;
+export const ROTOR_REVS_MAX = 4;
+// Frame-rate cap for the per-frame rotor spin loop (MapView.tsx).
+export const ROTOR_ANIMATION_MAX_FPS = 30;
+
+export function rotorRevsPerSecond(rpm: number): number {
+  const safeRpm = Number.isFinite(rpm) && rpm > 0 ? rpm : ROTOR_DEFAULT_RPM;
+  return Math.min(
+    ROTOR_REVS_MAX,
+    Math.max(ROTOR_REVS_MIN, (safeRpm / ROTOR_DEFAULT_RPM) * ROTOR_REVS_AT_DEFAULT),
+  );
 }

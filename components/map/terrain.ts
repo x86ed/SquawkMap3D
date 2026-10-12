@@ -29,3 +29,15 @@ export function applySky(map: MapLibreMap): void {
     "atmosphere-blend": 0.8,
   });
 }
+
+/** Enables or disables 3D terrain. Disabling is `setTerrain(null)` (the
+ * DEM source is left in place for a cheap re-enable); enabling re-runs
+ * `applyTerrain`, which also (re-)adds the source if a style swap dropped
+ * it. */
+export function setTerrainEnabled(map: MapLibreMap, enabled: boolean): void {
+  if (enabled) {
+    applyTerrain(map);
+  } else {
+    map.setTerrain(null);
+  }
+}

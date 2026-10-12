@@ -83,3 +83,15 @@ a {
   color: #f1f5f9;
   background-color: rgba(255, 255, 255, 0.08);
 }
+
+/* 2D/3D view-mode button (components/map/viewModeControl.ts) — sits in its
+ * own `.maplibregl-ctrl-group`, so MapLibre's own group/button rules supply
+ * the border, shadow, size, and hover; this only styles the text label to
+ * match the (unthemed, white) nav controls beside it. */
+.maplibregl-ctrl-group button.maplibregl-ctrl-view-mode {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 29px;
+  text-align: center;
+  color: #333;
+}
