@@ -16,7 +16,7 @@ In 3D view mode, aircraft with a loaded 3D model SHALL render as that model (exi
 - **THEN** the selected aircraft, its highlight, tracks, and hover tooltip remain intact
 
 ### Requirement: Vertical rotors animate in 2D mode
-In 2D view mode, every aircraft whose 2D icon SVG declares top-mounted rotors via rotor bindings (`<g data-rotor data-rotor-pivot data-rotor-direction data-rotor-rpm>` groups) SHALL render with each such rotor spinning continuously and smoothly (animated per rendered frame, not stepped once per data poll) about that rotor's pivot (hub). Each rotor SHALL spin in its declared direction (`cw`/`ccw` as seen looking at the nose-up icon), so contra-rotating rotors turn opposite ways. The display rate SHALL be `clamp(rpm / 600 * 2.5, 1, 4)` revolutions per second, with a missing rpm treated as 600; `data-rotor-pivot` SHALL be interpreted in the SVG's viewBox user units (accounting for a non-zero viewBox origin) and direction SHALL always be read per rotor from `data-rotor-direction`, never assumed. The fuselage (all non-rotor shapes) SHALL stay fixed to the aircraft's track while rotors spin, and the rotor blades SHALL NOT also be drawn statically in the fuselage. Aircraft whose SVG has no rotor bindings (fixed-wing, tail rotors, propellers) SHALL NOT show any rotor animation, and their icon SHALL be unchanged.
+In 2D view mode, every aircraft whose 2D icon SVG declares top-mounted rotors via rotor bindings (`<g data-rotor data-rotor-pivot data-rotor-direction data-rotor-rpm>` groups) SHALL render with each such rotor spinning continuously and smoothly (animated per rendered frame, not stepped once per data poll) about that rotor's pivot (hub). Each rotor SHALL spin in its declared direction (`cw`/`ccw` as seen looking at the nose-up icon), so contra-rotating rotors turn opposite ways. The display rate SHALL be a fixed 1 revolution per second for every rotor (matching the iconizer spin-toggle preview), independent of `data-rotor-rpm`; `data-rotor-pivot` SHALL be interpreted in the SVG's viewBox user units (accounting for a non-zero viewBox origin) and direction SHALL always be read per rotor from `data-rotor-direction`, never assumed. The fuselage (all non-rotor shapes) SHALL stay fixed to the aircraft's track while rotors spin, and the rotor blades SHALL NOT also be drawn statically in the fuselage. Aircraft whose SVG has no rotor bindings (fixed-wing, tail rotors, propellers) SHALL NOT show any rotor animation, and their icon SHALL be unchanged.
 
 #### Scenario: Helicopter rotor spins in 2D
 - **WHEN** the map is in 2D mode and an aircraft whose SVG has a `data-rotor` group is displayed
@@ -31,12 +31,16 @@ In 2D view mode, every aircraft whose 2D icon SVG declares top-mounted rotors vi
 - **THEN** each rotor's hub remains at its pivot location on the fuselage
 
 #### Scenario: Speed mapping
-- **WHEN** a rotor declares `data-rotor-rpm` of 600 (or none), and another declares a much larger or smaller rpm
-- **THEN** the first spins at 2.5 rev/s and the other at `clamp(rpm / 600 * 2.5, 1, 4)` rev/s
+- **WHEN** one rotor declares `data-rotor-rpm` of 600 (or none), and another declares a much larger or smaller rpm
+- **THEN** both spin at 1 rev/s; only the direction sign differs between them
 
 #### Scenario: No bindings, no spin
 - **WHEN** the map is in 2D mode and a displayed aircraft's SVG has no `data-rotor` groups
-- **THEN** no rotor animation is shown on it (a rotorcraft-category aircraft without bindings keeps only the existing generic rotor-disc accent)
+- **THEN** no rotor animation is shown on it, and nothing is added in place of one (a rotorcraft-category aircraft without bindings is drawn exactly as its SVG, with no generic rotor disc)
+
+#### Scenario: No rotors drawn that are not in the SVG
+- **WHEN** the map is in 2D mode
+- **THEN** the only rotors drawn are `[data-rotor]` groups present in the displayed aircraft's SVG; no generic, fallback, or glow-derived rotor graphic is synthesized for any aircraft
 
 #### Scenario: Rotor spin continues between polls
 - **WHEN** no new aircraft data has arrived for several frames in 2D mode
