@@ -48,7 +48,7 @@ export const AIRCRAFT_ICON_GLOW_LAYER_ID = "aircraft-icon-glow";
 export const AIRCRAFT_TRACK_GLOW_LAYER_ID = "aircraft-track-glow";
 export const AIRCRAFT_TRACK_DROPLINE_LAYER_ID = "aircraft-track-dropline";
 
-const ROTORCRAFT_CATEGORY = "A7";
+export const ROTORCRAFT_CATEGORY = "A7";
 const AIRCRAFT_ICON_SIZE_PIXELS = 40;
 // Fallback when an atlas entry's own height is unknown; matches the atlas
 // builder's cell size (aircraftIcons.ts).

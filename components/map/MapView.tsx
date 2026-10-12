@@ -16,7 +16,9 @@ import {
   type MapTheme,
 } from "./mapStyles";
 import { getInitialTheme, storeTheme } from "./theme";
-import { applySky, applyTerrain } from "./terrain";
+import { applySky, setTerrainEnabled } from "./terrain";
+import { getInitialViewMode, storeViewMode, type ViewMode } from "./viewMode";
+import { ViewModeControl } from "./viewModeControl";
 import {
   fetchAircraft,
   updateTracks,
@@ -27,7 +29,17 @@ import {
 } from "./aircraft";
 import { buildAircraftIconAtlas, type ColorMode, type IconAtlas } from "./aircraftIcons";
 import { loadAircraftModelManifest } from "./aircraftModels";
-import { altitudeToRenderMeters, buildAircraftLayers } from "./aircraftLayer";
+import {
+  AIRCRAFT_ROTOR_ACCENT_LAYER_ID,
+  AIRCRAFT_ROTOR_BINDING_LAYER_ID,
+  altitudeToRenderMeters,
+  buildAircraftLayers,
+  buildRotorAccentLayer,
+  buildRotorBindingLayer,
+  collectRotorInstances,
+  ROTORCRAFT_CATEGORY,
+  type RotorInstance,
+} from "./aircraftLayer";
 import { computeRarityTier, RARITY_TIER_STYLES } from "./aircraftRarity";
 import { buildSelectionPulseLayer, type SelectionPulseTarget } from "./selectionPulse";
 import { AircraftColorDock } from "./controls/AircraftColorDock";
@@ -118,7 +130,10 @@ import {
   SUA_REFRESH_INTERVAL_MS,
   TERMINATOR_REFRESH_INTERVAL_MS,
   TFR_REFRESH_INTERVAL_MS,
+  ROTOR_ANIMATION_MAX_FPS,
+  VIEW_MODE_2D_PITCH,
 } from "./constants";
+import type { Layer } from "@deck.gl/core";
 import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
 
 // maplibre-gl resolves its worker script relative to `import.meta.url` of
@@ -191,6 +206,20 @@ export default function MapView() {
   const styleReadyRef = useRef(false);
   const deckOverlayRef = useRef<MapboxOverlay | null>(null);
   const aircraftIconAtlasRef = useRef<IconAtlas | null>(null);
+  // 2D/3D view mode: read from style-swap/poll/rAF callbacks, so a ref (no
+  // React state — nothing in the React tree renders from it; the toggle
+  // button's label is owned by `ViewModeControl`).
+  const viewModeRef = useRef<ViewMode>(getInitialViewMode());
+  const viewModeControlRef = useRef<ViewModeControl | null>(null);
+  // Pitch to restore when leaving 2D; null means "use INITIAL_PITCH".
+  const savedPitchRef = useRef<number | null>(null);
+  // 2D rotor-spin loop state: the last built aircraft layers (reused except
+  // for the rotor layers), plus the inputs those two layers rebuild from.
+  const aircraftLayersRef = useRef<Layer[]>([]);
+  const rotorIconAircraftRef = useRef<(Aircraft & { lat: number; lon: number })[]>([]);
+  const rotorInstancesRef = useRef<RotorInstance[]>([]);
+  const rotorRafRef = useRef<number | null>(null);
+  const rotorLastFrameMsRef = useRef(0);
   // Collision-aware repositioning between the two bottom docks (design.md
   // Decision 4) — refs to each dock's root `.dock` element.
   const leftDockRef = useRef<HTMLDivElement>(null);
@@ -405,6 +434,10 @@ export default function MapView() {
     if (!deckOverlayRef.current) return;
     if (!aircraftVisibleRef.current) {
       deckOverlayRef.current.setProps({ layers: [] });
+      aircraftLayersRef.current = [];
+      rotorIconAircraftRef.current = [];
+      rotorInstancesRef.current = [];
+      stopRotorLoop();
       return;
     }
     const aircraft = await fetchAircraft();
@@ -430,6 +463,7 @@ export default function MapView() {
       iconAtlas: aircraftIconAtlasRef.current,
       colorMode: colorModeRef.current,
       tracksVisible: tracksVisibleRef.current,
+      modelsEnabled: viewModeRef.current === "3d",
       onAircraftClick: (hex) =>
         handleAircraftClick(hex, hex ? aircraft.find((a) => a.hex === hex) : undefined),
       onAircraftHover: (hovered, x, y) => {
@@ -438,6 +472,20 @@ export default function MapView() {
       },
     });
     deckOverlayRef.current.setProps({ layers });
+
+    aircraftLayersRef.current = layers;
+    if (viewModeRef.current === "2d") {
+      const positioned = aircraft.filter(
+        (a): a is Aircraft & { lat: number; lon: number } =>
+          a.lat !== undefined && a.lon !== undefined,
+      );
+      rotorIconAircraftRef.current = positioned;
+      rotorInstancesRef.current = collectRotorInstances(positioned);
+    } else {
+      rotorIconAircraftRef.current = [];
+      rotorInstancesRef.current = [];
+    }
+    syncRotorLoop();
 
     const selected = selectedAircraftHexRef.current
       ? aircraft.find((a) => a.hex === selectedAircraftHexRef.current)
@@ -613,6 +661,94 @@ export default function MapView() {
     selectionPulseOverlayRef.current?.setProps({ layers: [] });
   };
 
+  // 2D rotor-spin loop: rebuilds only the two rotor layers each frame
+  // (capped at ROTOR_ANIMATION_MAX_FPS) and reuses every other layer from
+  // the last poll's build, so the ~1 Hz full rebuild isn't repeated per
+  // frame. Runs only in 2D with a rotor-bearing aircraft on screen.
+  const rotorFrame = (nowMs: number) => {
+    rotorRafRef.current = requestAnimationFrame(rotorFrame);
+    if (nowMs - rotorLastFrameMsRef.current < 1000 / ROTOR_ANIMATION_MAX_FPS) return;
+    rotorLastFrameMsRef.current = nowMs;
+
+    const overlay = deckOverlayRef.current;
+    const atlas = aircraftIconAtlasRef.current;
+    if (!overlay || !atlas || aircraftLayersRef.current.length === 0) return;
+
+    const wallMs = Date.now();
+    const layers = aircraftLayersRef.current.map((layer) => {
+      if (layer.id === AIRCRAFT_ROTOR_ACCENT_LAYER_ID) {
+        return buildRotorAccentLayer({
+          aircraft: rotorIconAircraftRef.current,
+          iconAtlas: atlas,
+          nowMs: wallMs,
+        });
+      }
+      if (layer.id === AIRCRAFT_ROTOR_BINDING_LAYER_ID) {
+        return buildRotorBindingLayer({
+          instances: rotorInstancesRef.current,
+          iconAtlas: atlas,
+          colorMode: colorModeRef.current,
+          nowMs: wallMs,
+        });
+      }
+      return layer;
+    });
+    aircraftLayersRef.current = layers;
+    overlay.setProps({ layers });
+  };
+
+  const stopRotorLoop = () => {
+    if (rotorRafRef.current !== null) {
+      cancelAnimationFrame(rotorRafRef.current);
+      rotorRafRef.current = null;
+    }
+  };
+
+  const syncRotorLoop = () => {
+    const wanted =
+      viewModeRef.current === "2d" &&
+      (rotorInstancesRef.current.length > 0 ||
+        rotorIconAircraftRef.current.some((a) => a.category === ROTORCRAFT_CATEGORY));
+    if (!wanted) {
+      stopRotorLoop();
+    } else if (rotorRafRef.current === null) {
+      rotorRafRef.current = requestAnimationFrame(rotorFrame);
+    }
+  };
+
+  const handleViewModeToggle = () => {
+    const map = mapRef.current;
+    if (!map) return;
+    const next: ViewMode = viewModeRef.current === "2d" ? "3d" : "2d";
+    viewModeRef.current = next;
+    storeViewMode(next);
+    viewModeControlRef.current?.setMode(next);
+
+    if (next === "2d") {
+      const pitch = map.getPitch();
+      if (pitch > 0) savedPitchRef.current = pitch;
+      setTerrainEnabled(map, false);
+      if (pitch === 0) {
+        map.setMaxPitch(VIEW_MODE_2D_PITCH);
+      } else {
+        // `setMaxPitch` clamps the current pitch immediately (no
+        // animation), so ease to flat first and lock the pitch range once
+        // the ease ends — unless the user switched back to 3D meanwhile.
+        map.easeTo({ pitch: VIEW_MODE_2D_PITCH, duration: 500 });
+        map.once("moveend", () => {
+          if (viewModeRef.current === "2d") map.setMaxPitch(VIEW_MODE_2D_PITCH);
+        });
+      }
+    } else {
+      map.setMaxPitch(MAX_PITCH);
+      setTerrainEnabled(map, true);
+      map.easeTo({ pitch: savedPitchRef.current ?? INITIAL_PITCH, duration: 500 });
+    }
+
+    // Swap models/icons now rather than at the next ~1 Hz poll.
+    void refreshAircraft();
+  };
+
   const handleLocationResolved = (coords: GeoCoords | null) => {
     userLocationRef.current = coords;
     setSiteLocation(coords);
@@ -660,8 +796,8 @@ export default function MapView() {
       container: containerRef.current,
       style: getStyleUrl(themeRef.current),
       bounds: getBoundsForRadiusNM(DEFAULT_VIEW.center, INITIAL_ZOOM_RADIUS_NM),
-      pitch: INITIAL_PITCH,
-      maxPitch: MAX_PITCH,
+      pitch: viewModeRef.current === "2d" ? VIEW_MODE_2D_PITCH : INITIAL_PITCH,
+      maxPitch: viewModeRef.current === "2d" ? VIEW_MODE_2D_PITCH : MAX_PITCH,
       bearing: INITIAL_BEARING,
     });
     mapRef.current = map;
@@ -673,6 +809,14 @@ export default function MapView() {
       }),
       "top-left",
     );
+    // A separate button directly below the nav group; the compass above
+    // keeps its reset-north behavior in both modes.
+    const viewModeControl = new ViewModeControl({
+      getMode: () => viewModeRef.current,
+      onToggle: handleViewModeToggle,
+    });
+    viewModeControlRef.current = viewModeControl;
+    map.addControl(viewModeControl, "top-left");
     map.on("rotate", () => setMapBearing(map.getBearing()));
 
     // Unlike the style-owned custom layers below (re-added in
@@ -757,7 +901,9 @@ export default function MapView() {
 
     const setupStyleDependentState = () => {
       styleReadyRef.current = true;
-      applyTerrain(map);
+      // Terrain is style-owned (cleared by `setStyle`), so honor the current
+      // view mode here; pitch/maxPitch live on the camera and survive.
+      setTerrainEnabled(map, viewModeRef.current === "3d");
       applySky(map);
       // Added before `addCustomLayers` so it lands at the bottom of the
       // custom-layer stack (MapLibre draws layers in insertion order) —
@@ -947,6 +1093,7 @@ export default function MapView() {
       window.removeEventListener("keydown", handleKeyDown);
       stopRangeOutlineSweep();
       stopSelectionPulse();
+      stopRotorLoop();
       map.remove();
       mapRef.current = null;
     };
