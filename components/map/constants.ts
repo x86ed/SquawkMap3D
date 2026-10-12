@@ -285,11 +285,21 @@ export function buildCrudUrl(
   });
 }
 
-// 2D-mode rotor animation (aircraftIcons.ts's `data-rotor` SVG bindings,
-// aircraftLayer.ts's rotor-binding layer). Matches the iconizer's spin-toggle
-// preview: every rotor spins at one fixed display rate, the declared rpm is
-// not applied, and only the direction sign differs per rotor.
+// 2D-mode rotor animation (rotorSpin.ts / aircraft2dMarkers.ts). Matches the
+// iconizer's spin-toggle preview: every rotor spins at one fixed display
+// rate, the declared rpm is not applied, and only the direction sign differs
+// per rotor.
 export const ROTOR_DEFAULT_RPM = 600;
 export const ROTOR_DISPLAY_REVS_PER_SECOND = 1;
-// Frame-rate cap for the per-frame rotor spin loop (MapView.tsx).
+// Frame-rate cap for the shared rotor spin loop (aircraft2dMarkers.ts).
 export const ROTOR_ANIMATION_MAX_FPS = 30;
+
+// Aircraft icon size on screen (px), shared by the deck.gl IconLayer and the
+// 2D inline-SVG DOM markers so swapping between them is visually consistent.
+export const AIRCRAFT_ICON_SIZE_PIXELS = 40;
+
+// 2D inline-SVG DOM markers (aircraft2dMarkers.ts).
+export const MAX_2D_DOM_MARKERS = 300;
+// Fraction of the viewport size added on each side before culling.
+export const MARKER_VIEWPORT_PADDING = 0.15;
+export const MARKER_CULL_DEBOUNCE_MS = 100;

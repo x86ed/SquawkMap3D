@@ -4,24 +4,17 @@ import type { Aircraft, TrackPoint } from "./aircraft";
 import {
   brightenColor,
   type ColorMode,
-  fullIconKey,
   glowIconKey,
   resolveAircraftColor,
   resolveIconKey,
   resolveTrackPointColor,
-  rotorBindingsByType,
   type IconAtlas,
 } from "./aircraftIcons";
-import {
-  rotateOffsetByTrack,
-  rotorDeckAngle,
-  rotorSpinDegrees,
-  type RotorAtlasBinding,
-} from "./rotorBindings";
 import { isRotorcraftModel, landingGearHideThresholdFeet, modelRotorSpecs, resolveModelKey, resolveModelScenegraph } from "./aircraftModels";
 import { AnimatedAircraftScenegraphLayer } from "./animatedAircraftScenegraphLayer";
 import {
   AIRCRAFT_GLOW_BRIGHTEN_AMOUNT,
+  AIRCRAFT_ICON_SIZE_PIXELS,
   AIRCRAFT_ICON_GLOW_ALPHA,
   AIRCRAFT_ICON_GLOW_SIZE_PIXELS,
   AIRCRAFT_MODEL_MIN_SIZE_PIXELS_PER_METER,
@@ -41,78 +34,9 @@ export const AIRCRAFT_ICON_LAYER_ID = "aircraft-icons";
 export const AIRCRAFT_MODEL_LAYER_ID = "aircraft-models";
 export const AIRCRAFT_TRACK_LAYER_ID = "aircraft-tracks";
 export const AIRCRAFT_SELECTION_GLOW_LAYER_ID = "aircraft-selection-glow";
-export const AIRCRAFT_ROTOR_BINDING_LAYER_ID = "aircraft-rotor-bindings";
 export const AIRCRAFT_ICON_GLOW_LAYER_ID = "aircraft-icon-glow";
 export const AIRCRAFT_TRACK_GLOW_LAYER_ID = "aircraft-track-glow";
 export const AIRCRAFT_TRACK_DROPLINE_LAYER_ID = "aircraft-track-dropline";
-
-const AIRCRAFT_ICON_SIZE_PIXELS = 40;
-// Fallback when an atlas entry's own height is unknown; matches the atlas
-// builder's cell size (aircraftIcons.ts).
-const ATLAS_CELL_SIZE_FALLBACK = 96;
-
-type PositionedAircraft = Aircraft & { lat: number; lon: number };
-
-export interface RotorInstance {
-  aircraft: PositionedAircraft;
-  binding: RotorAtlasBinding;
-}
-
-/** One entry per (aircraft, rotor) for aircraft whose resolved icon type has
- * `data-rotor` bindings (aircraftIcons.ts's `rotorBindingsByType`). Types
- * with none, and everything else, yield nothing. */
-export function collectRotorInstances(aircraft: PositionedAircraft[]): RotorInstance[] {
-  const instances: RotorInstance[] = [];
-  for (const d of aircraft) {
-    const bindings = rotorBindingsByType.get(resolveIconKey(d).key);
-    if (!bindings) continue;
-    for (const binding of bindings) instances.push({ aircraft: d, binding });
-  }
-  return instances;
-}
-
-/**
- * The 2D-mode rotor layer: each rotor sprite is anchored on its hub (atlas
- * `anchorX/anchorY`), positioned at the aircraft, shifted by the hub's
- * offset from the fuselage center rotated to the aircraft's track, and
- * spun about the hub. `nowMs` drives the spin; the caller re-invokes this
- * per animation frame (MapView.tsx) with cached instances.
- */
-export function buildRotorBindingLayer(params: {
-  instances: RotorInstance[];
-  iconAtlas: IconAtlas;
-  colorMode: ColorMode;
-  nowMs: number;
-  flat?: boolean;
-}): Layer {
-  const { instances, iconAtlas, colorMode, nowMs, flat = false } = params;
-  const tSeconds = nowMs / 1000;
-  return new IconLayer<RotorInstance>({
-    id: AIRCRAFT_ROTOR_BINDING_LAYER_ID,
-    data: instances,
-    iconAtlas: iconAtlas.image,
-    iconMapping: iconAtlas.mapping,
-    getIcon: (d) => d.binding.atlasKey,
-    getPosition: (d) => [d.aircraft.lon, d.aircraft.lat, altitudeToRenderMeters(d.aircraft.altitude, flat)],
-    // `getAngle` is counter-clockwise-positive in deck.gl; the track and the
-    // SVG-recipe spin are clockwise-positive (see rotorDeckAngle).
-    getAngle: (d) => rotorDeckAngle(d.aircraft.track, rotorSpinDegrees(d.binding, tSeconds)),
-    getPixelOffset: (d) => {
-      const cell = iconAtlas.mapping[d.binding.atlasKey]?.height ?? ATLAS_CELL_SIZE_FALLBACK;
-      const scale = AIRCRAFT_ICON_SIZE_PIXELS / cell;
-      return rotateOffsetByTrack(
-        [d.binding.offset[0] * scale, d.binding.offset[1] * scale],
-        d.aircraft.track,
-      );
-    },
-    getColor: (d) => resolveAircraftColor(d.aircraft, colorMode),
-    getSize: AIRCRAFT_ICON_SIZE_PIXELS,
-    sizeUnits: "pixels",
-    billboard: false,
-    pickable: false,
-    updateTriggers: { getAngle: nowMs },
-  });
-}
 
 // Exported so other real-altitude-positioned deck.gl layers (radarSweep.ts's
 // aircraft dots) reuse the exact same conversion rather than a copy that
@@ -210,13 +134,18 @@ export function buildAircraftLayers(params: {
   tracks: ReadonlyMap<string, TrackPoint[]>;
   iconAtlas: IconAtlas | null;
   colorMode: ColorMode;
-  // Gates trail line/glow/droplines only — icon, icon-glow, and
-  // rotor layers are unaffected (aircraft-tracks-layer's "toggleable
+  // Gates trail line/glow/droplines only — icon and icon-glow
+  // layers are unaffected (aircraft-tracks-layer's "toggleable
   // independently of aircraft icon visibility" requirement).
   tracksVisible: boolean;
   // 3D view mode: aircraft with a loaded .glb render as models. 2D view
-  // mode (false): every aircraft is a 2D icon and top rotors spin.
+  // mode (false): every aircraft is a 2D icon (inline-SVG DOM marker or
+  // static IconLayer icon beyond the marker cap).
   modelsEnabled: boolean;
+  // Ids currently held by a 2D DOM marker (aircraft2dMarkers.ts): excluded
+  // from the IconLayer data so no aircraft is drawn twice. The glow layer
+  // still draws every aircraft.
+  domMarkerIds?: ReadonlySet<string>;
   onAircraftClick: (hex: string | null) => void;
   onAircraftHover: (
     aircraft: (Aircraft & { lat: number; lon: number }) | null,
@@ -231,6 +160,7 @@ export function buildAircraftLayers(params: {
     colorMode,
     tracksVisible,
     modelsEnabled,
+    domMarkerIds,
     onAircraftClick,
     onAircraftHover,
   } = params;
@@ -244,10 +174,9 @@ export function buildAircraftLayers(params: {
 
   // Replace-2d-sprite-with-3d-model: any aircraft whose exact ICAO type
   // designator has a vendored .glb (aircraftModels.ts) renders as a real
-  // ScenegraphLayer mesh instead of the flat IconLayer sprite — the icon,
-  // icon-glow, and rotor-binding layers below are all built from
-  // `iconOnlyPositioned`, not `positioned`, so a modeled aircraft is never
-  // double-rendered as both a sprite and a mesh.
+  // ScenegraphLayer mesh instead of the flat IconLayer sprite — the icon
+  // layer below is built from `iconOnlyPositioned`, not `positioned`, so a
+  // modeled aircraft is never double-rendered as both a sprite and a mesh.
   //
   // Grouped by type + gear-hidden state, not just type: `ScenegraphLayer`
   // renders one shared instanced mesh per layer (see
@@ -338,16 +267,13 @@ export function buildAircraftLayers(params: {
 
   const iconLayer = new IconLayer<Aircraft & { lat: number; lon: number }>({
     id: AIRCRAFT_ICON_LAYER_ID,
-    data: iconOnlyPositioned,
+    data:
+      domMarkerIds && domMarkerIds.size > 0
+        ? iconOnlyPositioned.filter((d) => !domMarkerIds.has(d.hex))
+        : iconOnlyPositioned,
     iconAtlas: iconAtlas.image,
     iconMapping: iconAtlas.mapping,
-    getIcon: (d) => {
-      const key = resolveIconKey(d).key;
-      // Rotor-bearing types' plain entry has the rotors stripped (they're
-      // spun by the rotor-binding layer in 2D); 3D never builds that layer,
-      // so draw the whole icon.
-      return modelsEnabled && rotorBindingsByType.has(key) ? fullIconKey(key) : key;
-    },
+    getIcon: (d) => resolveIconKey(d).key,
     getPosition: (d) => [d.lon, d.lat, altitudeToRenderMeters(d.altitude, flat)],
     // Icon SVGs are drawn nose-up in the atlas (authored shapes and the
     // ones generated from the .glb models share that convention). deck.gl's IconLayer actually rotates *counter-clockwise*
@@ -539,21 +465,8 @@ export function buildAircraftLayers(params: {
     });
   }
 
-  // 2D mode only (see `collectRotorInstances`): spun rotor sprites for types
-  // with SVG rotor bindings, drawn over the fuselage icon.
-  const rotorBindingLayer = modelsEnabled
-    ? null
-    : buildRotorBindingLayer({
-        instances: collectRotorInstances(iconOnlyPositioned),
-        iconAtlas,
-        colorMode,
-        nowMs: Date.now(),
-        flat,
-      });
-
   // Paint order, back to front: the always-on icon glow, the track glow, the
-  // ground droplines, then the crisp track line and icons, with the
-  // SVG-bound rotor sprites on top of the fuselage icon. The three track-related layers are `null` (and
+  // ground droplines, then the crisp track line and icons. The three track-related layers are `null` (and
   // simply omitted) when `tracksVisible` is false.
   return [
     iconGlowLayer,
@@ -561,7 +474,6 @@ export function buildAircraftLayers(params: {
     droplineLayer,
     trackLayer,
     iconLayer,
-    rotorBindingLayer,
     ...modelLayers,
   ].filter((layer): layer is Layer => layer !== null);
 }
